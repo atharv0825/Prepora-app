@@ -40,9 +40,12 @@ jobs:
       # Run from supabase/functions so Deno picks up its deno.json ("nodeModulesDir": "none").
       # From the repo root, Deno 2 sees package.json and expects npm deps in node_modules.
       # Every folder with an index.ts (except _shared) is a function.
+      # --frozen: fail instead of resolving new versions if deno.lock is out of date. Deno 2 also
+      # refuses packages published < 24 h ago, so pin versions that are a few days old, then
+      # refresh the lock with `deno check` (Deno 2) in supabase/functions and commit deno.lock.
       - name: deno check
         working-directory: supabase/functions
-        run: deno check $(ls */index.ts | grep -v _shared/)
+        run: deno check --frozen $(ls */index.ts | grep -v _shared/)
 
   deploy-staging:
     name: Deploy functions to staging

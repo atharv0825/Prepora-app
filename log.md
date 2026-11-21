@@ -260,3 +260,15 @@ Followed https://developers.cloudflare.com/agent-setup/prompt.md for Claude Code
 - Created `~/.claude/CLAUDE.md` with one rule: use `cf` for Cloudflare work unless the project has a Wrangler config. **Prepora has `apps/web/wrangler.jsonc`, so Prepora keeps using Wrangler.**
 - `cf auth login` completed: `cf auth whoami` shows authenticated, one Cloudflare account.
 - Note: `cf` login is separate from Wrangler login. Deploying `apps/web` still needs `npx wrangler login` (or the CI API token) — see M0-F1.
+
+---
+
+## 2026-11-21 — M0-F1: first CI deploy, pushed to GitHub
+
+- State found: remote `origin` = github.com/atharv0825/Prepora (private). `develop` had only the migration pipeline (PR #1 merged). The Edge Function template (`9d47dfa`) and web app (`2f4dde7`) commits existed locally only.
+- User added `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` to GitHub.
+- Created branch `feature/m0-functions-and-web` (those two commits + log updates) and pushed it. No secret files are tracked (`.dev.vars`, `.env*`, `supabase/.temp` checked).
+- Next: open PR → `develop`. The PR runs `Web` (lint/typecheck/OpenNext build) and `Edge Functions` (deno check). Merging runs `deploy-staging` for both:
+  - Web → Cloudflare worker `prepora-web-staging`
+  - Functions → Supabase staging (`health`)
+- I can't see Actions results myself (private repo, no `gh` CLI / token here).

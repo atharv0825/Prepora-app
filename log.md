@@ -248,3 +248,15 @@ prepora/
 - First deploy URL will be `https://prepora-web-staging.<your-subdomain>.workers.dev`.
 
 **Next:** M0-F2 — design system in `packages/ui` (move shadcn there).
+
+---
+
+## 2026-11-21 — Cloudflare agent setup (user-level, not project code)
+
+Followed https://developers.cloudflare.com/agent-setup/prompt.md for Claude Code.
+
+- `claude plugin marketplace add cloudflare/skills` + `claude plugin install cloudflare@cloudflare` → plugin **cloudflare@cloudflare v1.0.4** (user scope, enabled). Adds Cloudflare skills and the Cloudflare MCP server (`https://mcp.cloudflare.com/mcp`, OAuth on first use). Run `/reload-plugins` (or restart Claude Code) to load it.
+- Optional `cf` CLI (beta), installed at the user's request: checked the npm package is Cloudflare's (`wrangler-publisher`, github.com/cloudflare/cf), then `npm install -g cf` → v0.15.0.
+- Created `~/.claude/CLAUDE.md` with one rule: use `cf` for Cloudflare work unless the project has a Wrangler config. **Prepora has `apps/web/wrangler.jsonc`, so Prepora keeps using Wrangler.**
+- `cf auth login` completed: `cf auth whoami` shows authenticated, one Cloudflare account.
+- Note: `cf` login is separate from Wrangler login. Deploying `apps/web` still needs `npx wrangler login` (or the CI API token) — see M0-F1.

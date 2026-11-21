@@ -49,6 +49,20 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # NEXT_PUBLIC_* values are baked in at build time. A build that will be deployed must have
+      # them, otherwise the live site can't reach Supabase (/status says "not_configured").
+      - name: Check Supabase build variables
+        run: |
+          missing=""
+          [ -z "${NEXT_PUBLIC_SUPABASE_URL}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_URL"
+          [ -z "${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" ] && missing="$missing NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+          if [ -z "$missing" ]; then echo "Supabase build variables present."; exit 0; fi
+          msg="Missing:$missing. Add them as REPOSITORY variables: Settings → Secrets and variables → Actions → Variables tab → 'New repository variable' (not Secrets, not Environment variables)."
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "::warning::$msg PR build continues; the deploy build will fail without them."
+          else
+            echo "::error::$msg"; exit 1
+          fi
       - run: pnpm --filter @prepora/web lint
       - run: pnpm --filter @prepora/web typecheck
       - run: pnpm --filter @prepora/ui typecheck

@@ -1,11 +1,10 @@
 // Cloudflare Workers config for the student web app (built by OpenNext).
 //
 // Environments are explicit (`--env staging` / `--env production`); Wrangler warns when several
-// exist and none is chosen. The top level mirrors staging, so a deploy without --env can still
-// never reach production.
+// exist and none is chosen.
 //
-//   pnpm --filter @prepora/web run deploy -- --env staging      → prepora-web-staging
-//   pnpm --filter @prepora/web run deploy -- --env production   → prepora-web
+//   pnpm --filter @prepora/web run deploy -- --env staging      → prepora-web-staging  → https://staging.prepora.site
+//   pnpm --filter @prepora/web run deploy -- --env production   → prepora-web          (no domain until launch)
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
@@ -26,6 +25,13 @@
   },
   "observability": { "enabled": true },
 
+  // Addresses. No *.workers.dev URL and no per-version preview URLs: each environment is reached
+  // only through its own custom domain on prepora.site (Cloudflare creates the DNS record and
+  // certificate). `routes` is inherited by environments, so it's set per environment, never here.
+  // A deploy without --env therefore has no address and fails, which is intended.
+  "workers_dev": false,
+  "preview_urls": false,
+
   // Not enabled yet (need a Cloudflare account set up first):
   //  - R2 incremental cache ("r2_buckets" + open-next.config.ts) — add when we use ISR/revalidation.
   //  - Images binding ("images") — add when we need next/image optimisation.
@@ -33,10 +39,13 @@
   "env": {
     "staging": {
       "name": "prepora-web-staging",
+      "routes": [{ "pattern": "staging.prepora.site", "custom_domain": true }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web-staging" }],
       "vars": { "APP_ENV": "staging" }
     },
     "production": {
+      // No route yet on purpose: prepora.site goes live at public launch (M13). Until then a
+      // production deploy fails instead of publishing the site.
       "name": "prepora-web",
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web" }],
       "vars": { "APP_ENV": "production" }

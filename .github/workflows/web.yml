@@ -70,6 +70,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Zone that holds the staging custom domain (wrangler.jsonc → env.staging.routes).
+      CF_ZONE_NAME: prepora.site
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -101,5 +103,13 @@ jobs:
             echo "::error::This token can't manage Workers in account ${CLOUDFLARE_ACCOUNT_ID}. Either the account ID belongs to a different account than the token, or the token lacks 'Account → Workers Scripts → Edit'. Fix: create a token from the 'Edit Cloudflare Workers' template with Account Resources including this account, and update CLOUDFLARE_API_TOKEN."
             exit 1
           fi
-          echo "Cloudflare credentials OK: token can manage Workers in this account ($(echo "$res" | jq '.result | length') existing Workers)."
+          echo "Workers access OK ($(echo "$res" | jq '.result | length') existing Workers)."
+          # The custom domain (staging.prepora.site) needs the token to see the zone.
+          zres=$(curl -sS "https://api.cloudflare.com/client/v4/zones?name=${CF_ZONE_NAME}&account.id=${CLOUDFLARE_ACCOUNT_ID}"             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          if [ "$(echo "$zres" | jq -r '.success')" != "true" ] || [ "$(echo "$zres" | jq '.result | length')" != "1" ]; then
+            echo "Cloudflare API errors: $(echo "$zres" | jq -c '.errors')"
+            echo "::error::This token can't access the zone ${CF_ZONE_NAME}, which the staging custom domain needs. Edit the token and add Zone permissions for ${CF_ZONE_NAME}: 'Zone → Zone → Read' and 'Zone → Workers Routes → Edit' (Zone Resources: Include → Specific zone → ${CF_ZONE_NAME})."
+            exit 1
+          fi
+          echo "Zone access OK: ${CF_ZONE_NAME} ($(echo "$zres" | jq -r '.result[0].status'))."
       - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging

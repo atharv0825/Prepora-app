@@ -481,3 +481,26 @@ No other workflow pulls Supabase images.
 2. GitHub → Settings → Environments → **staging** → secret `CLOUDFLARE_API_TOKEN` → paste the value (no spaces or newline).
 3. Same place: `CLOUDFLARE_ACCOUNT_ID` = `03f20aa15b1e662f5471f23c96a271c0`.
 4. Merge this branch → the new check step tells you right away if anything is still wrong.
+
+---
+
+## 2026-11-21 — Staging on `staging.prepora.site` (fix: no workers.dev subdomain)
+
+**Error (CI, after PR #4):** the credentials check passed, then `wrangler deploy` failed: the account has **no `workers.dev` subdomain** registered and the Worker had **no route**, so it had no address.
+
+**Domain:** user connected **prepora.site** to Cloudflare. Checked with `cf`: zone `prepora.site` is **active**, Free plan, same account (`03f20aa…`). DNS has only `www` (CNAME → apex), `_domainconnect`, `_dmarc` and NS entries, so **`staging.prepora.site` is free** (a custom domain can't be created over an existing CNAME). The NS rows pointing at GoDaddy are imported leftovers; the zone is active, so Cloudflare serves the domain.
+
+**Fix (branch `fix/web-staging-domain`, from `develop` after PR #4)**
+- `wrangler.jsonc`:
+  - Top level: `workers_dev: false`, `preview_urls: false`; **no routes at top level**. `routes` is *inherited* by environments (Cloudflare docs), so a top-level route would also apply to production.
+  - `env.staging.routes`: `staging.prepora.site` as a **custom domain**. Cloudflare creates the DNS record and certificate on deploy.
+  - `env.production`: deliberately **no route** until public launch (M13), so a production deploy fails instead of publishing `prepora.site` early. A deploy without `--env` also has no address and fails, which is intended.
+- `web.yml` credentials check: also verifies the token can see zone `prepora.site` (`CF_ZONE_NAME`). If not → error naming the permissions to add.
+
+**Token permissions:** the current token has account-level permissions only. Cloudflare's custom-domain docs don't list the required token permissions; Wrangler has to look up the zone, so the check expects **Zone → Zone → Read** and **Zone → Workers Routes → Edit** on `prepora.site`. These are part of Cloudflare's standard "Edit Cloudflare Workers" template.
+
+**Verified**
+- Preflight with stubbed Cloudflare responses (ubuntu container): Workers OK + zone missing → clear error, exit 1; both OK → exit 0.
+- Linux Docker: OpenNext build ✓; `wrangler deploy --dry-run` for `--env staging` and `--env production` → valid, no warnings.
+
+**Manual step for you:** Cloudflare → My Profile → API Tokens → `prepora-github-staging` → Edit → add permissions **Zone → Zone → Read** and **Zone → Workers Routes → Edit**; Zone Resources: Include → Specific zone → `prepora.site` → Save. (Editing keeps the same token value, so no GitHub change.) Then merge this PR.

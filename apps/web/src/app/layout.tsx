@@ -38,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${hankenGrotesk.variable} ${instrumentSerif.variable} h-full`}
+      className={`${hankenGrotesk.variable} ${instrumentSerif.variable} h-full scroll-smooth motion-reduce:scroll-auto`}
     >
       <body className="flex min-h-full flex-col">
         <a

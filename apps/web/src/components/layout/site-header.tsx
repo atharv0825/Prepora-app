@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { buttonVariants } from "@prepora/ui/components/button";
-import { routes } from "@/lib/routes";
+import { routes, waitlistMode } from "@/lib/routes";
 import { Logo } from "./logo";
 import { MobileNav } from "./mobile-nav";
 import { NavLinks } from "./nav-links";
@@ -14,14 +14,19 @@ export function SiteHeader() {
         <Logo />
         <NavLinks />
         <div className="flex items-center gap-2 sm:gap-4">
+          {!waitlistMode && (
+            <Link
+              href={routes.login}
+              className="hidden text-sm text-foreground underline-offset-4 hover:underline sm:inline"
+            >
+              Log in
+            </Link>
+          )}
           <Link
-            href={routes.login}
-            className="hidden text-sm text-foreground underline-offset-4 hover:underline sm:inline"
+            href={waitlistMode ? routes.waitlist : routes.signup}
+            className={buttonVariants({ size: "sm" })}
           >
-            Log in
-          </Link>
-          <Link href={routes.signup} className={buttonVariants({ size: "sm" })}>
-            Start free
+            {waitlistMode ? "Join waitlist" : "Start free"}
           </Link>
           <MobileNav />
         </div>

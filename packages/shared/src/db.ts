@@ -12,13 +12,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      waitlist: {
+        Row: {
+          country_code: string | null
+          created_at: string
+          email: string
+          id: number
+          invited_at: string | null
+          source: string | null
+        }
+        Insert: {
+          country_code?: string | null
+          created_at?: string
+          email: string
+          id?: never
+          invited_at?: string | null
+          source?: string | null
+        }
+        Update: {
+          country_code?: string | null
+          created_at?: string
+          email?: string
+          id?: never
+          invited_at?: string | null
+          source?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      join_waitlist: {
+        Args: { p_country_code?: string; p_email: string; p_source?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

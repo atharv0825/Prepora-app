@@ -504,3 +504,65 @@ No other workflow pulls Supabase images.
 - Linux Docker: OpenNext build ✓; `wrangler deploy --dry-run` for `--env staging` and `--env production` → valid, no warnings.
 
 **Manual step for you:** Cloudflare → My Profile → API Tokens → `prepora-github-staging` → Edit → add permissions **Zone → Zone → Read** and **Zone → Workers Routes → Edit**; Zone Resources: Include → Specific zone → `prepora.site` → Save. (Editing keeps the same token value, so no GitHub change.) Then merge this PR.
+
+---
+
+## 2026-11-21 — M0-F4: Landing page + waitlist
+
+**Goal (plan.md):** landing page + waitlist form (writes to a temporary waitlist table), to start collecting beta users now.
+
+Branch `feature/m0-f4-landing-waitlist` (from `develop` after PR #5).
+
+**Staging check first:** https://staging.prepora.site is **live** (PR #5 worked). `/status` shows **not_configured**: the GitHub repository variables `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (from M0-F3) aren't set. **The waitlist form on staging needs them too.**
+
+**Database** (`supabase/migrations/20261121155123_waitlist.sql`)
+- `public.waitlist`: `email` (unique, stored lowercase, format and length checks), `country_code` (ISO-2 or null), `source` (≤ 64 chars), `created_at`, `invited_at`. Index on (country_code, created_at).
+- **No API access to the table:** RLS on, no policies, privileges revoked from `anon`/`authenticated`. Admins read it with the service role.
+- **`public.join_waitlist(p_email, p_country_code, p_source)`**: `SECURITY DEFINER`, empty `search_path`; trims and lowercases the email, rejects bad emails (`22023`), stores Cloudflare's `XX`/`T1` as null, `ON CONFLICT DO NOTHING`, so duplicates are silent and the endpoint can't reveal who signed up. Execute granted to `anon`, `authenticated` only.
+- **pgTAP tests** `supabase/tests/database/waitlist.test.sql` (12): RLS on; anon can execute the function; anon **cannot select** or **insert directly** (42501); joining works; repeat with other case/spaces doesn't fail and is stored once; invalid email rejected; T1 → null; first sign-up's country/source kept. **12/12 pass.**
+- CI (`db-migrations.yml`): added `supabase test db` after lint.
+- `supabase db lint` clean. Types regenerated (`waitlist`, `join_waitlist`) in both `db.ts` copies; `--check` passes.
+
+**Shared contract:** `packages/shared/src/api/waitlist.ts`: Zod `WaitlistInput` (same email rule as the DB) + `WaitlistResult`. `zod@4.6.7` added to shared and web (same version as the Edge Functions).
+
+**Waitlist form** (`apps/web/src/components/waitlist/`)
+- `actions.ts` (server action, runs on the Worker): honeypot check → Zod → `cf-ipcountry` header → `supabase.rpc("join_waitlist")` with the publishable key. Valid emails always get "success" (including duplicates); DB errors → generic message, logged.
+- `waitlist-form.tsx` (client, `useActionState`): pill input + "Join the waitlist" button; pending spinner; inline error with `aria-invalid`/`aria-live`; success replaces the form with "You're on the list." Source = `utm:<utm_source>` if present, else `hero` / `final_cta` (read at submit time). Hidden honeypot field `company`. Microcopy: "Free during beta. We only email you about early access."
+
+**Landing page** (`(marketing)/page.tsx`, sections in `components/landing/`), following `Prepora_UI_Design.md`:
+- **Hero** (dark, grid, 55/45): eyebrow, display headline with serif "Band 8+", subtext, **waitlist form in the hero** (instead of two buttons, for conversion on phones), "See how it works" link, beta-countries line; **HTML/CSS phone mockup** of the Speaking Part 2 cue card with waveform and record button; 3 floating glass stat cards (float around the phone from 1280px, row below it on smaller screens).
+- **Feature strip**: white panel overlapping the hero, 4 features, AI Speaking Examiner as the solid black card.
+- **Modules** (`#modules`): 2×2 cards with mini CSS previews (waveform, essay editor, reading split view, audio player).
+- **How it works** (`#how-it-works`): 3 numbered steps.
+- **Sample feedback**: overall 6.5, four criteria bars (they average 6.5), three corrections; labelled "Sample feedback".
+- **Pricing** (`#pricing`): Free / Gold / **Platinum (solid black, "Most popular")** with credits and allowances from plan §2.5 and India prices from §2.7, plus a note that other countries get local prices at launch. Buttons go to the waitlist.
+- **Final CTA** (`#waitlist`, `#contact`): black band, "Your target band is *closer* than you think.", second form.
+- `Reveal` component: sections fade up on scroll. Content is visible without JS (only hidden once JS runs and the element is below the fold); instant with reduced motion.
+- Page metadata (title, description, Open Graph). Smooth anchor scrolling (off with reduced motion). The page is still **static** (prerendered).
+- **`waitlistMode = true`** in `routes.ts`: header and mobile menu show "Join waitlist" (→ `/#waitlist`) and hide "Log in" until accounts exist (M1 sets it to false). Avoids 404s from the main CTA.
+
+**Deliberate deviations from the design doc**
+- **No invented numbers or testimonials.** "Rated by 10,000+ learners", "+1.0 avg band", "500+ mock tests", "20,000+ sessions" and testimonials would be false before launch. Replaced with product facts (4 modules, 4/4 criteria, 1:00 prep timer) and a beta-countries line. Add real social proof after the beta.
+- Hero CTA is the email form itself (the doc's "Start practising free" button has nothing to link to yet).
+- Pricing shows three plans (the doc shows Free + Platinum) so Gold's price is visible too.
+
+**Verified**
+- Windows: lint ✓ (fixed two "setState in effect" errors by reading the UTM at submit time and toggling classes in `Reveal`), typecheck web/ui/shared ✓, `next build` ✓.
+- **End to end against a local Supabase** (gateway + REST + auth + DB, images from ghcr), real Chrome via DevTools:
+  1. hero, `?utm_source=telegram`, `Asha.Rao@Example.com` → stored `asha.rao@example.com`, source `utm:telegram`
+  2. final CTA, same email lowercased → no second row
+  3. `not-an-email` → "Enter a valid email address."
+  4. honeypot filled → nothing stored
+  5. final CTA, new email → stored, source `final_cta`
+  6. success UI → "You're on the list. We'll email you when your free beta invite is ready."
+  - Country is null locally (no Cloudflare header), as expected.
+- Screenshots: desktop 1440 full page, phone 390×844 full page (no horizontal overflow), hero at 1440/1280/1024 after moving the stat cards off the mockup's text.
+- Deno 2 `deno check --frozen` ✓ (functions' `db.ts` changed).
+- Linux Docker, **without** the Supabase env vars (like CI today): frozen install, OpenNext build ✓, `wrangler deploy --dry-run --env staging` ✓, 1.34 MB gzipped.
+
+**Local state:** the local Supabase stack (prepora) is running with gateway/REST/auth; stop with `supabase stop`. The test rows exist only in the local DB.
+
+**Manual steps for you**
+1. **GitHub → Settings → Secrets and variables → Actions → Variables** → add `NEXT_PUBLIC_SUPABASE_URL` = `https://xvaxqiumdmgdvmbsqcub.supabase.co` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the staging `sb_publishable_…` key. **Without these the staging form shows "Something went wrong".**
+2. Merge the PR → CI pushes the `waitlist` migration to staging, runs the DB tests, and deploys the site.
+3. Then try the form on https://staging.prepora.site and check the row in Supabase (Table Editor → `waitlist`).

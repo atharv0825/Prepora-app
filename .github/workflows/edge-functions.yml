@@ -37,8 +37,12 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      # Run from supabase/functions so Deno picks up its deno.json ("nodeModulesDir": "none").
+      # From the repo root, Deno 2 sees package.json and expects npm deps in node_modules.
       # Every folder with an index.ts (except _shared) is a function.
-      - run: deno check $(ls supabase/functions/*/index.ts | grep -v /_shared/)
+      - name: deno check
+        working-directory: supabase/functions
+        run: deno check $(ls */index.ts | grep -v _shared/)
 
   deploy-staging:
     name: Deploy functions to staging

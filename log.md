@@ -272,3 +272,20 @@ Followed https://developers.cloudflare.com/agent-setup/prompt.md for Claude Code
   - Web → Cloudflare worker `prepora-web-staging`
   - Functions → Supabase staging (`health`)
 - I can't see Actions results myself (private repo, no `gh` CLI / token here).
+
+---
+
+## 2026-11-21 — Fix: Edge Functions CI `deno check` failed on Deno 2
+
+**Error (CI):** `Could not find a matching package for 'npm:@sentry/deno@11.16.0' in the node_modules directory`, plus a warning that Deno migrated `pnpm-workspace.yaml` into `package.json` (on the runner only).
+
+**Cause:** the root `package.json` (added in M0-B4/F1) makes Deno 2 switch to "use the local node_modules" mode, so `npm:` imports are no longer fetched into Deno's own cache. My local checks used Deno 1.37, which doesn't do this, so they missed it.
+
+**Fix**
+- Added `supabase/functions/deno.json` with `"nodeModulesDir": "none"` (Deno's global cache, the same way Supabase's edge runtime resolves `npm:` imports).
+- `edge-functions.yml`: `deno check` now runs with `working-directory: supabase/functions`, so Deno finds that `deno.json` instead of the root `package.json`.
+
+**Verified**
+- Docker `denoland/deno:2.5.6` on a copy of the repo: reproduced the exact CI error with the old command, and the new command passes. A deliberately broken type in `health` is reported (`TS2322`), so the check is real. Root `package.json` is left untouched.
+- Redeployed `health` to staging with `supabase functions deploy --use-api` from the repo root (same as the CI deploy job): it works with the new `deno.json`. `GET` → `env: "staging"` (the `APP_ENV` secret is now set), region `ap-southeast-1` when pinned; `PUT` → 405 in the agreed error format.
+- Lesson: check Deno code with Deno 2 (Docker or CI), not the local Deno 1.37.

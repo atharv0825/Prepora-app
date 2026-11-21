@@ -7,7 +7,7 @@ Live reference: **`/design`** in the web app (`pnpm dev:web` → http://localhos
 ## Using it in an app
 
 1. `"@prepora/ui": "workspace:*"` in the app's `package.json`, and `transpilePackages: ["@prepora/ui"]` in `next.config.ts`.
-2. Load the fonts with `next/font` as CSS variables `--font-inter`, `--font-inter-tight`, `--font-instrument-serif` (see `apps/web/src/app/layout.tsx`).
+2. Load the fonts with `next/font` as CSS variables `--font-hanken-grotesk`, `--font-instrument-serif` (see `apps/web/src/app/layout.tsx`).
 3. `import "@prepora/ui/globals.css"` once in the root layout, and render `<Toaster />` there.
 4. Import components: `import { Button } from "@prepora/ui/components/button"`.
 
@@ -40,11 +40,11 @@ The only non-grey colour is `destructive` (errors, delete actions), always paire
 | `text-h2` | Section headings | 26 → 36px |
 | `text-h3` | Card / sub headings | 20 → 24px |
 | `text-lead` | Sub-headline copy | 17 → 20px |
-| (body) | Inter 16px | 16px |
+| (body) | Hanken Grotesk 16px | 16px |
 | `text-eyebrow` | Small labels | 13px |
 | `text-accent-serif` | One emphasised phrase ("Band 8+") | inherits |
 
-Headings use Inter Tight (light–regular, tight tracking). `h1`–`h4` get `font-heading` automatically.
+Headings and body use Hanken Grotesk (headings light–regular with tight tracking). `h1`–`h4` get `font-heading` automatically.
 
 ## Utilities
 

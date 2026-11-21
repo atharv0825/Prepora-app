@@ -26,8 +26,8 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 | `text-on-light-muted` | `#525252` | Secondary text on light |
 
 - **Fonts:**
-  - Headings: a geometric sans like *Inter Tight*, *Satoshi* or *General Sans*, light to regular weight, large, with tight letter spacing.
-  - Body text: *Inter*, 16px.
+  - Headings: *Hanken Grotesk*, light to regular weight, large, with tight letter spacing.
+  - Body text: *Hanken Grotesk*, 16px.
   - Optional accent: *Instrument Serif* in italic, for a single emphasised phrase.
 - **Shape:** Pill-shaped buttons, cards with 20–24px corner radius, thin 1px borders instead of heavy shadows.
 - **Background texture:** A faint grid behind the hero (white lines at 4–6% opacity), so the black doesn't feel flat.

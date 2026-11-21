@@ -127,7 +127,7 @@ export default function DesignSystemPage() {
 
       <Section title="Typography">
         <div className="grid gap-6">
-          <p className="text-display">Display · Inter Tight</p>
+          <p className="text-display">Display · Hanken Grotesk</p>
           <p className="text-h1">Heading 1 · Reach your target band</p>
           <p className="text-h2">Heading 2 · How it works</p>
           <p className="text-h3">Heading 3 · AI Speaking Examiner</p>
@@ -136,7 +136,7 @@ export default function DesignSystemPage() {
             Lexical Resource and Grammatical Range & Accuracy.
           </p>
           <p className="max-w-xl">
-            Body · Inter 16px. The cue card has a one-minute preparation timer, then you speak
+            Body · Hanken Grotesk 16px. The cue card has a one-minute preparation timer, then you speak
             for one to two minutes.
           </p>
           <p className="text-eyebrow text-muted-foreground uppercase">Eyebrow · 13px</p>

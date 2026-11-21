@@ -4,7 +4,7 @@
  *
  * Apps import this once:  import "@prepora/ui/globals.css";
  * Fonts are loaded by the app (next/font) and exposed as CSS variables:
- *   --font-inter, --font-inter-tight, --font-instrument-serif
+ *   --font-hanken-grotesk, --font-instrument-serif
  *
  * Light vs dark: tokens are light by default. Add the `dark` class to ANY element (a hero
  * section, a single card, <html>) and everything inside switches to the dark tokens.
@@ -64,9 +64,9 @@
 }
 
 @theme inline {
-  /* Fonts: Inter (body), Inter Tight (headings), Instrument Serif italic (one accent phrase). */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-inter-tight), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* Fonts: Hanken Grotesk (body + headings), Instrument Serif italic (one accent phrase). */
+  --font-sans: var(--font-hanken-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-hanken-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 
   --color-background: var(--background);
@@ -180,7 +180,7 @@
 
 /* ---------------------------------------------------------------------------------------------
  * Typography scale. Mobile-first: fluid sizes from ~375px phones up to desktop.
- * Headings: Inter Tight, light–regular weight, tight tracking. Body: Inter 16px.
+ * Headings: Hanken Grotesk, light–regular weight, tight tracking. Body: Hanken Grotesk 16px.
  * ------------------------------------------------------------------------------------------- */
 @utility text-display {
   /* Hero headline: 40px → 72px */

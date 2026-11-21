@@ -43,7 +43,11 @@ export function adminClient(): DbClient {
  */
 export async function getUser(req: Request, supabase: DbClient): Promise<User | null> {
   const token = bearerToken(req);
-  if (!token || token === Deno.env.get("SUPABASE_ANON_KEY")) return null;
+  // Anonymous: no token, the legacy anon key, or a new-style publishable key (sb_publishable_…),
+  // which supabase-js sends as the bearer token when nobody is signed in.
+  if (!token || token === Deno.env.get("SUPABASE_ANON_KEY") || token.startsWith("sb_publishable_")) {
+    return null;
+  }
   const { data, error } = await supabase.auth.getUser(token);
   // Auth service unreachable ≠ bad token: surface as a 500 (and Sentry), not a 401.
   if (error?.name === "AuthRetryableFetchError") throw error;

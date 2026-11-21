@@ -1,9 +1,9 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@prepora/ui/components/button";
 
 // M0-F1 placeholder. Replaced by the real landing page + waitlist in M0-F4.
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
+    <section className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
       <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
         Coming soon
       </p>
@@ -14,6 +14,6 @@ export default function Home() {
       <Button size="lg" disabled>
         Join the waitlist
       </Button>
-    </main>
+    </section>
   );
 }

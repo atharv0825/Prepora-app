@@ -1,0 +1,264 @@
+/*
+ * Prepora design system — tokens, typography and utilities (M0-F2).
+ * Source of truth: Prepora_UI_Design.md. Monochrome: black, white and greys only.
+ *
+ * Apps import this once:  import "@prepora/ui/globals.css";
+ * Fonts are loaded by the app (next/font) and exposed as CSS variables:
+ *   --font-hanken-grotesk, --font-instrument-serif
+ *
+ * Light vs dark: tokens are light by default. Add the `dark` class to ANY element (a hero
+ * section, a single card, <html>) and everything inside switches to the dark tokens.
+ * That's how the page goes dark hero → white sections without separate components.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Scan this package's components and the apps' code, so every class used ends up in the CSS
+   (the package is symlinked under node_modules, which Tailwind skips by default). */
+@source "../";
+@source "../../../../apps/*/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------------------------
+ * Raw brand palette (design doc token → Tailwind colour)
+ *   bg-dark #0A0A0A → brand-black     surface-dark #141414 → brand-surface
+ *   border-dark #262626 → brand-line  white #FFFFFF → brand-white
+ *   bg-light #F5F5F4 → brand-stone    text-on-dark-muted #A3A3A3 → brand-grey
+ *   text-on-light-muted #525252 → brand-slate
+ * Prefer the semantic tokens (bg-background, text-muted-foreground, …) in components;
+ * use brand-* only when a value must not flip between light and dark.
+ * ------------------------------------------------------------------------------------------- */
+@theme {
+  --color-brand-black: #0a0a0a;
+  --color-brand-surface: #141414;
+  --color-brand-line: #262626;
+  --color-brand-white: #ffffff;
+  --color-brand-stone: #f5f5f4;
+  --color-brand-grey: #a3a3a3;
+  --color-brand-slate: #525252;
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-drift: drift 6s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes drift {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+}
+
+@theme inline {
+  /* Fonts: Hanken Grotesk (body + headings), Instrument Serif italic (one accent phrase). */
+  --font-sans: var(--font-hanken-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-hanken-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* --radius = 16px → rounded-lg 16px, rounded-xl ≈ 22px (cards: design asks 20–24px). */
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Light (default): white page, black text. */
+:root {
+  --radius: 1rem;
+
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #0a0a0a;
+  --muted: #f5f5f4;
+  --muted-foreground: #525252;
+  --accent: #f5f5f4;
+  --accent-foreground: #0a0a0a;
+  --border: #e5e5e5;
+  --input: #d4d4d4;
+  --ring: #0a0a0a;
+  /* The only non-grey colour: errors/destructive actions, so they're recognisable.
+     Always paired with text or an icon, never colour alone. */
+  --destructive: #b91c1c;
+}
+
+/* Dark: hero, footer, final CTA, inverted cards, and the mobile app's default. */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ffffff;
+  --card: #141414;
+  --card-foreground: #ffffff;
+  --popover: #141414;
+  --popover-foreground: #ffffff;
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1f1f1f;
+  --secondary-foreground: #ffffff;
+  --muted: #141414;
+  --muted-foreground: #a3a3a3;
+  --accent: #1f1f1f;
+  --accent-foreground: #ffffff;
+  --border: #262626;
+  --input: #333333;
+  --ring: #ffffff;
+  --destructive: #f87171;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-base/relaxed text-foreground;
+  }
+  /* A `dark` section repaints its own background and text. */
+  .dark {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading text-balance;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Typography scale. Mobile-first: fluid sizes from ~375px phones up to desktop.
+ * Headings: Hanken Grotesk, light–regular weight, tight tracking. Body: Hanken Grotesk 16px.
+ * ------------------------------------------------------------------------------------------- */
+@utility text-display {
+  /* Hero headline: 40px → 72px */
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 1.6rem + 4.5vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 400;
+}
+@utility text-h1 {
+  /* 32px → 48px */
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 1.6rem + 2vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+}
+@utility text-h2 {
+  /* 26px → 36px */
+  font-family: var(--font-heading);
+  font-size: clamp(1.625rem, 1.375rem + 1.25vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  font-weight: 400;
+}
+@utility text-h3 {
+  /* 20px → 24px */
+  font-family: var(--font-heading);
+  font-size: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+}
+@utility text-lead {
+  /* Sub-headline body copy: 17px → 20px */
+  font-size: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  line-height: 1.6;
+}
+@utility text-eyebrow {
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+}
+/* The single emphasised phrase, e.g. "Band 8+". */
+@utility text-accent-serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Surfaces
+ * ------------------------------------------------------------------------------------------- */
+/* Faint grid behind the hero (white lines at ~5% on black), fading out towards the bottom. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+}
+/* Floating glass stat cards: #141414 at ~70%, blurred, 1px border. */
+@utility glass {
+  background-color: color-mix(in oklab, var(--color-brand-surface) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-brand-line);
+  color: var(--color-brand-white);
+}
+/* Content width + mobile-first side padding. */
+@utility container-page {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 76rem;
+  padding-inline: 1.25rem;
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+}

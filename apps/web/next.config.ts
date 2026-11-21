@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
+  // @prepora/ui ships TypeScript source; let Next compile it.
+  transpilePackages: ["@prepora/ui"],
   // Cache Components (+ Partial Prefetching) are off: OpenNext doesn't fully support them on
   // Cloudflare yet (https://github.com/opennextjs/opennextjs-cloudflare/pull/1318).
   // Re-enable both together once that lands.

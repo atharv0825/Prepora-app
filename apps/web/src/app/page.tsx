@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "@prepora/ui/components/button";
 
 // M0-F1 placeholder. Replaced by the real landing page + waitlist in M0-F4.
 export default function Home() {

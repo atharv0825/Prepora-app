@@ -46,6 +46,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @prepora/web lint
       - run: pnpm --filter @prepora/web typecheck
+      - run: pnpm --filter @prepora/ui typecheck
       - run: pnpm --filter @prepora/web exec opennextjs-cloudflare build
       - uses: actions/upload-artifact@v4
         with:

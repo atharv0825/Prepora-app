@@ -1,9 +1,10 @@
 // Cloudflare Workers config for the student web app (built by OpenNext).
 //
-// Top level = STAGING (so a bare `pnpm deploy` can never hit production).
-// Production = `--env production`.
+// Environments are explicit (`--env staging` / `--env production`); Wrangler warns when several
+// exist and none is chosen. The top level mirrors staging, so a deploy without --env can still
+// never reach production.
 //
-//   pnpm --filter @prepora/web run deploy                       → prepora-web-staging
+//   pnpm --filter @prepora/web run deploy -- --env staging      → prepora-web-staging
 //   pnpm --filter @prepora/web run deploy -- --env production   → prepora-web
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -30,6 +31,11 @@
   //  - Images binding ("images") — add when we need next/image optimisation.
 
   "env": {
+    "staging": {
+      "name": "prepora-web-staging",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web-staging" }],
+      "vars": { "APP_ENV": "staging" }
+    },
     "production": {
       "name": "prepora-web",
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web" }],

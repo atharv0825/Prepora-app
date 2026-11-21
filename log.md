@@ -447,3 +447,37 @@ Branch `feature/m0-f3-app-shell`, **based on `feature/m0-f2-design-system`** (F2
 **Verified locally:** `supabase stop` → `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io supabase db start` freshly pulled `ghcr.io/supabase/postgres:17.6.1.165` and `ghcr.io/supabase/postgres-meta:v0.98.0`; migrations applied; `node scripts/gen-db-types.mjs --check` passes. Only the `prepora` stack was restarted; the separate `Backend` stack wasn't touched.
 
 No other workflow pulls Supabase images.
+
+---
+
+## 2026-11-21 — Fix: first Cloudflare deploy failed (token access) + env warning
+
+**Error (CI, `Web` → deploy-staging, after PR #3 was merged into `develop`):** `wrangler deploy` failed on `GET …/workers/scripts/prepora-web-staging/secrets` with **"No access to the specified resource"**. There was also a warning: multiple environments defined but no target given.
+
+**Investigation**
+- The secrets call comes from `wrangler deploy` itself (it reads existing secrets to check for clashes with `vars`), not from OpenNext; checked OpenNext's `deploy` source.
+- `cf workers list` → **no Workers in the account yet**, so this was the very first deploy. A correctly scoped token handles a new Worker fine, so the token/account pair is the suspect.
+- The token policy the user shared (`prepora-github-staging`, no secret value) resolves via Cloudflare's permission-group list to: Workers Scripts Write, Workers Editor, Account Settings Read, Workers R2 Storage Write, Workers KV Storage Read, scoped to account `03f20aa15b1e662f5471f23c96a271c0`. **Same account the `cf` login sees, and enough to deploy.**
+- So the most likely cause: the value stored in GitHub isn't this token (an old/other token, the token ID instead of its value, extra whitespace, or a secret in a different environment/name). Couldn't confirm: the `cf` OAuth login isn't allowed to list API tokens (9109).
+
+**Fix (branch `fix/web-deploy-cloudflare`, from `develop`)**
+- `wrangler.jsonc`: explicit `env.staging` (`prepora-web-staging`, own self-reference binding, `APP_ENV=staging`). The top level still mirrors staging, so a deploy without `--env` can't reach production.
+- `web.yml`:
+  - Deploy is now `opennextjs-cloudflare deploy --env staging` (OpenNext passes `--env` through to Wrangler).
+  - New **"Check Cloudflare credentials"** step before deploying. It fails fast with a readable reason, never printing the token:
+    - secrets empty → says so
+    - account ID not 32 hex characters → says so
+    - token can't list this account's Workers (exactly what deploy needs) → prints Cloudflare's error code + how to fix it.
+    - Doesn't gate on `/user/tokens/verify`, because account-owned tokens fail that even when valid.
+- Root `deploy:web` script → `… run deploy --env staging`.
+
+**Verified**
+- Preflight script (extracted from the workflow) run in `ubuntu:24.04`: empty secrets → clear error; email as account ID → clear error; bogus token + real account ID → prints `[9106] Authentication failed` + fix hint. All exit 1.
+  - The first run of this test silently passed because Windows Python couldn't write the "→" character and produced an empty script; re-extracted as UTF-8 and reran.
+- Linux Docker: OpenNext build ✓; `wrangler deploy --dry-run --env staging` → `prepora-web-staging`, `APP_ENV=staging`, **no multiple-environments warning**, 1.26 MB gzipped (under the free plan's 3 MB); `--env production` → `prepora-web`.
+
+**Manual steps for you**
+1. Cloudflare dashboard → My Profile → API Tokens → `prepora-github-staging` → **Roll** (generates a new value) → copy it.
+2. GitHub → Settings → Environments → **staging** → secret `CLOUDFLARE_API_TOKEN` → paste the value (no spaces or newline).
+3. Same place: `CLOUDFLARE_ACCOUNT_ID` = `03f20aa15b1e662f5471f23c96a271c0`.
+4. Merge this branch → the new check step tells you right away if anything is still wrong.

@@ -7,7 +7,7 @@ import { Menu } from "lucide-react";
 import { Button, buttonVariants } from "@prepora/ui/components/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@prepora/ui/components/dialog";
 import { cn } from "@prepora/ui/lib/utils";
-import { isActive, mainNav, routes } from "@/lib/routes";
+import { isActive, mainNav, routes, waitlistMode } from "@/lib/routes";
 
 /** Phones/tablets (< md): menu button opens a dark bottom sheet with the nav and CTAs. */
 export function MobileNav() {
@@ -45,16 +45,22 @@ export function MobileNav() {
           })}
         </nav>
         <div className="grid gap-3 border-t pt-5">
-          <Link href={routes.signup} onClick={close} className={buttonVariants({ size: "lg" })}>
-            Start free
-          </Link>
           <Link
-            href={routes.login}
+            href={waitlistMode ? routes.waitlist : routes.signup}
             onClick={close}
-            className={buttonVariants({ variant: "outline", size: "lg" })}
+            className={buttonVariants({ size: "lg" })}
           >
-            Log in
+            {waitlistMode ? "Join the waitlist" : "Start free"}
           </Link>
+          {!waitlistMode && (
+            <Link
+              href={routes.login}
+              onClick={close}
+              className={buttonVariants({ variant: "outline", size: "lg" })}
+            >
+              Log in
+            </Link>
+          )}
         </div>
       </DialogContent>
     </Dialog>

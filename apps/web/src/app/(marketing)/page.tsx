@@ -1,19 +1,36 @@
-import { Button } from "@prepora/ui/components/button";
+import type { Metadata } from "next";
+import { FeatureStrip } from "@/components/landing/feature-strip";
+import { FinalCta } from "@/components/landing/final-cta";
+import { Hero } from "@/components/landing/hero";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { ModulesGrid } from "@/components/landing/modules-grid";
+import { Pricing } from "@/components/landing/pricing";
+import { SampleFeedback } from "@/components/landing/sample-feedback";
 
-// M0-F1 placeholder. Replaced by the real landing page + waitlist in M0-F4.
-export default function Home() {
+// M0-F4 landing page + waitlist. Layout follows Prepora_UI_Design.md. Testimonials are left out
+// until real beta users can give them.
+export const metadata: Metadata = {
+  title: "Prepora — Your AI IELTS coach",
+  description:
+    "Practise IELTS Speaking, Writing, Reading and Listening with instant AI band scores and feedback on all 4 official criteria. Join the free beta waitlist.",
+  openGraph: {
+    title: "Prepora — Your AI IELTS coach",
+    description:
+      "Instant AI band scores for IELTS Speaking, Writing, Reading and Listening. Join the free beta.",
+    type: "website",
+  },
+};
+
+export default function HomePage() {
   return (
-    <section className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-24 text-center">
-      <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
-        Coming soon
-      </p>
-      <h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">Prepora</h1>
-      <p className="max-w-md text-lg text-muted-foreground">
-        IELTS Speaking, Writing, Reading and Listening practice with instant AI band scores.
-      </p>
-      <Button size="lg" disabled>
-        Join the waitlist
-      </Button>
-    </section>
+    <>
+      <Hero />
+      <FeatureStrip />
+      <ModulesGrid />
+      <HowItWorks />
+      <SampleFeedback />
+      <Pricing />
+      <FinalCta />
+    </>
   );
 }

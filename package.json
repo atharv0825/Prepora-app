@@ -1,0 +1,13 @@
+{
+  "name": "prepora",
+  "private": true,
+  "packageManager": "pnpm@12.21.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @prepora/web dev",
+    "preview:web": "pnpm --filter @prepora/web preview",
+    "deploy:web": "pnpm --filter @prepora/web run deploy",
+    "db:types": "node scripts/gen-db-types.mjs",
+    "db:types:linked": "node scripts/gen-db-types.mjs --linked",
+    "db:types:check": "node scripts/gen-db-types.mjs --check"
+  }
+}

@@ -17,6 +17,8 @@ on:
   pull_request:
     paths:
       - "supabase/**"
+      - "scripts/gen-db-types.mjs"
+      - "packages/shared/src/db.ts"
       - ".github/workflows/db-migrations.yml"
   push:
     branches: [develop]
@@ -44,6 +46,10 @@ jobs:
       # Starts only Postgres, applies every migration + seed. Fails the job on any SQL error.
       - run: supabase db start
       - run: supabase db lint --level error
+      # M0-B4: fail if packages/shared/src/db.ts or supabase/functions/_shared/db.ts
+      # weren't regenerated after a schema change.
+      - name: Check generated DB types are up to date
+        run: node scripts/gen-db-types.mjs --check
 
   dry-run-staging:
     name: Dry-run against staging

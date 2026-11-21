@@ -54,7 +54,7 @@ function Section({
 
 export default function DesignSystemPage() {
   return (
-    <main className="flex-1">
+    <div className="flex-1">
       {/* Dark hero sample: grid texture, eyebrow, display type with serif accent, CTAs, glass cards */}
       <section className="dark relative overflow-hidden">
         <div aria-hidden className="bg-grid pointer-events-none absolute inset-0" />
@@ -243,6 +243,6 @@ export default function DesignSystemPage() {
           <ToastDemo />
         </div>
       </Section>
-    </main>
+    </div>
   );
 }

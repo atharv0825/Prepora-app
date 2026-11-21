@@ -31,6 +31,11 @@ concurrency:
 
 env:
   NEXT_TELEMETRY_DISABLED: 1
+  # Public Supabase settings, inlined into the build (M0-F3). Set as repository VARIABLES
+  # (Settings → Secrets and variables → Actions → Variables), not secrets: both are public.
+  # If unset, the build still works and /status reports "not configured".
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
 jobs:
   check-and-build:
@@ -47,6 +52,7 @@ jobs:
       - run: pnpm --filter @prepora/web lint
       - run: pnpm --filter @prepora/web typecheck
       - run: pnpm --filter @prepora/ui typecheck
+      - run: pnpm --filter @prepora/shared typecheck
       - run: pnpm --filter @prepora/web exec opennextjs-cloudflare build
       - uses: actions/upload-artifact@v4
         with:

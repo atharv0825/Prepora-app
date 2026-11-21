@@ -1,0 +1,9 @@
+{
+  "name": "prepora",
+  "private": true,
+  "scripts": {
+    "db:types": "node scripts/gen-db-types.mjs",
+    "db:types:linked": "node scripts/gen-db-types.mjs --linked",
+    "db:types:check": "node scripts/gen-db-types.mjs --check"
+  }
+}

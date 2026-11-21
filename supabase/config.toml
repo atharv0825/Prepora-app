@@ -411,3 +411,9 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ---- Edge Functions ----------------------------------------------------------
+# Auth is enforced inside each function by _shared/handler.ts (auth: "required" | "optional").
+# `health` is public, so the gateway's JWT check is off for it.
+[functions.health]
+verify_jwt = false

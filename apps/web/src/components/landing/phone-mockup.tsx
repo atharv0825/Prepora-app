@@ -45,7 +45,10 @@ export function PhoneMockup() {
             ))}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-brand-grey">Recording…</span>
+            <span className="flex items-center gap-1.5 text-[11px] text-brand-grey">
+              <span className="size-1.5 animate-pulse rounded-full bg-brand-green-light" />
+              Recording…
+            </span>
             <span className="grid size-11 place-items-center rounded-full bg-white text-brand-black">
               <Mic className="size-5" strokeWidth={1.5} />
             </span>

@@ -25,7 +25,7 @@ export function Hero() {
       <div className="container-page relative grid items-center gap-14 pt-12 sm:pt-20 lg:grid-cols-[55fr_45fr] lg:gap-8">
         <div className="flex animate-fade-up flex-col items-start gap-6">
           <Badge variant="outline" className="text-eyebrow">
-            <span className="size-1.5 rounded-full bg-foreground" aria-hidden />
+            <span className="size-1.5 rounded-full bg-accent-green" aria-hidden />
             Your AI IELTS Coach
           </Badge>
           <h1 className="text-display">
@@ -48,7 +48,7 @@ export function Hero() {
               See how it works
             </Link>
             <span className="flex items-start gap-2">
-              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground" aria-hidden />
+              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-accent-green" aria-hidden />
               Free beta opening in India, Nepal, Bangladesh and Sri Lanka
             </span>
           </div>

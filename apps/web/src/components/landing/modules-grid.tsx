@@ -8,7 +8,10 @@ function SpeakingPreview() {
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Part 2 · Recording</span>
+        <span className="flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-accent-green" aria-hidden />
+          Part 2 · Recording
+        </span>
         <span className="font-mono">1:46</span>
       </div>
       <div className="flex h-14 items-center gap-[3px]">

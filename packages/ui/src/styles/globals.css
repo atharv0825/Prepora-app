@@ -1,6 +1,7 @@
 /*
  * Prepora design system — tokens, typography and utilities (M0-F2).
- * Source of truth: Prepora_UI_Design.md. Monochrome: black, white and greys only.
+ * Source of truth: Prepora_UI_Design.md. Black, white and greys, plus green and purple accents
+ * used sparingly (italic serif phrases, small dots, the Platinum badge).
  *
  * Apps import this once:  import "@prepora/ui/globals.css";
  * Fonts are loaded by the app (next/font) and exposed as CSS variables:
@@ -29,6 +30,13 @@
  *   text-on-light-muted #525252 → brand-slate
  * Prefer the semantic tokens (bg-background, text-muted-foreground, …) in components;
  * use brand-* only when a value must not flip between light and dark.
+ *
+ * Accents (design doc → Accent colours). Shade depends on the background:
+ *   on dark:  brand-green-light #86EFAC, brand-purple-light #C4B5FD
+ *   on light: brand-green-dark  #166534, brand-purple-dark  #6D28D9
+ * Components should use the semantic accent-green / accent-purple, which pick the right shade
+ * automatically (dark shade by default, light shade inside a `dark` element).
+ * Never colour buttons, backgrounds, cards, body text, borders or icons with accents.
  * ------------------------------------------------------------------------------------------- */
 @theme {
   --color-brand-black: #0a0a0a;
@@ -38,6 +46,10 @@
   --color-brand-stone: #f5f5f4;
   --color-brand-grey: #a3a3a3;
   --color-brand-slate: #525252;
+  --color-brand-green-light: #86efac;
+  --color-brand-purple-light: #c4b5fd;
+  --color-brand-green-dark: #166534;
+  --color-brand-purple-dark: #6d28d9;
 
   --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-drift: drift 6s ease-in-out infinite;
@@ -87,6 +99,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-accent-green: var(--accent-green);
+  --color-accent-purple: var(--accent-purple);
 
   /* --radius = 16px → rounded-lg 16px, rounded-xl ≈ 22px (cards: design asks 20–24px). */
   --radius-sm: calc(var(--radius) * 0.5);
@@ -119,6 +133,9 @@
   --border: #e5e5e5;
   --input: #d4d4d4;
   --ring: #0a0a0a;
+  /* Accents on light backgrounds (7.1 : 1 on white). */
+  --accent-green: #166534;
+  --accent-purple: #6d28d9;
   /* The only non-grey colour: errors/destructive actions, so they're recognisable.
      Always paired with text or an icon, never colour alone. */
   --destructive: #b91c1c;
@@ -143,6 +160,9 @@
   --border: #262626;
   --input: #333333;
   --ring: #ffffff;
+  /* Accents on dark backgrounds (14.1 : 1 and 10.7 : 1 on #0A0A0A). */
+  --accent-green: #86efac;
+  --accent-purple: #c4b5fd;
   --destructive: #f87171;
 }
 
@@ -225,12 +245,26 @@
   letter-spacing: 0.02em;
   font-weight: 500;
 }
-/* The single emphasised phrase, e.g. "Band 8+". */
+/* The single emphasised phrase in large headings, e.g. "Band 8+": Instrument Serif italic with
+   a green → purple gradient (shades follow light/dark via --accent-*). The small right padding
+   keeps the italic overhang of the last letter inside the gradient; box-decoration-break keeps
+   the gradient intact when the phrase wraps. */
 @utility text-accent-serif {
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 400;
   letter-spacing: -0.01em;
+  padding-right: 0.08em;
+  margin-right: -0.08em;
+  color: var(--accent-green); /* solid green if gradient text isn't supported */
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    background-image: linear-gradient(90deg, var(--accent-green), var(--accent-purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
 }
 
 /* ---------------------------------------------------------------------------------------------

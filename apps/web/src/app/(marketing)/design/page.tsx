@@ -31,6 +31,14 @@ const palette = [
   { name: "brand-slate", hex: "#525252", use: "Muted text on light" },
 ];
 
+// Accents: only for italic serif phrases (gradient), small dots and the Platinum badge.
+const accents = [
+  { name: "brand-green-light", hex: "#86EFAC", use: "Accent on dark sections" },
+  { name: "brand-purple-light", hex: "#C4B5FD", use: "Accent on dark sections" },
+  { name: "brand-green-dark", hex: "#166534", use: "Accent on light sections" },
+  { name: "brand-purple-dark", hex: "#6D28D9", use: "Accent on light sections" },
+];
+
 const iconProps = { className: "size-5", strokeWidth: 1.5 } as const;
 
 function Section({
@@ -61,7 +69,7 @@ export default function DesignSystemPage() {
         <div className="container-page relative grid gap-12 py-16 sm:py-24 lg:grid-cols-[55fr_45fr] lg:items-center">
           <div className="flex animate-fade-up flex-col items-start gap-6">
             <Badge variant="outline" className="text-eyebrow">
-              <span className="size-1.5 rounded-full bg-foreground" aria-hidden />
+              <span className="size-1.5 rounded-full bg-accent-green" aria-hidden />
               Your AI IELTS Coach
             </Badge>
             <h1 className="text-display">
@@ -122,6 +130,35 @@ export default function DesignSystemPage() {
               </div>
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section title="Accents">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {accents.map((c) => (
+            <div key={c.name} className="overflow-hidden rounded-xl border">
+              <div className="h-20" style={{ backgroundColor: c.hex }} />
+              <div className="p-3">
+                <p className="text-sm font-medium">{c.name}</p>
+                <p className="font-mono text-xs text-muted-foreground">{c.hex}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{c.use}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border p-6">
+            <p className="text-xs text-muted-foreground">On light</p>
+            <p className="mt-2 text-h1">
+              Reach <span className="text-accent-serif">Band 8+</span>.
+            </p>
+          </div>
+          <div className="dark rounded-xl border p-6">
+            <p className="text-xs text-muted-foreground">On dark</p>
+            <p className="mt-2 text-h1">
+              Reach <span className="text-accent-serif">Band 8+</span>.
+            </p>
+          </div>
         </div>
       </Section>
 
@@ -207,7 +244,7 @@ export default function DesignSystemPage() {
           <Card variant="inverted">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Platinum <Badge variant="outline">Most popular</Badge>
+                Platinum <Badge variant="outline" className="border-accent-purple">Most popular</Badge>
               </CardTitle>
               <CardDescription>220 AI credits a month, natural examiner voice.</CardDescription>
             </CardHeader>

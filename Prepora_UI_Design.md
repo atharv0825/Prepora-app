@@ -1,12 +1,12 @@
 # Prepora: UI Design Description (Landing Page)
 
-This page uses the same layout ideas as the reference shot, but in a clean **black and white** style instead of teal and lime.
+This page uses the same layout ideas as the reference shot, but in a clean **black and white** style with small **green and purple** accents, instead of teal and lime.
 
 ---
 
 ## Overall style
 
-- **Look:** Monochrome, editorial and calm. Black and white only, with greys for depth. No colour accents.
+- **Look:** Editorial and calm. The base is black and white, with greys for depth. **Light green, dark green and purple** are the only accent colours, used sparingly (see *Accent colours* below).
 - **Two modes in one page:**
   - The hero section is **dark**.
   - The sections below it switch to **white**.
@@ -25,10 +25,27 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 | `text-on-light` | `#0A0A0A` | Headings and body text on light |
 | `text-on-light-muted` | `#525252` | Secondary text on light |
 
+- **Accent colours (green and purple):**
+
+| Token | Value | Use on | Contrast |
+|---|---|---|---|
+| `accent-green-light` | `#86EFAC` | Dark sections only | 14.1 : 1 on `#0A0A0A` |
+| `accent-purple-light` | `#C4B5FD` | Dark sections only | 10.7 : 1 on `#0A0A0A` |
+| `accent-green-dark` | `#166534` | Light sections only | 7.1 : 1 on `#FFFFFF` |
+| `accent-purple-dark` | `#6D28D9` | Light sections only | 7.1 : 1 on `#FFFFFF` |
+
+  - **Pick the shade by background:** light green and light purple on black; dark green and dark purple on white or `#F5F5F4`. The light shades are unreadable on white (about 1.4 : 1), and the dark shades are too faint on black.
+  - **Large italic text** (the *Instrument Serif* emphasis phrases, e.g. *Band 8+*, *closer*) is always coloured with a **green → purple gradient** running left to right across the phrase:
+    - on dark: `#86EFAC` → `#C4B5FD`
+    - on light: `#166534` → `#6D28D9`
+    - A single solid green or solid purple is fine for a very short word where a gradient isn't visible.
+  - **Other allowed uses (small touches only):** the dot in the eyebrow pill, status dots (e.g. "recording"), and the outline of the Platinum badge (purple).
+  - **Never coloured:** buttons, backgrounds, cards, body text, borders and icons. These stay black, white and grey, so the accents stand out.
+
 - **Fonts:**
   - Headings: *Hanken Grotesk*, light to regular weight, large, with tight letter spacing.
   - Body text: *Hanken Grotesk*, 16px.
-  - Optional accent: *Instrument Serif* in italic, for a single emphasised phrase.
+  - Accent: *Instrument Serif* in italic, for a single emphasised phrase in large headings. It uses the green → purple gradient (see *Accent colours*).
 - **Shape:** Pill-shaped buttons, cards with 20–24px corner radius, thin 1px borders instead of heavy shadows.
 - **Background texture:** A faint grid behind the hero (white lines at 4–6% opacity), so the black doesn't feel flat.
 
@@ -36,9 +53,11 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 
 ## 1. Navbar (on dark)
 
+- **Surface:** sticky **frosted glass**: a dark tint with a faint white wash (`rgb(28 28 28 / 80%)`), background blur, a 1px `white/10` bottom border and a faint top highlight. Over the black hero it reads as lighter, see-through glass; over white sections it stays dark enough for the nav text (white ≥ 8:1, inactive links ≥ 6:1).
+
 - **Left:** The **Prepora** wordmark in white, with a small monogram "P" in a white square.
 - **Centre:** Home · Modules · How it works · Pricing · Contact.
-  - Text is grey.
+  - Text is white at 75% opacity (stays readable over both dark and white sections under the glass).
   - The active link is white, with a short 2px white underline.
 - **Right:**
   - "Log in" as a text link.
@@ -50,12 +69,12 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 
 ### Left side
 
-- **Eyebrow label:** "Your AI IELTS Coach", in a small outlined pill with a white dot.
+- **Eyebrow label:** "Your AI IELTS Coach", in a small outlined pill with a light green dot (`#86EFAC`).
 - **Headline (64–72px, three lines):**
   > Practise smarter.
   > Score higher.
   > Reach *Band 8+*.
-  - Emphasise **"Band 8+"** with *italic serif* type or a white underline stroke. Keep it white, not coloured.
+  - Emphasise **"Band 8+"** with *italic serif* type in the **green → purple gradient** (light shades, `#86EFAC` → `#C4B5FD`, because the hero is dark).
 - **Subtext (grey, about 2 lines):** "Speaking, Writing, Reading and Listening, with instant AI band scores and feedback on all 4 official criteria."
 - **Buttons:**
   - Primary: white pill, "Start practising free →".
@@ -104,7 +123,7 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
   - **Free** card: white with a border.
   - **Platinum** card: solid black with white text, plus a "Most popular" pill.
 - **Testimonials:** Simple quote cards with name and band achieved (for example "6.0 → 7.5").
-- **Final call to action:** A full-width black band with a large white headline, "Your target band is closer than you think", and a white pill button.
+- **Final call to action:** A full-width black band with a large white headline, "Your target band is *closer* than you think", where *closer* is italic serif in the green → purple gradient (light shades), and a white pill button.
 - **Footer:** Black, with grey links, plus Privacy, Terms and the delete-account link (Play Store requires the last one).
 
 ---
@@ -130,4 +149,4 @@ The same system carries into the Expo app:
   - A large greeting
   - A target band and exam countdown card
   - A 2×2 grid of module tiles, where the next recommended module is a white tile and the rest are dark
-- Platinum features are marked with a small white outline badge, instead of using a colour.
+- Platinum features are marked with a small badge with a purple outline (`#C4B5FD` in dark mode, `#6D28D9` in light mode).

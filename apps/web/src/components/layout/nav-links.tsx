@@ -21,7 +21,7 @@ export function NavLinks() {
               "relative py-2 text-sm transition-colors outline-none hover:text-foreground focus-visible:text-foreground",
               active
                 ? "text-foreground after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-4 after:rounded-full after:bg-foreground"
-                : "text-muted-foreground",
+                : "text-foreground/75",
             )}
           >
             {item.label}

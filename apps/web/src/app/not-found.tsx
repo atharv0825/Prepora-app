@@ -15,7 +15,7 @@ export default function NotFound() {
       <SiteHeader />
       <main id="main" className="dark relative flex flex-1 items-center overflow-hidden">
         <div aria-hidden className="bg-grid pointer-events-none absolute inset-0" />
-        <div className="container-page relative flex animate-fade-up flex-col items-start gap-6 py-24 sm:py-32">
+        <div className="container-page relative flex animate-fade-up flex-col items-start gap-6 pt-40 pb-24 sm:pt-48 sm:pb-32">
           <p className="font-mono text-sm text-muted-foreground">404</p>
           <h1 className="text-display">
             This page <span className="text-accent-serif">isn&apos;t</span> here.

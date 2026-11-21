@@ -37,7 +37,7 @@ export default async function StatusPage() {
     : [];
 
   return (
-    <section className="container-page py-12 sm:py-20">
+    <section className="container-page pt-28 pb-12 sm:pt-36 sm:pb-20">
       <h1 className="text-h1">System status</h1>
       <Card className="mt-8 max-w-xl">
         <CardHeader>

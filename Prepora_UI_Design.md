@@ -53,11 +53,15 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 
 ## 1. Navbar (on dark)
 
-- **Surface:** sticky **frosted glass**: a dark tint with a faint white wash (`rgb(28 28 28 / 80%)`), background blur, a 1px `white/10` bottom border and a faint top highlight. Over the black hero it reads as lighter, see-through glass; over white sections it stays dark enough for the nav text (white ≥ 8:1, inactive links ≥ 6:1).
+- **Surface:** the navbar floats over the page and adapts to what's behind it:
+  - **Top of the page:** fully transparent (no background, border or blur), so the hero runs right up under it.
+  - **Scrolled, over a dark section:** very light black glass (`rgb(10 10 10 / 35%)`) with blur and a `white/10` bottom border, so it blends into the black.
+  - **Scrolled, over a white section:** light white glass (`white / 65%`) with blur; text, logo square and button switch to dark.
+  - Every page's first section leaves 4rem extra top space for it.
 
 - **Left:** The **Prepora** wordmark in white, with a small monogram "P" in a white square.
 - **Centre:** Home · Modules · How it works · Pricing · Contact.
-  - Text is white at 75% opacity (stays readable over both dark and white sections under the glass).
+  - Inactive links are the text colour at 75% opacity (white on dark, black on light).
   - The active link is white, with a short 2px white underline.
 - **Right:**
   - "Log in" as a text link.

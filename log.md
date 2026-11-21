@@ -619,3 +619,25 @@ Branch `feature/ui-green-purple-accents` (from `develop` after PR #7). Includes 
 - Computed style of the hero phrase: `linear-gradient(90deg, rgb(134,239,172), rgb(196,181,253))` (light shades on dark).
 - Screenshots: hero (glass header, gradient *Band 8+*, green dot), header scrolled over white sections (readable), pricing (purple badge outline), final CTA (gradient *closer*), `/design` accents (dark-green→dark-purple on light, light shades on dark), phone 390px hero.
 - lint ✓, typecheck web + ui ✓, `next build` ✓.
+
+---
+
+## 2026-11-22 — Header: transparent at the top, adapts to the section behind it
+
+User feedback (screenshots): the glass header showed as a **grey bar** while scrolling the hero and looked bad over **white** sections; asked for it to be **transparent from the start of the page** and more transparent overall.
+
+**Change** (`apps/web/src/components/layout/site-header.tsx`, now a client component)
+- Overlays the page: `sticky top-0 -mb-16`, so the first section runs underneath it.
+- On scroll/resize (batched with `requestAnimationFrame`, passive listeners) it checks what's under the middle of the bar (`elementsFromPoint`, ignoring the header itself) and whether that sits inside a `.dark` section:
+  - **top (scrollY ≤ 8):** fully transparent, no border, no blur;
+  - **scrolled + dark behind:** `rgb(10 10 10 / 0.35)` + `backdrop-blur-xl`, `border-white/10`;
+  - **scrolled + light behind:** `bg-white/65` + blur, `border-black/5`, and the `dark` class is removed, so text, logo square and button turn dark via the tokens.
+  - `transition` on background/border for a smooth switch. `data-tone` attribute shows the current state.
+- First sections got +4rem top padding: hero (`pt-28 sm:pt-36`), `/status`, `/design` hero, 404, error page.
+- Design doc §1 updated (three header states; inactive links = text colour at 75%).
+
+**Verified** (clean build, viewport screenshots at real scroll positions via a new DevTools script)
+- Desktop 1440: y=0 transparent (hero grid visible under the menu); y=420 (in hero) `rgba(10,10,10,0.35)` + blur, no grey band; y=900 and 2600 (white sections) white glass with black text/button; y=4276 (final CTA) dark glass.
+- Phone 390: top transparent; scrolled, follows the section behind it.
+- `/status` (starts on white): light tone at the top, dark text. 404 (starts dark): transparent, white text.
+- lint ✓, typecheck ✓, build ✓.

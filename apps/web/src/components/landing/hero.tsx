@@ -22,7 +22,7 @@ export function Hero() {
   return (
     <section className="dark relative overflow-hidden pb-28 sm:pb-36">
       <div aria-hidden className="bg-grid pointer-events-none absolute inset-0" />
-      <div className="container-page relative grid items-center gap-14 pt-12 sm:pt-20 lg:grid-cols-[55fr_45fr] lg:gap-8">
+      <div className="container-page relative grid items-center gap-14 pt-28 sm:pt-36 lg:grid-cols-[55fr_45fr] lg:gap-8">
         <div className="flex animate-fade-up flex-col items-start gap-6">
           <Badge variant="outline" className="text-eyebrow">
             <span className="size-1.5 rounded-full bg-accent-green" aria-hidden />

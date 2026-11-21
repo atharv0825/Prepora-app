@@ -66,7 +66,7 @@ export default function DesignSystemPage() {
       {/* Dark hero sample: grid texture, eyebrow, display type with serif accent, CTAs, glass cards */}
       <section className="dark relative overflow-hidden">
         <div aria-hidden className="bg-grid pointer-events-none absolute inset-0" />
-        <div className="container-page relative grid gap-12 py-16 sm:py-24 lg:grid-cols-[55fr_45fr] lg:items-center">
+        <div className="container-page relative grid gap-12 pt-32 pb-16 sm:pt-40 sm:pb-24 lg:grid-cols-[55fr_45fr] lg:items-center">
           <div className="flex animate-fade-up flex-col items-start gap-6">
             <Badge variant="outline" className="text-eyebrow">
               <span className="size-1.5 rounded-full bg-accent-green" aria-hidden />

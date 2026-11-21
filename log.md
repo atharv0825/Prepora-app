@@ -566,3 +566,14 @@ Branch `feature/m0-f4-landing-waitlist` (from `develop` after PR #5).
 1. **GitHub → Settings → Secrets and variables → Actions → Variables** → add `NEXT_PUBLIC_SUPABASE_URL` = `https://xvaxqiumdmgdvmbsqcub.supabase.co` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` = the staging `sb_publishable_…` key. **Without these the staging form shows "Something went wrong".**
 2. Merge the PR → CI pushes the `waitlist` migration to staging, runs the DB tests, and deploys the site.
 3. Then try the form on https://staging.prepora.site and check the row in Supabase (Table Editor → `waitlist`).
+
+---
+
+## 2026-11-21 — Staging built without Supabase variables (F4 live, /status "not_configured")
+
+- PR #6 (F4) was merged at 23:10. Staging serves commit `1a11818` with the new landing page ("Join waitlist" header), but `/status` shows **not_configured: missing NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**, so the waitlist form can't reach Supabase.
+- Cause: these `NEXT_PUBLIC_*` values are baked in at build time from **repository variables** (`vars.*`). Either they weren't set when the build ran, or they were added somewhere the build job can't see (Secrets, or variables inside the `staging` *environment*; the build job isn't attached to an environment).
+- The user also asked about pushing real values in `apps/web/.env.example`. Advised against it (it's only a template; nothing reads it; the publishable key is public, so not a leak). The user restored it.
+- **Fix (branch `fix/web-require-supabase-vars`):** `web.yml` → new step "Check Supabase build variables" before lint. Deploy builds (push / manual) **fail** with a message naming the missing variables and exactly where to add them; PR builds only **warn**. Deliberately not attaching the build job to the `staging` environment, because branch rules on that environment could block PR builds.
+- Verified the step's logic in 4 cases: PR + missing → warning, exit 0; push + both missing → error, exit 1; push + one missing → error naming it, exit 1; push + both set → exit 0.
+- **To get the form working now:** add the two repository variables, then GitHub → Actions → "Web" → latest run on `develop` → **Re-run all jobs** (re-runs see the current variable values), or merge this fix PR (that triggers a fresh deploy).

@@ -1,0 +1,39 @@
+// Cloudflare Workers config for the student web app (built by OpenNext).
+//
+// Top level = STAGING (so a bare `pnpm deploy` can never hit production).
+// Production = `--env production`.
+//
+//   pnpm --filter @prepora/web run deploy                       → prepora-web-staging
+//   pnpm --filter @prepora/web run deploy -- --env production   → prepora-web
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "prepora-web-staging",
+  "compatibility_date": "2026-11-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    // Self-reference binding; the service name must match the worker name.
+    // https://opennext.js.org/cloudflare/caching
+    { "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web-staging" }
+  ],
+  "vars": {
+    "APP_ENV": "staging"
+  },
+  "observability": { "enabled": true },
+
+  // Not enabled yet (need a Cloudflare account set up first):
+  //  - R2 incremental cache ("r2_buckets" + open-next.config.ts) — add when we use ISR/revalidation.
+  //  - Images binding ("images") — add when we need next/image optimisation.
+
+  "env": {
+    "production": {
+      "name": "prepora-web",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web" }],
+      "vars": { "APP_ENV": "production" }
+    }
+  }
+}

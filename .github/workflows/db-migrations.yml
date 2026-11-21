@@ -1,0 +1,81 @@
+# M0-B2 — Database migration pipeline
+#
+#   PR touching supabase/**   -> validate on a fresh local DB + dry-run against staging
+#   push to develop           -> validate + `supabase db push` to staging
+#   manual (workflow_dispatch)-> same as push, from any branch you pick
+#
+# Required GitHub setup (Settings -> Secrets and variables -> Actions):
+#   Repository secret:   SUPABASE_ACCESS_TOKEN   (supabase.com -> Account -> Access tokens)
+#   Environment "staging" secrets:
+#                        SUPABASE_PROJECT_REF    (staging project ref)
+#                        SUPABASE_DB_PASSWORD    (staging database password)
+# Production gets its own "production" environment with the same secret names in a later milestone.
+
+name: DB migrations
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/db-migrations.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: db-migrations-${{ github.ref }}
+  cancel-in-progress: false # never cancel a push half-way
+
+env:
+  SUPABASE_CLI_VERSION: 2.116.0 # keep in sync with the local CLI
+
+jobs:
+  validate:
+    name: Apply migrations to a fresh DB
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      # Starts only Postgres, applies every migration + seed. Fails the job on any SQL error.
+      - run: supabase db start
+      - run: supabase db lint --level error
+
+  dry-run-staging:
+    name: Dry-run against staging
+    needs: validate
+    # PRs from forks don't get secrets; skip instead of failing.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - run: supabase db push --dry-run
+
+  push-staging:
+    name: Push migrations to staging
+    needs: validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - run: supabase db push

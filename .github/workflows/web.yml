@@ -82,5 +82,24 @@ jobs:
         with:
           name: web-open-next
           path: apps/web/.open-next
-      # Top-level wrangler.jsonc config = staging worker (prepora-web-staging).
-      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy
+      # Fails fast with a readable reason if the token/account pair can't deploy Workers.
+      # Never prints the token. Checks what the deploy needs: listing this account's Workers.
+      - name: Check Cloudflare credentials
+        run: |
+          set -uo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is empty. Add both to the 'staging' environment (or as repository secrets)."
+            exit 1
+          fi
+          if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID doesn't look like an account ID (expected 32 hex characters). Copy it from Cloudflare dashboard → Workers & Pages → Account details."
+            exit 1
+          fi
+          res=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts"             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          if [ "$(echo "$res" | jq -r '.success')" != "true" ]; then
+            echo "Cloudflare API errors: $(echo "$res" | jq -c '.errors')"
+            echo "::error::This token can't manage Workers in account ${CLOUDFLARE_ACCOUNT_ID}. Either the account ID belongs to a different account than the token, or the token lacks 'Account → Workers Scripts → Edit'. Fix: create a token from the 'Edit Cloudflare Workers' template with Account Resources including this account, and update CLOUDFLARE_API_TOKEN."
+            exit 1
+          fi
+          echo "Cloudflare credentials OK: token can manage Workers in this account ($(echo "$res" | jq '.result | length') existing Workers)."
+      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging

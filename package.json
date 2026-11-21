@@ -5,7 +5,7 @@
   "scripts": {
     "dev:web": "pnpm --filter @prepora/web dev",
     "preview:web": "pnpm --filter @prepora/web preview",
-    "deploy:web": "pnpm --filter @prepora/web run deploy",
+    "deploy:web": "pnpm --filter @prepora/web run deploy --env staging",
     "db:types": "node scripts/gen-db-types.mjs",
     "db:types:linked": "node scripts/gen-db-types.mjs --linked",
     "db:types:check": "node scripts/gen-db-types.mjs --check"

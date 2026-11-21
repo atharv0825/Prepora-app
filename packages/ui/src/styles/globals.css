@@ -296,3 +296,48 @@
     padding-inline: 2rem;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Hero motion: light streaks flowing along the grid, glowing grid squares, live waveform bars.
+ * Plain @keyframes (not inside @theme) so they're always emitted; used via inline `animation`.
+ * All of it stops for prefers-reduced-motion (see the base layer).
+ * ------------------------------------------------------------------------------------------- */
+@keyframes beam-x {
+  from {
+    transform: translateX(-30vw);
+  }
+  to {
+    transform: translateX(130vw);
+  }
+}
+@keyframes beam-y {
+  from {
+    transform: translateY(-240px);
+  }
+  to {
+    transform: translateY(1100px);
+  }
+}
+@keyframes cell-glow {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes wave-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}

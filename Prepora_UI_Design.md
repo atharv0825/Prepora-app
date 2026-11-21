@@ -87,15 +87,19 @@ This page uses the same layout ideas as the reference shot, but in a clean **bla
 
 ### Right side
 
-- A **phone mockup of the app** (a black-and-white photo of a student also works). Use a mockup rather than a stock person, because it shows the product.
-- The phone screen shows the Speaking Part 2 cue card with a recording waveform.
-- **Floating glass stat cards** around it:
-  - Semi-transparent `#141414` at about 70% opacity, with background blur and a 1px border.
-  - Each card has a thin-line icon, a small grey label and a bold white number.
-  - Card 1: "Avg. band improvement · +1.0"
-  - Card 2: "Mock tests · 500+"
-  - Card 3: "Speaking sessions · 20,000+"
-- Stagger the three cards at different heights to create depth.
+- A **live device showcase** that plays short, self-running demos of all four modules (no video, built in HTML/CSS):
+  1. **Speaking** on a **phone**: Part 2 cue card, recording timer counting up, live waveform, pulsing green "Recording…" dot, then a band card (7.0 with FC / LR / GRA / P).
+  2. The frame **morphs into a laptop** (smooth width/height/corner transition, laptop base slides in) for **Writing**: the essay types itself, word count climbs, timer counts down, then a score panel slides in (overall 6.5 + criteria bars).
+  3. **Reading** on the laptop: split view; the passage is highlighted in green as it's read, True / False / Not Given answers are picked one by one, then "3 / 3 correct".
+  4. Back to the **phone** for **Listening**: audio progress bar runs while the form answers (surname, phone, day, deposit) are written in.
+  - Loops every ~7.5 s per module. Tabs under the device (Speaking · Writing · Reading · Listening) jump to a demo, with a thin green progress line on the active tab.
+  - Pauses on hover/focus, when scrolled out of view or the browser tab is hidden. With reduced motion it doesn't auto-play and shows each demo's finished state.
+  - The laptop screen is laid out at a fixed size and scaled to fit, so it looks the same on phones and desktops.
+- **Stat cards:** three glass cards (IELTS modules · 4, Official criteria · 4/4, Part 2 prep · 1:00) in a row under the device, gently floating. (They no longer float around the device: the laptop is too wide.)
+
+### Background
+
+- The faint white grid stays, and it **flows**: thin light streaks travel along the grid lines (light green `#86EFAC` along rows, light purple `#C4B5FD` down columns), and a few grid squares softly light up and fade in green or purple. Everything fades out towards the bottom with the grid. Decorative only; stops with reduced motion.
 
 ---
 

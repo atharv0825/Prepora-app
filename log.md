@@ -641,3 +641,33 @@ User feedback (screenshots): the glass header showed as a **grey bar** while scr
 - Phone 390: top transparent; scrolled, follows the section behind it.
 - `/status` (starts on white): light tone at the top, dark text. 404 (starts dark): transparent, white text.
 - lint ✓, typecheck ✓, build ✓.
+
+---
+
+## 2026-11-22 — Hero: live device showcase (phone ⇄ laptop) + flowing accent grid
+
+User request: the hero phone should be a **live, working component**, first the phone, then **transition to a laptop**; show live demos for **Speaking, Writing, Listening and Reading**; the grid lines/squares in the background should **flow in the green/purple accents**.
+
+**Showcase** (`apps/web/src/components/landing/showcase/`)
+- `hero-showcase.tsx` (client): one timer (100 ms tick) drives `{ index, t }` in a **single state object** (the first version changed the index inside another state's updater, which React may run twice in Strict Mode → skipped scenes; fixed before shipping).
+  - Order: Speaking (phone) → Writing (laptop) → Reading (laptop) → Listening (phone) → loop, 7.5 s each (`SCENE_MS`).
+  - Device frame **morphs** (width/height/radius transitions, 700 ms); the notch shrinks to a camera dot; the laptop base slides in; scenes cross-fade.
+  - **Laptop content is laid out at a fixed 520×292 and scaled to fit** (ResizeObserver), and the frame height follows the scale. The first version squeezed the laptop at 390 px (Writing text cut off, score panel a sliver).
+  - Tabs (`role=tablist`) to jump to a demo, thin green progress line on the active tab; a screen-reader live region announces the current demo.
+  - Pauses on hover/focus, when out of view (IntersectionObserver) or `document.hidden`. **Reduced motion:** no auto-advance; the selected scene shows its finished state.
+- Scenes (pure functions of `t` in ms): `speaking-scene` (timer, animated waveform, ping on mic, then band card 7.0 + FC/LR/GRA/P), `writing-scene` (typing essay with blinking caret, word count, countdown, then score panel 6.5 + criteria bars), `reading-scene` (green highlight sweeps the passage, T/F/NG answers picked at 1.6/3.2/4.8 s, "3 / 3 correct"), `listening-scene` (audio progress, 4 form answers typed in). Helpers in `shared.ts`.
+- `phone-mockup.tsx` removed (replaced by the showcase).
+- Stat cards: now a 3-column row of glass cards under the device (floating around a laptop would cover its screen).
+
+**Background** (`hero-background.tsx`, replaces the plain grid in the hero)
+- Grid kept (56 px); **light streaks flow along grid lines**: green (#86EFAC) along rows, purple (#C4B5FD) down columns, varied speeds/delays; **7 grid squares glow** green/purple (tinted fill + coloured 1 px edge + soft glow; a faint fill alone looked grey). Same bottom fade mask as the grid. Fixed positions (no `Math.random`), so server and client match.
+- Uses literal hex values: Tailwind only emits theme variables that some class uses, so `var(--color-brand-purple-light)` might not exist (purple wasn't used by any class). The Reading highlight was switched to a literal too.
+- New keyframes in `packages/ui` globals: `beam-x`, `beam-y`, `cell-glow`, `wave-bar`, `caret-blink` (plain `@keyframes`, always emitted; stopped by the reduced-motion rule).
+
+**Verified** (clean builds; Chrome via DevTools, frames captured over time)
+- Desktop 1440: 1.5 s Speaking recording → 6.5 s scoring → 10 s laptop Writing typing → 14 s Writing scored → 18.5 s Reading answers → 27 s phone Listening; the active tab matches at each frame; no console errors. Glowing squares now read green/purple; streaks visible.
+- Laptop scenes at 390 px (phone), 1024 px and 1440 px: identical layout, nothing clipped.
+- Phone 390 (tall viewport): all four scenes play; no horizontal overflow.
+- Reduced motion (emulated): stays on Speaking at 3 s and 10 s, finished state shown, no streaks.
+- Home page still static (prerendered). lint ✓, typecheck ✓, build ✓.
+- Design doc §2 updated (Right side: live showcase; new Background subsection).

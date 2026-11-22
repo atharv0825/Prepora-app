@@ -54,3 +54,25 @@ describe("ProfileUpdate", () => {
     expect(Object.keys(ProfileUpdate.shape).sort()).toEqual([...editableProfileFields].sort());
   });
 });
+
+describe("ProfileUpdate onboarding fields (M2-C1)", () => {
+  it("accepts valid answers", () => {
+    expect(
+      ProfileUpdate.parse({ test_type: "academic", target_band: 7.5, exam_date: "2027-03-14" }),
+    ).toEqual({ test_type: "academic", target_band: 7.5, exam_date: "2027-03-14" });
+    expect(ProfileUpdate.parse({ exam_date: null })).toEqual({ exam_date: null });
+  });
+
+  it.each([
+    { test_type: "computer" },
+    { target_band: 7.3 },
+    { target_band: 9.5 },
+    { target_band: 0.5 },
+    { target_band: "7" },
+    { exam_date: "14/03/2027" },
+    { exam_date: "1999-01-01" },
+    { exam_date: "2027-02-30" },
+  ])("rejects %o", (input) => {
+    expect(ProfileUpdate.safeParse(input).success).toBe(false);
+  });
+});

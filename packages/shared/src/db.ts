@@ -12,34 +12,67 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      country_regions: {
+        Row: {
+          country_code: string
+          is_enabled: boolean
+          launch_wave: number | null
+          region: Database["public"]["Enums"]["market_region"]
+          updated_at: string
+        }
+        Insert: {
+          country_code: string
+          is_enabled?: boolean
+          launch_wave?: number | null
+          region: Database["public"]["Enums"]["market_region"]
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string
+          is_enabled?: boolean
+          launch_wave?: number | null
+          region?: Database["public"]["Enums"]["market_region"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           country_code: string | null
           created_at: string
+          exam_date: string | null
           full_name: string | null
           id: string
           plan: Database["public"]["Enums"]["plan_tier"]
           role: Database["public"]["Enums"]["app_role"]
+          target_band: number | null
+          test_type: Database["public"]["Enums"]["ielts_test_type"] | null
           timezone: string | null
           updated_at: string
         }
         Insert: {
           country_code?: string | null
           created_at?: string
+          exam_date?: string | null
           full_name?: string | null
           id: string
           plan?: Database["public"]["Enums"]["plan_tier"]
           role?: Database["public"]["Enums"]["app_role"]
+          target_band?: number | null
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
           timezone?: string | null
           updated_at?: string
         }
         Update: {
           country_code?: string | null
           created_at?: string
+          exam_date?: string | null
           full_name?: string | null
           id?: string
           plan?: Database["public"]["Enums"]["plan_tier"]
           role?: Database["public"]["Enums"]["app_role"]
+          target_band?: number | null
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
           timezone?: string | null
           updated_at?: string
         }
@@ -52,7 +85,9 @@ export type Database = {
           email: string
           id: number
           invited_at: string | null
+          invited_by: string | null
           source: string | null
+          user_id: string | null
         }
         Insert: {
           country_code?: string | null
@@ -60,7 +95,9 @@ export type Database = {
           email: string
           id?: never
           invited_at?: string | null
+          invited_by?: string | null
           source?: string | null
+          user_id?: string | null
         }
         Update: {
           country_code?: string | null
@@ -68,7 +105,9 @@ export type Database = {
           email?: string
           id?: never
           invited_at?: string | null
+          invited_by?: string | null
           source?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -84,6 +123,8 @@ export type Database = {
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"
+      ielts_test_type: "academic" | "general"
+      market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
       plan_tier: "free" | "gold" | "platinum"
     }
     CompositeTypes: {
@@ -213,6 +254,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
+      ielts_test_type: ["academic", "general"],
+      market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
       plan_tier: ["free", "gold", "platinum"],
     },
   },

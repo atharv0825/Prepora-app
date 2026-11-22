@@ -32,16 +32,20 @@ describe("frontend ↔ Edge Function contract", () => {
 });
 
 describe("frontend ↔ database contract", () => {
-  it("editable profile fields match the column grant in the profiles migration", () => {
+  it("editable profile fields match the column grants across all migrations", () => {
     const sql = readdirSync(new URL("../supabase/migrations/", import.meta.url))
       .filter((f) => f.endsWith(".sql"))
+      .sort()
       .map((f) => read(`supabase/migrations/${f}`))
       .join(String.fromCharCode(10));
+    // Grants add up (M1-C1: name/country/timezone, M2-C1: onboarding fields). A column-level
+    // revoke would need real tracking here, so fail loudly if one ever appears.
+    expect(sql).not.toMatch(/revoke update \([^)]*\) on table public\.profiles/i);
     const grants = [
       ...sql.matchAll(/grant update \(([^)]+)\) on table public\.profiles to authenticated/gi),
     ];
-    expect(grants).toHaveLength(1); // a later migration changing it must update this test
-    const granted = grants[0]![1]!.split(",").map((c) => c.trim()).sort();
+    expect(grants.length).toBeGreaterThan(0);
+    const granted = [...new Set(grants.flatMap((g) => g[1]!.split(",").map((c) => c.trim())))].sort();
     expect(granted).toEqual([...editableProfileFields].sort());
     expect(granted).not.toContain("role");
     expect(granted).not.toContain("plan");

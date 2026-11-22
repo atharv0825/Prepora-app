@@ -2,7 +2,7 @@
 // live here so the web app can only send events we've agreed on. Each milestone's contract step
 // adds or adjusts entries; M0-I2 only defines them, nothing is captured yet.
 
-import type { Plan } from "./types/profile";
+import type { Plan, TestType } from "./types/profile";
 
 /** How someone signed in. Google only (M1-B1); kept as a property so new methods stay comparable. */
 export type AuthMethod = "google";
@@ -11,12 +11,19 @@ type Provider = "razorpay" | "paddle";
 
 export interface AnalyticsEvents {
   landing_viewed: { country?: string; utm_source?: string; page: string };
+  /** Someone joined the waitlist (M2-C2). country = CF-IPCountry (ISO-2) when known; source = utm_source or the form location ("hero", "final_cta", "gate"). */
   waitlist_joined: { country?: string; source: string };
   /** First sign-in of a new account (profile just created). */
   signup_completed: { method: AuthMethod; country?: string };
   /** Every later sign-in. */
   login_completed: { method: AuthMethod };
-  onboarding_completed: { test_type: string; target_band: number; exam_date?: string };
+  /** The 3-step onboarding was finished (M2-C2). exam_date null = skipped; days_to_exam for funnels without date maths. */
+  onboarding_completed: {
+    test_type: TestType;
+    target_band: number;
+    exam_date: string | null;
+    days_to_exam: number | null;
+  };
   module_opened: { module: Module };
   speaking_part_started: { part: 1 | 2 | 3; topic_id: string };
   speaking_part_completed: { part: 1 | 2 | 3; topic_id: string; duration_sec: number };
@@ -84,3 +91,6 @@ export const analyticsEvents = [
 
 /** Auth events (M1-C2), sent by the web app after sign-in (M1-F1/F4). */
 export const authEvents = ["signup_completed", "login_completed"] as const satisfies readonly AnalyticsEvent[];
+
+/** Onboarding and waitlist events (M2-C2). */
+export const onboardingEvents = ["onboarding_completed", "waitlist_joined"] as const satisfies readonly AnalyticsEvent[];

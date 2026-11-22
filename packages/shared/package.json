@@ -8,7 +8,9 @@
     "./db": "./src/db.ts",
     "./api/*": "./src/api/*.ts",
     "./constants/*": "./src/constants/*.ts",
-    "./ielts/*": "./src/ielts/*.ts"
+    "./ielts/*": "./src/ielts/*.ts",
+    "./analytics": "./src/analytics.ts",
+    "./observability": "./src/observability.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

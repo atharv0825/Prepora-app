@@ -1,12 +1,20 @@
 "use client";
 
+import { useEffect } from "react";
+// @sentry/core, not @sentry/nextjs: reports to the client created in instrumentation-client.ts
+// without pulling the Node.js SDK into the server render of this page (Worker size).
+import { captureException } from "@sentry/core";
 import "@prepora/ui/globals.css";
 
 // Last-resort error page: replaces the ROOT layout when it fails, so it renders its own
-// <html>/<body> and can't rely on fonts or the shell. Keep it dependency-free.
+// <html>/<body> and can't rely on fonts or the shell. Keep it dependency-free (Sentry aside).
 export default function GlobalError({ error, retry }: { error: unknown; retry: () => void }) {
   const digest =
     error instanceof Error && "digest" in error ? String((error as { digest?: string }).digest) : null;
+
+  useEffect(() => {
+    captureException(error);
+  }, [error]);
 
   return (
     <html lang="en">

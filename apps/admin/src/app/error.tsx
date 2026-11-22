@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+// @sentry/core, not @sentry/nextjs: reports to the client created in instrumentation-client.ts
+// without pulling the Node.js SDK into the server render of this page (Worker size).
+import { captureException } from "@sentry/core";
 import { Button } from "@prepora/ui/components/button";
 
 // Next 16 error boundary API: { error: unknown, retry }.
@@ -9,7 +12,8 @@ export default function ErrorPage({ error, retry }: { error: unknown; retry: () 
     error instanceof Error && "digest" in error ? String((error as { digest?: string }).digest) : null;
 
   useEffect(() => {
-    console.error(error); // Sentry capture is wired in M0-I2.
+    captureException(error);
+    console.error(error);
   }, [error]);
 
   return (

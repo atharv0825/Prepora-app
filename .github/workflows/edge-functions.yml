@@ -1,0 +1,68 @@
+# M0-B3 — Edge Functions: type-check on PRs, deploy to staging on develop.
+#
+# Uses the same secrets as db-migrations.yml:
+#   Repository secret:  SUPABASE_ACCESS_TOKEN
+#   Environment "staging": SUPABASE_PROJECT_REF
+# Function runtime secrets (APP_ENV, ALLOWED_ORIGINS, SENTRY_DSN, PINNED_REGION, ...) are set once
+# per project with `supabase secrets set`, not here.
+
+name: Edge Functions
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/edge-functions.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+  workflow_dispatch:
+
+concurrency:
+  group: edge-functions-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SUPABASE_CLI_VERSION: 2.116.0
+
+jobs:
+  check:
+    name: Type-check functions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      # Run from supabase/functions so Deno picks up its deno.json ("nodeModulesDir": "none").
+      # From the repo root, Deno 2 sees package.json and expects npm deps in node_modules.
+      # Every folder with an index.ts (except _shared) is a function.
+      # --frozen: fail instead of resolving new versions if deno.lock is out of date. Deno 2 also
+      # refuses packages published < 24 h ago, so pin versions that are a few days old, then
+      # refresh the lock with `deno check` (Deno 2) in supabase/functions and commit deno.lock.
+      - name: deno check
+        working-directory: supabase/functions
+        run: deno check --frozen $(ls */index.ts | grep -v _shared/)
+
+  deploy-staging:
+    name: Deploy functions to staging
+    needs: check
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      # Deploy only folders that have an index.ts (placeholder folders are skipped).
+      # Per-function settings (verify_jwt, ...) come from config.toml.
+      - run: |
+          fns=$(ls supabase/functions/*/index.ts | grep -v /_shared/ | xargs -n1 dirname | xargs -n1 basename)
+          echo "Deploying: $fns"
+          supabase functions deploy $fns --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" --use-api

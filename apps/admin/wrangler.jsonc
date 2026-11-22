@@ -1,0 +1,41 @@
+// Cloudflare Workers config for the admin panel (built by OpenNext). Mirrors apps/web.
+//
+//   pnpm --filter @prepora/admin run deploy -- --env staging      → prepora-admin-staging → https://admin-staging.prepora.site
+//   pnpm --filter @prepora/admin run deploy -- --env production   → prepora-admin         (admin.prepora.site at launch)
+//
+// Staging uses a single-level subdomain (admin-staging.…) so Cloudflare's free certificate for
+// *.prepora.site covers it; admin.staging.prepora.site would be two levels deep.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "prepora-admin-staging",
+  "compatibility_date": "2026-11-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-admin-staging" }],
+  "vars": { "APP_ENV": "staging" },
+  "observability": { "enabled": true },
+
+  // Only reachable through each environment's custom domain (routes are inherited, so they're
+  // set per environment). A deploy without --env has no address and fails, which is intended.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  "env": {
+    "staging": {
+      "name": "prepora-admin-staging",
+      "routes": [{ "pattern": "admin-staging.prepora.site", "custom_domain": true }],
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-admin-staging" }],
+      "vars": { "APP_ENV": "staging" }
+    },
+    "production": {
+      // No route until launch (M13): admin.prepora.site, ideally behind Cloudflare Access.
+      "name": "prepora-admin",
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-admin" }],
+      "vars": { "APP_ENV": "production" }
+    }
+  }
+}

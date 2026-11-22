@@ -1,0 +1,49 @@
+# Pre-deploy check shared by the web and admin workflows (M0-F1 fixes, M0-A1).
+# Fails fast with a readable reason if the Cloudflare token/account pair can't deploy Workers,
+# or can't see the zone that holds the custom domain. Never prints the token.
+name: Cloudflare preflight
+description: Verify the Cloudflare API token can manage Workers in the account and see the zone.
+inputs:
+  api-token:
+    description: Cloudflare API token (CLOUDFLARE_API_TOKEN)
+    required: true
+  account-id:
+    description: Cloudflare account ID (CLOUDFLARE_ACCOUNT_ID)
+    required: true
+  zone-name:
+    description: Zone that holds the custom domain, e.g. prepora.site
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Check Cloudflare credentials
+      shell: bash
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ inputs.api-token }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ inputs.account-id }}
+        CF_ZONE_NAME: ${{ inputs.zone-name }}
+      run: |
+        set -uo pipefail
+        if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+          echo "::error::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is empty. Add both to the 'staging' environment (or as repository secrets)."
+          exit 1
+        fi
+        if ! [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]; then
+          echo "::error::CLOUDFLARE_ACCOUNT_ID doesn't look like an account ID (expected 32 hex characters). Copy it from Cloudflare dashboard → Workers & Pages → Account details."
+          exit 1
+        fi
+        res=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts"             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+        if [ "$(echo "$res" | jq -r '.success')" != "true" ]; then
+          echo "Cloudflare API errors: $(echo "$res" | jq -c '.errors')"
+          echo "::error::This token can't manage Workers in account ${CLOUDFLARE_ACCOUNT_ID}. Either the account ID belongs to a different account than the token, or the token lacks 'Account → Workers Scripts → Edit'. Fix: create a token from the 'Edit Cloudflare Workers' template with Account Resources including this account, and update CLOUDFLARE_API_TOKEN."
+          exit 1
+        fi
+        echo "Workers access OK ($(echo "$res" | jq '.result | length') existing Workers)."
+        # The custom domain (staging.prepora.site) needs the token to see the zone.
+        zres=$(curl -sS "https://api.cloudflare.com/client/v4/zones?name=${CF_ZONE_NAME}&account.id=${CLOUDFLARE_ACCOUNT_ID}"             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+        if [ "$(echo "$zres" | jq -r '.success')" != "true" ] || [ "$(echo "$zres" | jq '.result | length')" != "1" ]; then
+          echo "Cloudflare API errors: $(echo "$zres" | jq -c '.errors')"
+          echo "::error::This token can't access the zone ${CF_ZONE_NAME}, which the staging custom domain needs. Edit the token and add Zone permissions for ${CF_ZONE_NAME}: 'Zone → Zone → Read' and 'Zone → Workers Routes → Edit' (Zone Resources: Include → Specific zone → ${CF_ZONE_NAME})."
+          exit 1
+        fi
+        echo "Zone access OK: ${CF_ZONE_NAME} ($(echo "$zres" | jq -r '.result[0].status'))."

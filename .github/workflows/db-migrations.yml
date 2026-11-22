@@ -17,6 +17,8 @@ on:
   pull_request:
     paths:
       - "supabase/**"
+      - "scripts/gen-db-types.mjs"
+      - "packages/shared/src/db.ts"
       - ".github/workflows/db-migrations.yml"
   push:
     branches: [develop]
@@ -31,6 +33,10 @@ concurrency:
 
 env:
   SUPABASE_CLI_VERSION: 2.116.0 # keep in sync with the local CLI
+  # Pull Supabase's local images (postgres, postgres-meta, …) from GitHub's registry instead of
+  # the default public.ecr.aws, whose anonymous pull quota ran out in CI ("Data limit exceeded").
+  # ghcr.io is fast and reliable from GitHub-hosted runners.
+  SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
 
 jobs:
   validate:
@@ -44,6 +50,12 @@ jobs:
       # Starts only Postgres, applies every migration + seed. Fails the job on any SQL error.
       - run: supabase db start
       - run: supabase db lint --level error
+      # pgTAP tests in supabase/tests (RLS + function behaviour).
+      - run: supabase test db
+      # M0-B4: fail if packages/shared/src/db.ts or supabase/functions/_shared/db.ts
+      # weren't regenerated after a schema change.
+      - name: Check generated DB types are up to date
+        run: node scripts/gen-db-types.mjs --check
 
   dry-run-staging:
     name: Dry-run against staging

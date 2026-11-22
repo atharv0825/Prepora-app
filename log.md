@@ -814,3 +814,40 @@ User request: **remove Mumbai**; the plane just **comes from the left side and l
 - Design doc §4 Journey entry rewritten.
 
 **Verified:** typecheck ✓, lint ✓. Key frames via the temporary `?jt=` freeze (removed; grep = 0): 1.5 s flying in, 3.8 s descending, 5.6 s landed, 7.2 s on the stairs, 9.0 s at the NYU door (door opening), 9.6 s going in.
+
+---
+
+## 2026-11-22 — M0-A1: Admin app shell (admin-staging.prepora.site)
+
+**Goal (plan.md):** admin Next.js app shell on the `admin.` subdomain, sharing `packages/ui`.
+
+Branch `feature/m0-a1-admin-shell` (from `develop` after PR #9). Read the user's own commit `b1f227e` first: the design system is now **white pages + light-green `mint` surfaces, teal → mint palette, primary `#3FC48C` with ink text, logo image** (`apps/web/public/logo.png`). The admin follows it.
+
+**App `@prepora/admin`** (`apps/admin`): mirrors `apps/web` instead of `create-next-app`, so all versions are identical (Next 16.4.6, React 19.3, Tailwind 4.3.3, OpenNext 1.20.18, Wrangler ^4.148.0). `pnpm install` added no new packages (lockfile only gained the importer); no age-policy issues.
+- Copied: `.gitignore`, `eslint.config.mjs`, `tsconfig.json`, `open-next.config.ts`, `.dev.vars.example`, `components.json` (shadcn monorepo aliases → `packages/ui`), `public/logo.png`, `public/_headers`. Generated `cloudflare-env.d.ts`.
+- `next.config.ts`: `transpilePackages` (ui, shared), version/commit env, `images.unoptimized`, **security headers on every route: `X-Robots-Tag: noindex, nofollow`, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`**.
+- `wrangler.jsonc`: `prepora-admin-staging` → custom domain **`admin-staging.prepora.site`** (single level, so the free `*.prepora.site` certificate covers it; `admin.staging.…` would be two levels); production `prepora-admin`, **no route until launch** (admin.prepora.site, ideally behind Cloudflare Access). `workers_dev`/`preview_urls` off.
+- Dev server on port 3001 (web uses 3000).
+
+**Shell**
+- `src/lib/nav.ts`: the 12 modules from plan §6 in 5 groups (Overview · Content · People · Business · System), each with icon, milestone (from plan.md), summary and planned features. Sidebar, module pages and dashboard all read from it.
+- Desktop: **mint sidebar** (`mint` scheme), sticky, logo + "Admin" tag, grouped links (active = white pill + 2px green bar), footer "Not signed in · admin login arrives in M1" + `v0.1.0 · <commit>`.
+- Phone (< lg): top bar with logo + menu button → mint bottom-sheet (shared Dialog) with all links.
+- `(admin)/[section]/page.tsx`: one route for all 11 module pages, **prerendered via `generateStaticParams`, `dynamicParams = false`** (unknown slugs 404). Each shows icon, summary, "Arrives in Mx" and a "What you'll do here" card.
+- `(admin)/dashboard`: 4 KPI tiles with **"—" placeholders naming their source + milestone** (no invented numbers), module list with milestones, mint card with links to the student staging site (landing, status, design).
+- `(auth)/login`: placeholder card (sign-in arrives in M1-A1). `/` → redirect to `/dashboard`. `robots.txt` disallows all. 404 and error pages (Next 16 `{ error, retry }`).
+
+**CI**
+- New composite action **`.github/actions/cloudflare-preflight`**: the Cloudflare credentials + zone check moved out of `web.yml` (verified the script is byte-identical to the old step), so web and admin share one copy.
+- `web.yml` now calls the action.
+- New **`admin.yml`**: PR (admin, packages, lockfile, workflow, action paths) → lint, typecheck, OpenNext build; push to `develop` → build + preflight + `opennextjs-cloudflare deploy --env staging`. Same secrets; the token's `prepora.site` zone permissions already cover the new subdomain.
+- Root scripts: `dev:admin`, `preview:admin`, `deploy:admin`.
+
+**Verified**
+- admin: lint ✓, typecheck ✓, `next build` ✓: 17 static pages (`/dashboard`, `/login`, `/robots.txt`, 11 SSG module pages).
+- `next start`: `/` → 307 `/dashboard`; `/dashboard`, `/speaking`, `/audit-log`, `/login`, `/robots.txt` → 200; `/nope`, `/dashboard/x` → 404; headers present; robots `Disallow: /`.
+- Screenshots: desktop dashboard and Reading module page, login, phone dashboard (no horizontal overflow) and the menu sheet (12 links).
+- web lint still ✓ after the workflow change.
+- **Not verified:** Linux/OpenNext build + wrangler dry run (Docker Desktop wasn't running; didn't start it). The PR's `Admin` workflow runs exactly that build.
+
+**Note:** there's no authentication until M1-A1. The shell contains no user data, but consider Cloudflare Access on `admin-staging.prepora.site` until then.

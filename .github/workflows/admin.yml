@@ -1,0 +1,82 @@
+# M0-A1 — Admin panel (apps/admin): checks on PRs, deploy to Cloudflare staging on develop
+# (https://admin-staging.prepora.site). Uses the same secrets as web.yml:
+#   staging environment: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+# The token's zone permissions for prepora.site (added for the web staging domain) cover this too.
+
+name: Admin
+
+on:
+  pull_request:
+    paths:
+      - "apps/admin/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/admin.yml"
+      - ".github/actions/cloudflare-preflight/**"
+  push:
+    branches: [develop]
+    paths:
+      - "apps/admin/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/admin.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: admin-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  check-and-build:
+    name: Lint, type-check, build (OpenNext)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @prepora/admin lint
+      - run: pnpm --filter @prepora/admin typecheck
+      - run: pnpm --filter @prepora/admin exec opennextjs-cloudflare build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: admin-open-next
+          path: apps/admin/.open-next
+          include-hidden-files: true
+          retention-days: 3
+
+  deploy-staging:
+    name: Deploy to Cloudflare (staging)
+    needs: check-and-build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: admin-open-next
+          path: apps/admin/.open-next
+      - uses: ./.github/actions/cloudflare-preflight
+        with:
+          api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          zone-name: prepora.site
+      - run: pnpm --filter @prepora/admin exec opennextjs-cloudflare deploy --env staging

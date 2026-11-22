@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PINNED_FUNCTION_REGION } from "../packages/shared/src/api/regions";
 import { editableProfileFields } from "../packages/shared/src/types/profile";
+import { AUTH_PROVIDER } from "../packages/shared/src/constants/auth";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -44,5 +45,35 @@ describe("frontend ↔ database contract", () => {
     expect(granted).toEqual([...editableProfileFields].sort());
     expect(granted).not.toContain("role");
     expect(granted).not.toContain("plan");
+  });
+});
+
+describe("frontend ↔ Supabase Auth config", () => {
+  const toml = read("supabase/config.toml").replace(/\r\n/g, String.fromCharCode(10));
+  /** Body of a `[table]` in config.toml, up to the next table. */
+  const table = (name: string) =>
+    toml.split(new RegExp(`^\\[${name.replace(/\./g, "\\.")}\\]$`, "m"))[1]?.split(/^\[/m)[0] ?? "";
+
+  it("sign-up is open (Google creates accounts)", () => {
+    expect(table("auth")).toMatch(/^enable_signup = true$/m);
+  });
+
+  it("the email provider is off: no OTP, magic link or password sign-in", () => {
+    expect(table("auth.email")).toMatch(/^enable_signup = false$/m);
+    expect(toml).not.toMatch(/^\[auth\.email\.template\./m);
+  });
+
+  it(`${AUTH_PROVIDER} is enabled and its secret comes from the environment`, () => {
+    const google = table(`auth.external.${AUTH_PROVIDER}`);
+    expect(google).toMatch(/^enabled = true$/m);
+    expect(google).toMatch(/^secret = "env\(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET\)"$/m);
+  });
+
+  it("no other sign-in method is enabled", () => {
+    const enabled = [...toml.matchAll(/^\[auth\.(external\.[a-z_]+|web3\.[a-z]+|sms)\]$/gm)]
+      .filter((m) => /^enabled = true$/m.test(table(`auth.${m[1]}`)))
+      .map((m) => m[1]);
+    expect(enabled).toEqual([`external.${AUTH_PROVIDER}`]);
+    expect(toml).toMatch(/^enable_anonymous_sign_ins = false$/m);
   });
 });

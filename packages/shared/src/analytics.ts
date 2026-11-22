@@ -4,8 +4,8 @@
 
 import type { Plan } from "./types/profile";
 
-/** How someone signed in (M1-B1: Google OAuth or a 6-digit email code). */
-export type AuthMethod = "google" | "email_otp";
+/** How someone signed in. Google only (M1-B1); kept as a property so new methods stay comparable. */
+export type AuthMethod = "google";
 type Module = "speaking" | "writing" | "reading" | "listening";
 type Provider = "razorpay" | "paddle";
 

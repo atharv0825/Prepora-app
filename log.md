@@ -1022,3 +1022,79 @@ Branch `feature/m1-c2-shared-types` from `develop` (C1 merged).
 - `pnpm test` 65/65 ✓ (9 files); typecheck shared/web/admin ✓; lint web ✓.
 - No DB change in this step, so the DB tests are unaffected.
 - Same Python `"\n"` → real newline trap as in I1 while editing the test; fixed with `String.fromCharCode(10)`.
+
+## 2026-11-22 — M1-B1: Supabase Auth (Google OAuth + email OTP), redirect URLs
+
+**Goal (plan.md):** Enable Supabase Auth: Google OAuth + email OTP. Set redirect URLs for local, preview, staging and prod.
+
+Branch `feature/m1-b1-auth-config` from `develop` (C2 merged). The user had already enabled Google on the hosted staging project (client ID/secret set).
+
+**Local (`supabase/config.toml`)**
+- `site_url` = `http://localhost:3000`. Redirect allowlist: `localhost` and `127.0.0.1` on `:3000` (web) and `:3001` (admin), as `/**` globs. The old default `https://127.0.0.1:3000` was wrong (https).
+- Email OTP: `otp_length` 6, `otp_expiry` 3600 → **600** (10 min), `max_frequency` 1s → **60s** (same as hosted; drives the resend button).
+- OTP templates: `confirmation` (new users) and `magic_link` (existing users) → `supabase/templates/otp-code.html` with `{{ .Token }}`. Minimal for now; branded in M1-B4.
+- `[auth.external.google]` enabled with `env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET)` from the gitignored `supabase/.env`. New `supabase/.env.example`. Supabase starts fine without them; email OTP still works.
+
+**Shared contract `packages/shared/src/constants/auth.ts`**
+- `OTP_LENGTH`, `OTP_EXPIRY_SECONDS`, `OTP_RESEND_SECONDS`, `AUTH_CALLBACK_PATH` (`/auth/callback`), and `DEFAULT_NEXT_PATH` (web `/app`, admin `/`).
+- `safeNextPath()`: only same-site relative paths. It rejects `//x`, `/\x`, absolute URLs, `javascript:`, control characters (tab/newline) and > 512 characters, so the callback can't become an open redirect.
+- `authCallbackUrl(origin, next)` and `normaliseOtp()` (allows spaces/dashes, exactly 6 digits).
+- Tests: `constants/auth.test.ts` (20). `tests/contract.test.ts` (+3) checks OTP length/expiry/resend against `config.toml`, that Google is enabled with an env secret, and that both OTP templates contain `{{ .Token }}`.
+
+**Hosted (dashboard; can't be changed from here)**
+- `docs/auth.md` lists the exact values per environment:
+  - staging Site URL and redirect allowlist, including PR preview globs;
+  - OTP settings and the Google authorized redirect URI;
+  - the template change;
+  - production values for launch.
+- Preview globs need the real workers.dev subdomain. Using `*` for it would let anyone with their own workers.dev account become a redirect target, so the doc says not to.
+- `config.toml` `[remotes]` / `supabase config push` were not used: pushing would overwrite other hosted auth settings, and the CLI isn't linked.
+
+**Verified**
+- `supabase stop/start` with the new config ✓ (no Google env vars present).
+- Local GoTrue end to end:
+  - `/settings` → google ✓, email ✓.
+  - `POST /otp` → 200; Mailpit email "Your Prepora sign-in code" with a 6-digit code; `POST /verify` → 200 with session.
+  - Reusing the code → 403; resend within 60 s → 429.
+- Redirect allowlist (local, read from `auth.flow_state.referrer`): `localhost:3000/auth/callback?next=/app` and `localhost:3001/auth/callback` kept; `https://evil.example/steal` and `http://localhost:3000.evil.example/x` → fell back to the site URL.
+- Hosted staging (public `/auth/v1/settings`, publishable key): google ✓, email ✓, signup enabled. The authorize redirect sends `redirect_uri=https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback` to Google. The hosted allowlist and templates are not readable from outside → **not verified**.
+- `pnpm test` 88/88 ✓; typecheck shared ✓. Mutation check: `otp_expiry` → 3600 in config → contract test failed; reverted.
+- Tooling note: in this environment, Bash heredocs turned `\` into `\` (broke a regex and test strings). Fixed with the Edit tool; files with backslashes should be edited that way.
+
+**Manual steps for you** (`docs/auth.md`, "Staging")
+1. Supabase → Authentication → URL Configuration: Site URL `https://staging.prepora.site`, plus the 4 redirect URLs (replace `<subdomain>` with your workers.dev subdomain).
+2. Email provider: OTP length 6, expiration 600 s.
+3. Google Cloud OAuth client: confirm `https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback` is an authorized redirect URI. For local Google sign-in, also add `http://127.0.0.1:54321/auth/v1/callback` and fill `supabase/.env`.
+4. Email Templates: put `supabase/templates/otp-code.html` into **Confirm signup** and **Magic Link**.
+
+## 2026-11-22 — M1-B1 (revised): Google only, email OTP removed
+
+**Request:** "remove OTP sign in i only want is oauth sign in and sign up". Same branch `feature/m1-b1-auth-config` (not merged yet), new commit on top.
+
+**Changes**
+- `supabase/config.toml`:
+  - `[auth.email] enable_signup = false` disables the whole email provider (OTP, magic link, password).
+  - Removed the OTP template blocks and `supabase/templates/otp-code.html`.
+  - OTP length/expiry/frequency back to the CLI defaults (unused now).
+  - `[auth] enable_signup` stays `true`, because Google creates the accounts.
+- `packages/shared/src/constants/auth.ts`: removed `OTP_*` and `normaliseOtp`; added `AUTH_PROVIDER = "google"`. `safeNextPath` / `authCallbackUrl` / `AUTH_CALLBACK_PATH` stay.
+- `analytics.ts`: `AuthMethod = "google"`.
+- `tests/contract.test.ts`, rewritten auth section:
+  - sign-up open;
+  - email provider off and no email templates;
+  - Google enabled with an env secret;
+  - **Google is the only enabled method** (scans every `[auth.external.*]`, `[auth.web3.*]` and `[auth.sms]` table) and anonymous sign-in is off.
+- `docs/auth.md` rewritten for Google only. Staging now needs **Email provider turned off** (it's on today: public settings show `email: true`).
+- **plan.md** (M1 row, B1, B4, F1, I1, exit) and Implementation Plan (architecture box, checklist): email OTP replaced.
+  - B4 (OTP templates + SMTP) marked not needed while there are no auth emails.
+  - I1's Playwright test now uses a user created with the service role, since Google can't be automated.
+
+**Verified**
+- Local Supabase restarted with the new config. `/settings` → google ✓, email ✗.
+  - `POST /otp` for a new and an existing user → 422 "Email logins are disabled".
+  - Password signup → 400 "Email signups are disabled"; password login → 422.
+  - Google authorize → 302 to accounts.google.com.
+  - The service role can still create users (`/admin/users` → 200), for tests and seeds.
+- `pnpm test` 84/84 ✓; typecheck shared ✓.
+- Mutation checks: enabling `[auth.external.apple]` → "no other sign-in method" failed; `[auth.email] enable_signup = true` → "email provider is off" failed; both reverted.
+- **Not verified:** the staging dashboard (Email still on until you switch it off).

@@ -1240,3 +1240,29 @@ Branch `feature/m1-f3-account` from `develop` (F2 merged).
   - A `next start` left over from F2's test was still on :3100, so the first run hit the old build. I identified its command line, stopped it, and reran.
   - My hand-built action body first used the wrong field prefix (`1_` instead of React's `_1_`), so every save looked like "Enter your name". Switched to `encodeReply`.
 - **Not verified:** in a real browser (menu opening, keyboard navigation, toast, mobile layout) or on staging. The staging profile page will show "still being set up" until **M1-B2** (sign-up trigger) creates profile rows.
+
+## 2026-11-22 — M1-F4: Identify the user in PostHog and Sentry after login
+
+**Goal (plan.md):** Identify the user in PostHog and Sentry after login.
+
+Branch `feature/m1-f4-identify` from `develop` (F3 merged).
+
+**Changes (apps/web)**
+- `lib/analytics/index.ts`:
+  - `identifyUser(userId, person)` → `Sentry.setUser({ id })` and PostHog `identify`. **Our UUID only, never email or name.** If PostHog already has that distinct id it only updates person properties, so there's no repeated `$identify`.
+  - `resetUser()` → `Sentry.setUser(null)` + `posthog.reset()`.
+  - `track()` unchanged. The old `identify`/`resetAnalytics` (unused) were replaced.
+- `components/account/user-analytics.tsx` (renders nothing, in the `/app` layout): identifies with person properties `plan` (from the profile, default `free`) and `country_code`. Then it reads a one-time cookie and sends **`signup_completed`** or **`login_completed`** (`method: "google"`) once, deleting the cookie.
+- `/auth/callback`: after the code exchange, `authEventKind(created_at, last_sign_in_at)` decides signup vs login and sets `prepora_auth_event` (value `signup|login`, 120 s, SameSite=Lax, Secure on https; readable by JS on purpose, no personal data).
+- `lib/analytics/auth-event.ts`: cookie name/lifetime, `authEventKind` (first sign-in = timestamps < 60 s apart), `parseAuthEventKind`.
+- Account menu **Log out**: `resetUser()` first, then the `signOut` action.
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 124/124 ✓. New tests:
+  - `auth-event.test.ts` (signup/login/invalid timestamps, cookie values);
+  - `analytics/index.test.ts` with PostHog and Sentry mocked: identify + Sentry id only; no second identify for the same user (properties updated instead); Sentry still set when PostHog is off; reset clears both; track only when loaded.
+- Real local GoTrue timestamps: 1st sign-in gap 277 ms → signup; a sign-in 1.5 s later, gap 1965 ms → login. Edge case: a second sign-in within 60 s of account creation would count as signup again (rare, harmless).
+- **Not verified:**
+  - Local `next build`: TypeScript and compile passed, but the page-data workers crashed with "JavaScript heap out of memory" (only 0.7 GB of 7.3 GB RAM free while Docker/Supabase were running). The machine, not the code; CI builds it on the PR.
+  - Events reaching PostHog/Sentry (both are off on localhost by design and need the GitHub variables from M0-I2). On staging with the keys set, sign in → PostHog should show `$identify` with the user id and `signup_completed` / `login_completed`.
+- PostHog uses memory persistence until the cookie notice exists (M0-I2), so a full page reload re-identifies (one `$identify` per page load, not per navigation).

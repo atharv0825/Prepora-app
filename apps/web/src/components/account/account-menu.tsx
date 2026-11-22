@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@prepora/ui/components/dropdown-menu";
 import { initials } from "@/lib/account";
+import { resetUser } from "@/lib/analytics";
 import { signOut } from "@/lib/account-actions";
 import { routes } from "@/lib/routes";
 
@@ -41,7 +42,11 @@ export function AccountMenu({ name, email }: { name: string; email: string | nul
         <DropdownMenuItem
           disabled={pending}
           closeOnClick={false}
-          onClick={() => startTransition(() => signOut())}
+          onClick={() => {
+            // Forget the user in PostHog and Sentry first (M1-F4), then end the session.
+            resetUser();
+            startTransition(() => signOut());
+          }}
         >
           <LogOut aria-hidden /> {pending ? "Logging out…" : "Log out"}
         </DropdownMenuItem>

@@ -155,11 +155,18 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# URLs auth may redirect to after sign-in (globs allowed: * = one host label / path segment,
+# ** = anything). LOCAL only: web on :3000, admin on :3001. Staging/preview/production are set in
+# each hosted project's dashboard (docs/auth.md).
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3001/**",
+  "http://127.0.0.1:3001/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -226,11 +233,13 @@ enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
-# Number of characters used in the email OTP.
+# Same as hosted (60s): the "resend code" button waits this long.
+max_frequency = "60s"
+# Number of characters used in the email OTP. Prepora signs in with a 6-digit code (M1-B1);
+# must match OTP_LENGTH in packages/shared/src/constants/auth.ts (contract test).
 otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of seconds before the email OTP expires. 10 minutes (hosted: Auth → Providers → Email).
+otp_expiry = 600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -241,6 +250,16 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# Email OTP (M1-B1): signInWithOtp sends "confirmation" to new users and "magic_link" to existing
+# ones. Both must contain {{ .Token }} so the email carries the 6-digit code. Branded in M1-B4.
+[auth.email.template.confirmation]
+subject = "Your Prepora sign-in code"
+content_path = "./supabase/templates/otp-code.html"
+
+[auth.email.template.magic_link]
+subject = "Your Prepora sign-in code"
+content_path = "./supabase/templates/otp-code.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -318,6 +337,18 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# Google OAuth (M1-B1). Local credentials come from supabase/.env (gitignored, see
+# supabase/.env.example); the Google client must list http://127.0.0.1:54321/auth/v1/callback.
+# Without them local Google sign-in fails, but email OTP still works.
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
+email_optional = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""

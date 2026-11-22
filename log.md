@@ -1405,3 +1405,4 @@ Branch `feature/m2-c2-onboarding-contract` from `develop` (M2-C1 merged).
 - Other jobs don't start a local Supabase (checked with grep).
 
 **Verified:** both workflow files parse; the retry lines pass `bash -n`. **Not verified yet:** the next CI run on this PR.
+- **Verified on CI (commit `85a742d`):** E2E ✓. The runner applied `net.ipv4.ip_local_port_range = 60000 65535`; Supabase started first time, without the retry; **Playwright 12 passed (38.7 s)**. DB migrations ✓.

@@ -1277,3 +1277,44 @@ Branch `feature/m1-a1-admin-auth` from `develop` (F3 merged; F4 is on its own br
   - A real Google sign-in on admin-staging.
   - Clicking Sign out in a browser.
 - **To use on staging:** someone needs a profile row with role `admin`. Rows are created by M1-B2's trigger (not built yet), and M1-B3 seeds the first admin. Until then, `admin-staging.prepora.site` shows "No admin access" for everyone, which is the intended fail-closed behaviour.
+
+## 2026-11-22 — M1-I1: Playwright end-to-end tests + RLS through the API
+
+**Goal (plan.md):** Playwright: signed-in user (created with the service role on local Supabase, since Google can't be automated) → lands on `/app`; signed-out → redirected to login. RLS test: user A can't read user B's profile.
+
+Branch `feature/m1-i1-e2e` from `develop` (F4 and A1 merged).
+
+**Setup**
+- `@playwright/test` **1.65.1** (9 days old; passes the age rule) in apps/web, Chromium only. Scripts `e2e`, `e2e:ui`. Playwright output folders are gitignored.
+- `apps/web/playwright.config.ts`:
+  - builds the app and serves it on **:3200** (no clash with `next dev` on :3000) with the **local** Supabase URL/key;
+  - projects **mobile** (Pixel 7) and **desktop** (Chrome);
+  - 2 workers and a 10 s expect timeout (see below); CI: 1 retry, html + github reporters.
+- `apps/web/e2e/support/local-supabase.ts`:
+  - Keys from `supabase status -o json`, read once in the main process and passed to workers via `E2E_SUPABASE_*`, with one retry. **Refuses any non-local Supabase URL.** No keys in the repo.
+  - `createTestUser(name, role)`: admin `createUser`, upsert the profile row (stand-in for M1-B2), `generateLink` + `verifyOtp` (a real session even though the email provider is off for real users), cookies encoded by `@supabase/ssr` itself, plus a client signed in as that user.
+  - `deleteTestUser` (the profile cascades).
+
+**Tests (12 runs = 8 browser tests × 2 projects + 4 API tests once)**
+- `e2e/auth.spec.ts`:
+  - signed out: `/app` → `/login` (heading + Google button); `/app/profile` → `/login?next=%2Fapp%2Fprofile`;
+  - signed in: lands on `/app` with "Welcome, Asha Rao" and the account menu; `/login` → `/app`;
+  - log out from the account menu → `/`, then `/app` → `/login`.
+- `e2e/rls.spec.ts` (PostgREST with real user sessions, desktop only): A can't read B (empty); A sees exactly one profile (their own); A updating B changes nothing (B unchanged); A setting their own `role=admin` → **42501**.
+
+**CI:** new `.github/workflows/e2e.yml`.
+- `supabase start -x` everything except db/auth/rest/kong.
+- `playwright install --with-deps chromium`, then `pnpm --filter @prepora/web e2e`.
+- On failure, uploads the report and traces. No secrets. `docs/ci.md` updated.
+
+**Verified (locally, Windows)**
+- First full run: 11/12. One mobile worker's `supabase status` call failed while Supabase was running, from parallel CLI calls. Fixed by resolving once and passing env vars.
+- Next run: 8/12. The 4 signed-in tests timed out under load (this machine has ~1 GB free RAM); they pass alone. Fixed with 2 workers and a 10 s expect timeout.
+- Then **12/12 three times** (1.3–1.5 min), the last time against a **CI-like slim Supabase** (only `supabase_db`, `auth`, `rest`, `kong` running).
+- **Mutation check:** made `isProtectedPath` return false.
+  - The deep-link test failed (no `?next=`).
+  - `/app` still landed on `/login` because the `/app` layout's own `getAccount()` check redirected: the second line of defence works.
+  - Reverted (no diff).
+- typecheck web ✓; lint web ✓; `pnpm test` 132/132 ✓; workflow YAML parses; the `-x` container names match `supabase start --help` for CLI 2.116.0.
+- **Not verified:** the workflow on a GitHub runner (first run is on this PR).
+- Local Supabase is left running in the slim mode (4 containers, less RAM). `supabase stop && supabase start` brings back Studio/Mailpit/etc.

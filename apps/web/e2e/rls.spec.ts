@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
+import { recordSignupCountry } from "../src/lib/signup-country";
+import { adminClient, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M1-I1: Row Level Security through the real API (PostgREST), with real user sessions: the same
 // requests a browser could send with the public key. Complements the pgTAP tests (M1-C1).
@@ -37,6 +38,22 @@ test.describe("profiles RLS", () => {
     expect(data).toEqual([]);
     const { data: still } = await b.client.from("profiles").select("full_name").eq("id", b.id).single();
     expect(still?.full_name).toBe("User B");
+  });
+
+  test("sign-up country (M2-B3) is saved once, on the user's own row only", async () => {
+    // What the auth callback runs with the fresh session.
+    expect(await recordSignupCountry(a.client, a.id, "IN")).toBe("saved");
+    // A later sign-in from elsewhere keeps the first country.
+    expect(await recordSignupCountry(a.client, a.id, "NP")).toBe("unchanged");
+    // Can't write someone else's row (RLS).
+    expect(await recordSignupCountry(a.client, b.id, "IN")).toBe("unchanged");
+
+    const admin = adminClient();
+    const { data } = await admin.from("profiles").select("id, country_code").in("id", [a.id, b.id]);
+    expect(Object.fromEntries((data ?? []).map((p) => [p.id, p.country_code]))).toEqual({
+      [a.id]: "IN",
+      [b.id]: null,
+    });
   });
 
   test("user A can't make themselves admin", async () => {

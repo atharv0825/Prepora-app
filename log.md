@@ -1467,3 +1467,27 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - **Real REST calls with the publishable key** (as the middleware will make them): IN, LK → `"enabled"`; PH, US, XX, empty → `"waitlist"`; both `POST /rest/v1/rpc/get_launch_status` and `GET …?p_country=` (GET works because the function is `stable`, which makes it cacheable).
 - Local note: the local API gateway also answered without an `apikey` header; hosted Supabase requires it. Not relied on.
 - **Not verified:** staging (applied by the migrations workflow on merge).
+
+## 2026-11-22 — M2-B3: Store country_code on profile at sign-up
+
+**What:** the Google OAuth callback (`apps/web/src/app/auth/callback/route.ts`) now saves the visitor's country on their profile right after the code exchange, before redirecting.
+
+**How**
+- `apps/web/src/lib/signup-country.ts`:
+  - `requestCountry(headers, cf)`: Cloudflare's `CF-IPCountry` header, falling back to `request.cf.country` (via `getCloudflareContext()`, in case the zone's IP Geolocation header is off). Cleaned with the shared `countryFromHeader()` (M2-B2), so `XX`, Tor `T1` and junk → null.
+  - `recordSignupCountry(supabase, userId, country)`: `update profiles set country_code = … where id = user and country_code is null`, with the **user's own session** (RLS + the M1-C1 column grant; no new migration, no service role). First sign-in sets it; later sign-ins from elsewhere, or after the person edits it, leave it alone. Unknown country → no query.
+- The callback awaits it inside a try/catch: a failure is logged and never blocks sign-in.
+- Because it runs before the redirect, `signup_completed` (M1-F4, which reads `profiles.country_code`) now carries `country`.
+
+**Depends on M1-B2 (not built yet):** the update only fills an existing profile row. Until the sign-up trigger creates rows, new Google users have no profile and nothing is saved (it returns "unchanged", no error).
+
+**Note:** `country_code` stays user-editable (M1-C1 grant). Fine for analytics; pricing confirms the country by billing address at checkout (plan §5), so it doesn't rely on this.
+
+**Tests**
+- `signup-country.test.ts` (+8): header, cf fallback, header preferred, XX/T1/invalid → null, no query when unknown.
+- `e2e/rls.spec.ts` (+1, real local Supabase API with real user sessions): first call saves `IN`; a second with `NP` → unchanged; writing user B's row → unchanged; B's country stays null.
+
+**Verified**
+- `pnpm test` 181/181 ✓; web typecheck and lint ✓.
+- RLS e2e spec against local Supabase: 5/5 ✓ (run with a temporary API-only Playwright config, without the Next build, which runs out of memory on this machine; CI runs the full e2e suite).
+- **Not verified:** a real Google sign-in reaching the callback with `CF-IPCountry` (needs staging, and M1-B2 for the row to exist); the OpenNext Worker build with `getCloudflareContext` in the route (CI builds it).

@@ -223,8 +223,10 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = true
+# Email sign-in is OFF: Prepora signs people in and up with Google only (M1-B1, user decision
+# 2026-11-22). false disables the email provider entirely (no OTP, no magic link, no password).
+# Hosted: Authentication -> Sign In / Providers -> Email -> off.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -233,13 +235,11 @@ enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-# Same as hosted (60s): the "resend code" button waits this long.
-max_frequency = "60s"
-# Number of characters used in the email OTP. Prepora signs in with a 6-digit code (M1-B1);
-# must match OTP_LENGTH in packages/shared/src/constants/auth.ts (contract test).
+max_frequency = "1s"
+# Number of characters used in the email OTP.
 otp_length = 6
-# Number of seconds before the email OTP expires. 10 minutes (hosted: Auth → Providers → Email).
-otp_expiry = 600
+# Number of seconds before the email OTP expires (defaults to 1 hour).
+otp_expiry = 3600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -250,16 +250,6 @@ otp_expiry = 600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
-
-# Email OTP (M1-B1): signInWithOtp sends "confirmation" to new users and "magic_link" to existing
-# ones. Both must contain {{ .Token }} so the email carries the 6-digit code. Branded in M1-B4.
-[auth.email.template.confirmation]
-subject = "Your Prepora sign-in code"
-content_path = "./supabase/templates/otp-code.html"
-
-[auth.email.template.magic_link]
-subject = "Your Prepora sign-in code"
-content_path = "./supabase/templates/otp-code.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -339,7 +329,8 @@ max_frequency = "5s"
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
 # Google OAuth (M1-B1). Local credentials come from supabase/.env (gitignored, see
 # supabase/.env.example); the Google client must list http://127.0.0.1:54321/auth/v1/callback.
-# Without them local Google sign-in fails, but email OTP still works.
+# Google is the only sign-in method, so without them nobody can sign in locally through the UI
+# (tests create users with the service role instead).
 [auth.external.google]
 enabled = true
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"

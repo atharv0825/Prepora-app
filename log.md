@@ -1066,3 +1066,35 @@ Branch `feature/m1-b1-auth-config` from `develop` (C2 merged). The user had alre
 2. Email provider: OTP length 6, expiration 600 s.
 3. Google Cloud OAuth client: confirm `https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback` is an authorized redirect URI. For local Google sign-in, also add `http://127.0.0.1:54321/auth/v1/callback` and fill `supabase/.env`.
 4. Email Templates: put `supabase/templates/otp-code.html` into **Confirm signup** and **Magic Link**.
+
+## 2026-11-22 — M1-B1 (revised): Google only, email OTP removed
+
+**Request:** "remove OTP sign in i only want is oauth sign in and sign up". Same branch `feature/m1-b1-auth-config` (not merged yet), new commit on top.
+
+**Changes**
+- `supabase/config.toml`:
+  - `[auth.email] enable_signup = false` disables the whole email provider (OTP, magic link, password).
+  - Removed the OTP template blocks and `supabase/templates/otp-code.html`.
+  - OTP length/expiry/frequency back to the CLI defaults (unused now).
+  - `[auth] enable_signup` stays `true`, because Google creates the accounts.
+- `packages/shared/src/constants/auth.ts`: removed `OTP_*` and `normaliseOtp`; added `AUTH_PROVIDER = "google"`. `safeNextPath` / `authCallbackUrl` / `AUTH_CALLBACK_PATH` stay.
+- `analytics.ts`: `AuthMethod = "google"`.
+- `tests/contract.test.ts`, rewritten auth section:
+  - sign-up open;
+  - email provider off and no email templates;
+  - Google enabled with an env secret;
+  - **Google is the only enabled method** (scans every `[auth.external.*]`, `[auth.web3.*]` and `[auth.sms]` table) and anonymous sign-in is off.
+- `docs/auth.md` rewritten for Google only. Staging now needs **Email provider turned off** (it's on today: public settings show `email: true`).
+- **plan.md** (M1 row, B1, B4, F1, I1, exit) and Implementation Plan (architecture box, checklist): email OTP replaced.
+  - B4 (OTP templates + SMTP) marked not needed while there are no auth emails.
+  - I1's Playwright test now uses a user created with the service role, since Google can't be automated.
+
+**Verified**
+- Local Supabase restarted with the new config. `/settings` → google ✓, email ✗.
+  - `POST /otp` for a new and an existing user → 422 "Email logins are disabled".
+  - Password signup → 400 "Email signups are disabled"; password login → 422.
+  - Google authorize → 302 to accounts.google.com.
+  - The service role can still create users (`/admin/users` → 200), for tests and seeds.
+- `pnpm test` 84/84 ✓; typecheck shared ✓.
+- Mutation checks: enabling `[auth.external.apple]` → "no other sign-in method" failed; `[auth.email] enable_signup = true` → "email provider is off" failed; both reverted.
+- **Not verified:** the staging dashboard (Email still on until you switch it off).

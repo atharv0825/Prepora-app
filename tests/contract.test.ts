@@ -4,11 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PINNED_FUNCTION_REGION } from "../packages/shared/src/api/regions";
 import { editableProfileFields } from "../packages/shared/src/types/profile";
-import {
-  OTP_EXPIRY_SECONDS,
-  OTP_LENGTH,
-  OTP_RESEND_SECONDS,
-} from "../packages/shared/src/constants/auth";
+import { AUTH_PROVIDER } from "../packages/shared/src/constants/auth";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -54,28 +50,30 @@ describe("frontend ↔ database contract", () => {
 
 describe("frontend ↔ Supabase Auth config", () => {
   const toml = read("supabase/config.toml").replace(/\r\n/g, String.fromCharCode(10));
-  // Value of `key = ...` inside the [auth.email] table.
-  const email = toml.split(/^\[auth\.email\]$/m)[1]?.split(/^\[/m)[0] ?? "";
-  const value = (key: string) => email.match(new RegExp(`^${key} = "?([^"\\s]+)"?`, "m"))?.[1];
+  /** Body of a `[table]` in config.toml, up to the next table. */
+  const table = (name: string) =>
+    toml.split(new RegExp(`^\\[${name.replace(/\./g, "\\.")}\\]$`, "m"))[1]?.split(/^\[/m)[0] ?? "";
 
-  it("OTP length, expiry and resend wait match supabase/config.toml", () => {
-    expect(Number(value("otp_length"))).toBe(OTP_LENGTH);
-    expect(Number(value("otp_expiry"))).toBe(OTP_EXPIRY_SECONDS);
-    expect(value("max_frequency")).toBe(`${OTP_RESEND_SECONDS}s`);
+  it("sign-up is open (Google creates accounts)", () => {
+    expect(table("auth")).toMatch(/^enable_signup = true$/m);
   });
 
-  it("Google is enabled and its secret comes from the environment", () => {
-    const google = toml.split(/^\[auth\.external\.google\]$/m)[1]?.split(/^\[/m)[0] ?? "";
+  it("the email provider is off: no OTP, magic link or password sign-in", () => {
+    expect(table("auth.email")).toMatch(/^enable_signup = false$/m);
+    expect(toml).not.toMatch(/^\[auth\.email\.template\./m);
+  });
+
+  it(`${AUTH_PROVIDER} is enabled and its secret comes from the environment`, () => {
+    const google = table(`auth.external.${AUTH_PROVIDER}`);
     expect(google).toMatch(/^enabled = true$/m);
     expect(google).toMatch(/^secret = "env\(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET\)"$/m);
   });
 
-  it("OTP email templates contain the code", () => {
-    for (const t of ["confirmation", "magic_link"]) {
-      const block = toml.split(new RegExp(`^\\[auth\\.email\\.template\\.${t}\\]$`, "m"))[1] ?? "";
-      const path = block.match(/^content_path = "\.\/(.+)"$/m)?.[1];
-      expect(path, t).toBeTruthy();
-      expect(read(path!)).toContain("{{ .Token }}");
-    }
+  it("no other sign-in method is enabled", () => {
+    const enabled = [...toml.matchAll(/^\[auth\.(external\.[a-z_]+|web3\.[a-z]+|sms)\]$/gm)]
+      .filter((m) => /^enabled = true$/m.test(table(`auth.${m[1]}`)))
+      .map((m) => m[1]);
+    expect(enabled).toEqual([`external.${AUTH_PROVIDER}`]);
+    expect(toml).toMatch(/^enable_anonymous_sign_ins = false$/m);
   });
 });

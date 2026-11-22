@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authCallbackUrl, normaliseOtp, safeNextPath } from "./auth";
+import { authCallbackUrl, safeNextPath } from "./auth";
 
 describe("safeNextPath", () => {
   it.each([
@@ -35,16 +35,5 @@ describe("authCallbackUrl", () => {
     expect(authCallbackUrl("http://localhost:3000", "//evil.com", "/app")).toBe(
       "http://localhost:3000/auth/callback?next=%2Fapp",
     );
-  });
-});
-
-describe("normaliseOtp", () => {
-  it("accepts 6 digits, with spaces or dashes", () => {
-    expect(normaliseOtp("123456")).toBe("123456");
-    expect(normaliseOtp(" 123 456 ")).toBe("123456");
-    expect(normaliseOtp("123-456")).toBe("123456");
-  });
-  it.each(["12345", "1234567", "12345a", ""])("rejects %o", (input) => {
-    expect(normaliseOtp(input)).toBeNull();
   });
 });

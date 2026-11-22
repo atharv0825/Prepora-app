@@ -232,7 +232,7 @@ Prices are set per region (purchasing-power based). The country is detected from
 ┌──────────────────────────┐       ┌───────────────────────────────┐
 │ Student Web App (Next.js │◄─────►│ Supabase (Singapore region)   │
 │ PWA on Cloudflare edge)  │ HTTPS │  - Postgres (+ Row Level Sec.) │
-│  - Auth                  │       │  - Auth (Google / Email OTP)   │
+│  - Auth                  │       │  - Auth (Google only)          │
 │  - Practice modules      │       │  - Storage (images, user audio)│
 │  - MediaRecorder (mic)   │       │  - Edge Functions (AI, grading,│
 │  - Camera/file upload    │       │    payment webhooks)           │
@@ -541,7 +541,7 @@ prepora/
 **Exit:** the web app is deployed to staging and connects to Supabase staging; the waitlist is collecting emails.
 
 ### Phase 1: Auth, Onboarding & Admin Core (Weeks 2–3)
-- [ ] Supabase Auth: Google Sign-In + email OTP.
+- [ ] Supabase Auth: Google Sign-In (only method; email OTP dropped 2026-11-22).
 - [ ] Country detection (`CF-IPCountry`) and the launch-wave gate (sign-up vs waitlist).
 - [ ] Onboarding: Academic or General, target band, exam date, timezone.
 - [ ] Home dashboard showing the 4 modules, credit balance and remaining test allowances.

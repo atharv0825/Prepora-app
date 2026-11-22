@@ -1,11 +1,8 @@
 // Auth contract (M1-B1). Values the web and admin apps share with the Supabase Auth config.
+// Prepora signs people in AND up with Google only; the email provider is disabled.
 
-/** Email sign-in uses a 6-digit code. Must match supabase/config.toml [auth.email] otp_length. */
-export const OTP_LENGTH = 6;
-/** Code lifetime. Must match [auth.email] otp_expiry (and the hosted Email provider setting). */
-export const OTP_EXPIRY_SECONDS = 600;
-/** Minimum wait before "resend code". Matches [auth.email] max_frequency. */
-export const OTP_RESEND_SECONDS = 60;
+/** The only sign-in provider. Passed to supabase.auth.signInWithOAuth({ provider }). */
+export const AUTH_PROVIDER = "google" as const;
 
 /**
  * Where Supabase sends the browser back after Google OAuth (PKCE). Each app implements this
@@ -43,10 +40,4 @@ export function authCallbackUrl(origin: string, next?: string | null, fallback =
   const url = new URL(AUTH_CALLBACK_PATH, origin);
   url.searchParams.set("next", safeNextPath(next, fallback));
   return url.toString();
-}
-
-/** A 6-digit code as typed by a person: strips spaces/dashes, then checks the length. */
-export function normaliseOtp(input: string): string | null {
-  const digits = input.replace(/[\s-]/g, "");
-  return digits.length === OTP_LENGTH && /^\d+$/.test(digits) ? digits : null;
 }

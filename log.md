@@ -990,3 +990,35 @@ Branch `feature/m1-c1-profiles` from `develop` (A1, I1, I2 are merged).
 - **Not verified:** applying to staging. The DB migrations workflow does that when this merges to `develop`.
 
 **Note:** the user says Google OAuth is already enabled on the hosted Supabase project (client ID/secret set). The local `config.toml` and the redirect URLs are M1-B1.
+
+## 2026-11-22 — M1-C2: shared Profile/Role types + auth events
+
+**Goal (plan.md):** Shared types: `Profile`, `Role`; auth event names (`signup_completed`, `login_completed`).
+
+Branch `feature/m1-c2-shared-types` from `develop` (C1 merged).
+
+**`packages/shared/src/types/profile.ts`** (new export `@prepora/shared/types/*`)
+- `Profile` = generated `Tables<"profiles">`. `Role` and `Plan` = the DB enums `app_role` and `plan_tier`. They follow the migration automatically through `pnpm db:types`; no copied unions.
+- `roles`, `plans` (runtime lists from the generated `Constants`); `staffRoles` (`admin`, `content_editor`) with `isStaff()` / `isAdmin()` type guards for the admin middleware (M1-A1).
+- `editableProfileFields` = `full_name`, `country_code`, `timezone`, the same as the DB column grant.
+- `ProfileUpdate` zod schema for the account page (M1-F3):
+  - Trims the name (1–100 characters) and uppercases the country, which must be 2 letters.
+  - Checks the time zone with `Intl.DateTimeFormat` (works in browsers, Node and Workers).
+  - Each field is optional and can be cleared with null.
+  - **`.strict()`, so `role`/`plan`/`id` are rejected.** The DB refuses them anyway (42501).
+
+**`packages/shared/src/analytics.ts`**
+- `AuthMethod = "google" | "email_otp"` (M1-B1's two methods).
+- `signup_completed { method: AuthMethod; country? }` (was `method: string`); new `login_completed { method: AuthMethod }`; `authEvents` list. Total 23 events.
+- `Plan` is now imported from `types/profile`.
+
+**Tests** (+15)
+- `types/profile.test.ts`: enum lists, guards, normalisation, partial/null, rejects role/plan/id, invalid name/country/timezone, schema keys = editable fields.
+- `analytics.test.ts`: auth events present.
+- **`tests/contract.test.ts`**: parses the migrations, finds the single `grant update (…) on table public.profiles to authenticated`, and requires it to equal `editableProfileFields` (and never contain role/plan). A later migration that changes the grant must update both.
+- Mutation check: added `"plan"` to `editableProfileFields` → contract test failed; reverted → passes.
+
+**Verified**
+- `pnpm test` 65/65 ✓ (9 files); typecheck shared/web/admin ✓; lint web ✓.
+- No DB change in this step, so the DB tests are unaffected.
+- Same Python `"\n"` → real newline trap as in I1 while editing the test; fixed with `String.fromCharCode(10)`.

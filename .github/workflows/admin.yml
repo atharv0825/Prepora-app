@@ -33,6 +33,10 @@ env:
   #   SENTRY_DSN_ADMIN  → browser SDK (inlined at build) and Worker SDK (--var SENTRY_DSN at deploy)
   NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_ADMIN }}
   NEXT_TELEMETRY_DISABLED: 1
+  # Supabase (M1-A1): same public repository variables as the web app; baked in at build time.
+  # Without them the admin can't sign anyone in, so every page redirects to /login.
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
 jobs:
   check-and-build:

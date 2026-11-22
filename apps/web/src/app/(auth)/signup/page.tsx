@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AuthPanel } from "@/components/auth/auth-panel";
 import { nextPath } from "@/lib/auth";
 import { routes } from "@/lib/routes";
-import { getCurrentUser } from "@/lib/supabase/session";
 
 export const metadata: Metadata = {
   title: "Create your account · Prepora",
@@ -14,7 +12,7 @@ export const metadata: Metadata = {
 export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
   const params = await searchParams;
   const next = nextPath(params.next);
-  if (await getCurrentUser()) redirect(next);
+  // Signed-in visitors never reach this page: src/middleware.ts sends them on (M1-F2).
 
   const error = typeof params.error === "string" ? params.error : null;
   const loginHref = next === routes.app ? routes.login : `${routes.login}?next=${encodeURIComponent(next)}`;

@@ -1138,3 +1138,60 @@ Branch `feature/m1-f1-auth-pages` from `develop` (B1 incl. the Google-only revis
 - **Not verified:** a full Google round trip (needs a real Google login), the session cookie after the exchange, and `/app` signed in. Also not checked visually in a browser or on a phone; no OpenNext build in Docker for this step (CI builds it on the PR).
 
 **To test after merge (staging):** with the staging redirect URLs set (docs/auth.md) and your Google account listed as a test user, open https://staging.prepora.site/signup → Continue with Google → you should land on `/app` with your name.
+
+## 2026-11-22 — Diagnosis: Google "Error 401: invalid_client" on staging sign-in
+
+**Symptom (user screenshot):** "Access blocked: Authorization Error. The OAuth client was not found. Error 401: invalid_client".
+
+**Finding:**
+- Staging Supabase sends `client_id=013822775479-q1p8pdm35s4hm7i8a8l8ckc23ljq7qa0.apps.googleusercontent.com`, read from its public `/auth/v1/authorize` redirect.
+- Google says no OAuth client with that ID exists. The cause is the Client ID saved in **Supabase → Authentication → Sign In / Providers → Google**, not the app code or the redirect URIs (a wrong redirect URI gives `redirect_uri_mismatch` instead).
+- The leading `0` is suspicious: Google project numbers don't start with 0, so a stray character was likely pasted. Other possibilities: the client was deleted, or it belongs to another Google Cloud project.
+
+**Fix (user):**
+1. Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs, type **Web application**. Copy its Client ID and secret.
+2. Paste both into the Supabase Google provider and save.
+3. On that client, Authorized redirect URIs must include `https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback`.
+
+**Side note:** locally, with no `supabase/.env`, the CLI passes the literal text `env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)` as the client ID, so local Google sign-in fails the same way until that file is filled. Expected, as documented in docs/auth.md.
+
+No code change.
+
+## 2026-11-22 — M1-F1 verified on staging: Google sign-in works end to end
+
+- The user replaced the Supabase Google provider's Client ID and secret with the current Web client (`1013822775479-b5euom…`). Staging's authorize redirect now sends that ID (checked).
+- The user signed in with Google on staging and landed on `/app`: "Welcome, *Atharv Babar*", signed in as their Gmail address (screenshot).
+- This covers the part F1's log left unverified: the Google round trip, the code exchange in `/auth/callback`, the session cookie, and `/app` signed in.
+- Security follow-up for the user: the Google client secret was pasted into the chat. Rotate it in Google Cloud (add a new secret → update Supabase → disable the old one).
+- **Incident (my mistake):** the first push of this branch used `git commit -a`, which also swept in the user's *uncommitted* local edits. Those edits put real Google client values into `supabase/.env.example` (a tracked file; adding it to `supabase/.gitignore` doesn't untrack it). That commit (`84c4a4b`) was pushed to `origin/chore/log-m1-f1-verified`. I reset the branch, re-committed only `log.md` and force-pushed over it. The user's local edits are still in the working tree, uncommitted. **The secret must be rotated regardless:** GitHub can keep the old commit reachable by its SHA. From now on: commit explicit paths only, never `-a`.
+
+## 2026-11-22 — M1-F2: Session middleware, /app/* protected
+
+**Goal (plan.md):** Session handling with `@supabase/ssr`: middleware that refreshes the session and protects `/app/*` routes.
+
+Branch `feature/m1-f2-session-middleware` from `develop` (F1 merged).
+
+**Decision: `src/middleware.ts` (Edge), not Next 16's `proxy.ts`.** `proxy.ts` always runs on Node.js. OpenNext Cloudflare 1.20 detects Node middleware and warns that it is "experimental … not officially maintained … use at your own risk"; Edge middleware is its supported path. Next 16 still runs `middleware.ts` and prints a deprecation notice at build. Revisit when OpenNext supports `proxy.ts` properly.
+
+**Changes (apps/web)**
+- `src/middleware.ts`, following Supabase's SSR guide:
+  - `createServerClient` → `getClaims()`, with nothing in between. That verifies the token and refreshes it when expired.
+  - Refreshed cookies are written to the request (for this render) and the response.
+  - The `Cache-Control: private, no-cache, no-store…` headers that @supabase/ssr passes are applied.
+  - Then `routeDecision`: signed out on `/app/*` → `/login?next=<path+query>`; signed in on `/login`/`/signup` → safe `next` or `/app`.
+  - Redirects carry the refreshed cookies and `private, no-store`, and signed-in responses get `private, no-store`.
+  - Matcher: `/app`, `/app/:path*`, `/login`, `/signup` only. Marketing pages stay static/cacheable; `/auth/callback` sets the session itself.
+- `src/lib/auth-routes.ts`: pure `isProtectedPath` (`/app` and `/app/…`, not `/apple`), `isAuthPage`, `routeDecision`. Tests: `auth-routes.test.ts` (+15).
+- `/login`, `/signup`: removed their own "already signed in" check (middleware does it; saves an Auth call). `/app` keeps `getCurrentUser()` as a second line of defence and to read the name.
+- Comments in `lib/supabase/server.ts` and the `/app` page now say `src/middleware.ts` instead of `proxy.ts`.
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 107/107 ✓.
+- `next build` against local Supabase ✓ (route list shows "ƒ Proxy (Middleware)"). `.next/server/middleware-manifest.json` has an **Edge** middleware with exactly the 4 matchers; `functions-config-manifest` has no Node middleware, so OpenNext uses its supported path.
+- `next start` on :3100 against local Supabase with **real session cookies**. The user was created with the service role, the session minted via admin `generate_link` + `verify` (Google can't be automated), and the cookies encoded by @supabase/ssr itself (`sb-127-auth-token`). Script deleted afterwards.
+  - Signed out: `/app` → 307 `/login`; `/app/writing?task=2` → 307 `/login?next=%2Fapp%2Fwriting%3Ftask%3D2`; `/login` 200; `/` 200, not matched (still `s-maxage` static).
+  - Signed in: `/app` 200 "Welcome"; `/login` → 307 `/app`; `/signup?next=/app/reading` → 307 `/app/reading`; `/login?next=//evil.com` → 307 `/app`. All `private, no-store`.
+  - Expired access token with a valid refresh token: `/app` 200, 1 Set-Cookie with a **new** access token whose expiry is in the future.
+  - Garbage cookie → 307 `/login`. After a global logout, the old refresh token → 307 `/login` and the cookie is cleared.
+- **Not verified:** the OpenNext/Workers build in Docker. Docker Desktop's VM has 3.7 GB RAM, shared with 12 local Supabase containers. Two runs lost the client connection ("unexpected EOF"); one container exited 0 but `--rm` removed its logs before they could be read; the third attempt hit Docker engine 500 errors. The PR's Web workflow runs the same OpenNext build on a clean runner.
+- **Not verified on staging** yet: after merge, sign in → `/app`, open `/login` (should bounce to `/app`), sign out isn't built yet (M1-F3).

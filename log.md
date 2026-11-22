@@ -1098,3 +1098,43 @@ Branch `feature/m1-b1-auth-config` from `develop` (C2 merged). The user had alre
 - `pnpm test` 84/84 ✓; typecheck shared ✓.
 - Mutation checks: enabling `[auth.external.apple]` → "no other sign-in method" failed; `[auth.email] enable_signup = true` → "email provider is off" failed; both reverted.
 - **Not verified:** the staging dashboard (Email still on until you switch it off).
+
+## 2026-11-22 — M1-F1: Sign-up and login pages ("Continue with Google")
+
+**Goal (plan.md):** Sign-up and login pages: "Continue with Google" (the only method).
+
+Branch `feature/m1-f1-auth-pages` from `develop` (B1 incl. the Google-only revision merged).
+
+**Pages and route (apps/web)**
+- `(auth)/layout.tsx`: logo bar on mint with the grid texture and the content centred; no site nav; safe-area bottom padding.
+- `/login` ("Welcome *back*") and `/signup` ("Start practising *free*", plus a Terms/Privacy line). Both use `components/auth/auth-panel.tsx`:
+  - the heading;
+  - an error banner (only for our own codes: `cancelled`, `callback`, `config`; anything else in `?error=` is ignored);
+  - the Google button and a link to the other page, which keeps `?next=`.
+  - Signed-in visitors are redirected to `next`.
+- `components/auth/google-button.tsx` (client):
+  - Calls `signInWithOAuth({ provider: AUTH_PROVIDER, redirectTo: authCallbackUrl(origin, next, "/app"), queryParams: { prompt: "select_account" } })`.
+  - Loading state "Opening Google…"; a toast and reset if Google can't be reached.
+  - Google "G" mark in standard colours.
+- **`/auth/callback` route handler:**
+  - `?code=` → `exchangeCodeForSession` (sets cookies) → safe `next`.
+  - `?error=access_denied` → `/login?error=cancelled`; other errors, a missing code or a failed exchange → `/login?error=callback`; Supabase not configured → `config`. `next` is kept on errors.
+- `/app`: placeholder signed-in home ("Welcome, *name*", from Google's `full_name`/`name`, else the email). Signed-out visitors → `/login?next=/app`. M1-F2 moves this guard into proxy.ts for all of `/app/*`.
+- `lib/auth.ts`: pure helpers `callbackStep`, `nextPath`, `loginUrlWithError`, `authErrorMessage` (uses `Object.hasOwn`, so `?error=toString` isn't treated as a known code).
+- `lib/supabase/session.ts`: `getCurrentUser()` (uses `getUser()`, which validates with Supabase; returns null when Supabase isn't configured).
+- `routes.ts`: `authCallback`, `app`. **`waitlistMode` → `false`**, as its comment planned for M1, so the header shows "Log in" + "Start free". While Google's consent screen is in Testing, only test users can actually sign in. The landing hero still has the waitlist form.
+
+**Tests** (+12): `lib/auth.test.ts` (callback outcomes, unsafe next → `/app`, error mapping, unknown codes); `routes.test.ts` (`authCallback` = `AUTH_CALLBACK_PATH`, `app` = `DEFAULT_NEXT_PATH.web`).
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 92/92 ✓.
+- HTTP checks on the running dev server (port 3000, which was already running and points at staging Supabase; a second dev server isn't allowed, and I didn't stop it):
+  - `/login`, `/signup` → 200 with the Google button; `?error=cancelled` shows the message; `?error=<script>` shows nothing.
+  - Cross-links keep `next`.
+  - `/app` signed out → 307 `/login?next=%2Fapp`.
+  - Callback: `access_denied` → `/login?error=cancelled&next=…`; bogus code / no code / `server_error` → `/login?error=callback`; bogus code with `next=//evil.com` → error without the evil next.
+  - Header on `/` now shows "Log in" / "Start free".
+- OAuth request against local Supabase (supabase-js with the button's options): `redirectTo` `http://localhost:3000/auth/callback?next=%2Fapp%2Fwriting`, PKCE `s256`, `prompt=select_account`, 302 to Google; `auth.flow_state.referrer` stored that exact URL (allowlisted, not replaced by the site URL).
+- **Not verified:** a full Google round trip (needs a real Google login), the session cookie after the exchange, and `/app` signed in. Also not checked visually in a browser or on a phone; no OpenNext build in Docker for this step (CI builds it on the PR).
+
+**To test after merge (staging):** with the staging redirect URLs set (docs/auth.md) and your Google account listed as a test user, open https://staging.prepora.site/signup → Continue with Google → you should land on `/app` with your name.

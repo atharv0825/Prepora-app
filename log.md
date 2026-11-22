@@ -851,3 +851,55 @@ Branch `feature/m0-a1-admin-shell` (from `develop` after PR #9). Read the user's
 - **Not verified:** Linux/OpenNext build + wrangler dry run (Docker Desktop wasn't running; didn't start it). The PR's `Admin` workflow runs exactly that build.
 
 **Note:** there's no authentication until M1-A1. The shell contains no user data, but consider Cloudflare Access on `admin-staging.prepora.site` until then.
+
+---
+
+## 2026-11-22 — M0-A1 follow-up: Linux/Cloudflare build verified
+
+The A1 entry left the Linux/OpenNext build unverified (Docker was off). Docker was running now, so it was run (same steps as CI, `node:24-bookworm`, read-only repo copy, no `.env.local`):
+- frozen install ✓, admin lint ✓, admin typecheck ✓, **admin OpenNext build ✓**
+- `wrangler deploy --dry-run --env staging` (admin) → 1.18 MB gzipped, `WORKER_SELF_REFERENCE (prepora-admin-staging)` ✓
+- web OpenNext build still ✓ (after moving the Cloudflare preflight into the composite action)
+
+---
+
+## 2026-11-22 — M0-I1: CI pipelines: unit tests + Cloudflare preview per PR
+
+**Goal (plan.md):** GitHub Actions: lint, type-check, unit tests, build, Cloudflare preview deploy per PR, deploy to staging on develop.
+
+Branch `feature/m0-i1-ci`, **stacked on `feature/m0-a1-admin-shell`** (PR not merged yet; I1 edits its `admin.yml`). Merge A1 first.
+
+Already in place before this step: lint, type-check, build, staging deploy on `develop` (web, admin, functions, migrations). New here:
+
+**Unit tests (Vitest 5.1.1, 4 days old → passes the age rule)**
+- Root `vitest.config.mts` (`.mts` avoids Vite's CJS warning); `pnpm test` / `pnpm test:watch`. Tests sit next to the code (`*.test.ts`, relative imports) plus `tests/` for cross-package checks.
+- Vitest also added as a devDependency of shared, web and admin (pnpm only lets a package import its own deps; their type-checks include the test files). Deduped, nothing new downloaded.
+- **37 tests in 6 files:**
+  - `packages/shared/src/api/waitlist.test.ts`: lowercases/trims, rejects bad emails, 254-char limit (same as DB), source ≤ 64.
+  - `packages/shared/src/api/errors.test.ts`: `isApiErrorBody` accepts the Edge Function shape, rejects 9 malformed values.
+  - `apps/web/src/lib/routes.test.ts`: `isActive` (root exact, hash links never active, prefix not look-alike); every main nav link is a known route.
+  - `apps/web/.../showcase/shared.test.ts`: `mmss`, `typed`.
+  - `apps/admin/src/lib/nav.test.ts`: 12 modules with unique slugs, milestones and features; dashboard excluded from section pages; `findModule`; `isActive`.
+  - **`tests/contract.test.ts`**: the frontend copies must match the Deno Edge Functions (which can't import `packages/shared`): pinned region vs `_shared/region.ts`, API error codes vs `_shared/errors.ts` (parsed as text).
+- **Mutation check:** set the shared region to `ap-south-1` → contract test failed as expected; reverted → 37/37 pass.
+- New workflow **`unit-tests.yml`**: every PR + push to `develop`, `pnpm install --frozen-lockfile` + `pnpm test`. No path filter (seconds; shared code affects everything).
+
+**Preview per PR (web + admin)**
+- Mechanism: `opennextjs-cloudflare upload --env staging -- --preview-alias pr-<n> --tag pr-<n>` = `wrangler versions upload`: the PR build becomes a new **version** of the staging Worker with an alias URL `https://pr-<n>-prepora-<app>-staging.<subdomain>.workers.dev`. **Staging traffic is not touched**, nothing to clean up, no per-PR DNS records/certificates. Checked in OpenNext's source that args after `--` are passed through to Wrangler; dry run in Docker reached `versions upload` with the alias flags.
+- New `preview` job in `web.yml` and `admin.yml` (PRs from this repo only; forks have no secrets): download build artifact → shared preflight → upload → extract URL → **one sticky PR comment per app** (`actions/github-script`, marker comment, updated on every push) + job summary. Job permissions: `contents: read`, `pull-requests: write`.
+- `wrangler.jsonc` (web + admin): `"preview_urls": true` for `env.staging` only (top level and production stay off).
+- **Requires a `workers.dev` subdomain on the Cloudflare account** (one-time; the account has none, which is the same thing that blocked the first web deploy). The cf CLI has no command for it and Wrangler isn't logged in, so it's a manual dashboard step. Until then the preview job fails with exactly that instruction.
+- Tested offline: the upload step with a stubbed `pnpm` (success → URL extracted to `$GITHUB_OUTPUT`; "subdomain" failure → instruction + exit 1); the comment script in Node against a fake GitHub API (no comment → create; existing marker → update the same comment).
+- Escaping trap: embedding the JS comment script via Python turned `"\n"` into real newlines (broke the YAML twice); now uses `String.fromCharCode(10)`. All workflows parse.
+
+**Also**
+- `docs/ci.md`: overview of every workflow, previews, shared pieces, secrets/variables.
+- Regenerating `apps/web/cloudflare-env.d.ts` would have pulled in a reference to `./.open-next/worker` (present only after a local build), which could break CI's pre-build type-check → reverted, not committed.
+
+**Verified**
+- `pnpm test` 37/37 ✓; typecheck web/admin/shared ✓; lint web/admin ✓; all workflow YAML parses; `wrangler types` accepts both edited configs.
+- **Not verified:** a real preview upload. It needs the workers.dev subdomain and runs on the next PR. The admin preview also needs the admin Worker to exist (after A1's first staging deploy).
+
+**Manual steps for you**
+1. Cloudflare dashboard → **Workers & Pages** → find **"Your subdomain"** (account details / settings) → choose a name (e.g. `prepora`). One-time, free.
+2. Merge PR A1 (admin shell), then this PR. On this PR the preview job will show the URL in a PR comment.

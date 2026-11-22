@@ -1240,3 +1240,40 @@ Branch `feature/m1-f3-account` from `develop` (F2 merged).
   - A `next start` left over from F2's test was still on :3100, so the first run hit the old build. I identified its command line, stopped it, and reran.
   - My hand-built action body first used the wrong field prefix (`1_` instead of React's `_1_`), so every save looked like "Enter your name". Switched to `encodeReply`.
 - **Not verified:** in a real browser (menu opening, keyboard navigation, toast, mobile layout) or on staging. The staging profile page will show "still being set up" until **M1-B2** (sign-up trigger) creates profile rows.
+
+## 2026-11-22 — M1-A1: Admin login + role guard (admin, content_editor)
+
+**Goal (plan.md):** Admin login (same Supabase Auth) + middleware that allows only `role in (admin, content_editor)`.
+
+Branch `feature/m1-a1-admin-auth` from `develop` (F3 merged; F4 is on its own branch).
+
+**Changes (apps/admin)**
+- Deps: `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.119.2, `server-only`. These are the same versions as web; the lockfile only adds links, no new downloads.
+- `lib/supabase/{env,client,server}.ts`: same pattern as web; same Supabase project and public keys.
+- **`src/middleware.ts`** (Edge, for the same OpenNext reason as web):
+  - `getClaims()` (refreshes the session), then the user's **own** `profiles.role` via RLS.
+  - Matches every path except static files. Every response is `private, no-store`; redirects keep refreshed cookies.
+  - **Fail closed:** no profile row, a lookup error or an unknown role = no access.
+- **`lib/access.ts`** (pure, tested), `accessDecision`:
+  - signed out → `/login?next=…` (`/forbidden` → `/login`);
+  - signed in but not staff → `/forbidden` (also from `/login`);
+  - staff on `/login` or `/forbidden` → safe `next` or `/dashboard`;
+  - `/auth/callback` always passes.
+- `/auth/callback` (code exchange → `next`); `/login` with a real "Continue with Google" button (`components/google-button.tsx`) and known error codes only.
+- **`/forbidden`**: "No admin access", signed in as `<email>`, "Sign out and switch account".
+- `(admin)/layout.tsx`: a **second check** (`getViewer()` = `getUser()` + own role; redirects to `/login` or `/forbidden`) before rendering. The sidebar and mobile menu show name, email, a role badge (Admin / Content editor) and **Sign out** (`components/account-block.tsx`, `sign-out-button.tsx`, `lib/actions.ts` → `signOut({ scope: "local" })` → `/login`).
+- `.env.example` (Supabase URL/key added); `admin.yml` passes the existing `NEXT_PUBLIC_SUPABASE_*` repository variables to the build.
+
+**Verified**
+- typecheck admin ✓; lint admin ✓; `pnpm test` 123/123 ✓ (`access.test.ts` +13; F4's tests aren't on develop yet).
+- Admin `next dev` on :3101 against local Supabase, with **real sessions** for 4 users (service-role created; profile rows inserted with the role as a stand-in for M1-B2/B3) plus anonymous. Paths: `/`, `/dashboard`, `/users?q=a`, `/login`, `/login?next=/users`, `/forbidden`.
+  - anonymous: everything → `/login` (`/users?q=a` keeps `next`); `/login` 200; `/forbidden` → `/login`.
+  - `user` role **and** no profile row: everything → `/forbidden`, including `/login`; `/forbidden` 200 with the "No admin access" page.
+  - `content_editor` and `admin`: `/dashboard` and `/users` 200 with the admin shell; `/login` → `/dashboard`; `/login?next=/users` → `/users`; `/forbidden` → `/dashboard`.
+  - A `user` PATCHing their own `role=admin` through the REST API → **403 / 42501** (M1-C1 column grant); still `/forbidden` afterwards.
+  - Demoting an admin to `user` with the service role → the next request goes to `/forbidden` (the role is read per request).
+- **Not verified:**
+  - The OpenNext build in Docker (machine memory is tight; CI builds it on the PR).
+  - A real Google sign-in on admin-staging.
+  - Clicking Sign out in a browser.
+- **To use on staging:** someone needs a profile row with role `admin`. Rows are created by M1-B2's trigger (not built yet), and M1-B3 seeds the first admin. Until then, `admin-staging.prepora.site` shows "No admin access" for everyone, which is the intended fail-closed behaviour.

@@ -1366,3 +1366,42 @@ Branch `feature/m2-c1-onboarding-schema` from `develop` (M1-I1 merged).
 - Mutation check: removed `exam_date` from the migration grant → contract test failed; reverted.
 - **Not verified:** applying to staging (the DB migrations workflow does it after merge).
 - Note: staging profiles created by hand (the admin SQL from earlier) just get null onboarding fields.
+
+## 2026-11-22 — M2-C2: Onboarding Zod schema + onboarding/waitlist events
+
+**Goal (plan.md):** Zod schemas for onboarding input; event names `onboarding_completed`, `waitlist_joined`.
+
+Branch `feature/m2-c2-onboarding-contract` from `develop` (M2-C1 merged).
+
+**`packages/shared/src/api/onboarding.ts`** (import `@prepora/shared/api/onboarding`)
+- `onboardingInput(today)` is a **schema factory** taking "today" (YYYY-MM-DD in the student's time zone), so "not in the past" is enforceable and tests are deterministic. `.strict()`, so `role` etc. are rejected.
+  - `test_type`: `academic | general` (required).
+  - `target_band`: **4.0–9.0** in half steps (required). The DB allows 1.0–9.0; onboarding offers the realistic goal range.
+  - `exam_date`: ISO date **≥ today** and **≤ today + 2 years**, or **null** (skipped). The field must be present: `null` explicitly means "skipped".
+- `onboardingBands` (4, 4.5, … 9) for the picker; `onboardingSteps` (`test_type`, `target_band`, `exam_date`); `needsOnboarding(profile)` (true until test type and band are set; for the redirect in M2-F2).
+- `addYears` clamps Feb 29 → Feb 28.
+
+**`packages/shared/src/analytics.ts`**
+- `onboarding_completed` tightened: `{ test_type: TestType; target_band: number; exam_date: string | null; days_to_exam: number | null }`. Was `test_type: string`, `exam_date?`; `days_to_exam` is added so funnels don't need date maths.
+- `waitlist_joined` documented: `{ country?: ISO-2 from CF-IPCountry; source: utm_source | "hero" | "final_cta" | "gate" }`. The new `"gate"` source is for the country gate's waitlist (M2-F1).
+- `onboardingEvents` list. Total events unchanged (23); both already existed from §7.
+
+**Tests** (+18):
+- `api/onboarding.test.ts`: complete answer; skip with null; today allowed; 11 rejections (missing/unknown test type, band 3.5/7.25/9.5, yesterday, more than 2 years, wrong date format, missing `exam_date`, extra `role`); exactly 2 years OK; Feb-29 clamp.
+- **Every valid onboarding answer also passes `ProfileUpdate`**, so it fits the DB rules (no contract drift).
+- `analytics.test.ts`: events present; type-level checks for `test_type` and `exam_date`.
+
+**Verified:** `pnpm test` 159/159 ✓; typecheck shared ✓, web ✓. No app code uses these yet (M2-F2 and the gate do); no DB change.
+
+## 2026-11-22 — CI fix: Supabase "address already in use" on port 54322
+
+**Symptom:** E2E on the M2-C2 PR failed in "Start local Supabase": `failed to bind host port 0.0.0.0:54322/tcp: address already in use`. The same workflow had passed on `develop` 20 minutes earlier.
+
+**Cause:** Supabase's fixed host ports (54320–54329 in `supabase/config.toml`) lie inside Linux's default **ephemeral port range** (32768–60999). An outgoing connection on the runner (Docker pulling images) can be handed one of those ports just before Postgres binds it. It's random, so it's intermittent; a plain re-run would usually pass and then fail again some other day.
+
+**Fix (on the M2-C2 branch, so this PR tests it):**
+- `e2e.yml` and `db-migrations.yml` (`validate` job): a first step `sudo sysctl -w net.ipv4.ip_local_port_range="60000 65535"` moves ephemeral ports above all Supabase ports.
+- One retry around `supabase start` / `supabase db start` (`stop --no-backup` in between), with a `::warning::` when it happens.
+- Other jobs don't start a local Supabase (checked with grep).
+
+**Verified:** both workflow files parse; the retry lines pass `bash -n`. **Not verified yet:** the next CI run on this PR.

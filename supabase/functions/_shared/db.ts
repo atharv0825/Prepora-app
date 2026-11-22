@@ -116,6 +116,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_launch_status: {
+        Args: { p_country: string }
+        Returns: Database["public"]["Enums"]["launch_status"]
+      }
       join_waitlist: {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
@@ -124,6 +128,7 @@ export type Database = {
     Enums: {
       app_role: "user" | "admin" | "content_editor"
       ielts_test_type: "academic" | "general"
+      launch_status: "enabled" | "waitlist"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
       plan_tier: "free" | "gold" | "platinum"
     }
@@ -255,6 +260,7 @@ export const Constants = {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
       ielts_test_type: ["academic", "general"],
+      launch_status: ["enabled", "waitlist"],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
       plan_tier: ["free", "gold", "platinum"],
     },

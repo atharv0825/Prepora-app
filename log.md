@@ -1435,3 +1435,35 @@ Branch `feature/m2-b1-seed-countries` from `develop` (M2-C2 merged). Also carrie
 - `supabase db reset` (5 migrations) ✓; `supabase test db` **82/82** ✓; `db lint` no errors; `db:types:check` up to date (data-only change).
 - **Re-run check:** set IN `is_enabled=false`, re-applied the migration SQL → `INSERT 0 0`, still 40 rows, **IN still false**; then restored.
 - **Not verified:** staging (the DB migrations workflow applies it on merge to `develop`).
+
+## 2026-11-22 — M2-B2: get_launch_status(country) → enabled | waitlist
+
+**Goal (plan.md):** Edge Function / RPC `get-launch-status(country)` → `enabled` or `waitlist`.
+
+Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
+
+**Decision: Postgres RPC, not an Edge Function.** The web middleware (M2-F1) calls it on page loads, so it should be one fast query with the public key rather than an Edge Function cold start. `country_regions` is already public and read-only (M2-C1), so no extra rights are needed.
+
+**Migration `20261122164632_launch_status.sql`**
+- Enum `launch_status` (`enabled`, `waitlist`) so generated types are an exact union.
+- `public.get_launch_status(p_country text) returns launch_status`:
+  - `language sql stable parallel safe`, **SECURITY INVOKER**, empty `search_path`;
+  - trims and uppercases the input;
+  - `enabled` only if the country is listed **and** `is_enabled`; everything else is `waitlist` (not listed, disabled, unscheduled CN, `XX`, Tor `T1`, null, empty, non-ISO input).
+- Execute granted to `anon`, `authenticated` only (revoked from public).
+
+**Shared `packages/shared/src/api/launch-status.ts`**
+- `LaunchStatus` (from the DB enum), `LAUNCH_STATUS_RPC`.
+- `LAUNCH_STATUS_FALLBACK = "waitlist"`: if the lookup fails, never let an unknown visitor sign up.
+- `countryFromHeader()`: same cleanup as the SQL; XX/T1/invalid → null. For the RPC argument, `profiles.country_code` (M2-B3) and analytics.
+- `isLaunchStatus()`.
+
+**Tests**
+- `launch_status.test.sql` (17 pgTAP): signature/return type/enum; anon execute; SECURITY INVOKER; IN/NP enabled; `' bd '` normalised; PH, CN, US, XX, T1, null, "India" → waitlist; enabling PH → enabled at once; disabling IN → waitlist.
+- `api/launch-status.test.ts` (+14): header cleanup, enum match, fallback.
+
+**Verified**
+- `supabase db reset` (6 migrations) ✓; `supabase test db` **99/99** ✓; `db lint` no errors; types regenerated (`get_launch_status`, `launch_status`), `--check` ✓; `pnpm test` 173/173 ✓; typecheck shared ✓.
+- **Real REST calls with the publishable key** (as the middleware will make them): IN, LK → `"enabled"`; PH, US, XX, empty → `"waitlist"`; both `POST /rest/v1/rpc/get_launch_status` and `GET …?p_country=` (GET works because the function is `stable`, which makes it cacheable).
+- Local note: the local API gateway also answered without an `apikey` header; hosted Supabase requires it. Not relied on.
+- **Not verified:** staging (applied by the migrations workflow on merge).

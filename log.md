@@ -577,3 +577,97 @@ Branch `feature/m0-f4-landing-waitlist` (from `develop` after PR #5).
 - **Fix (branch `fix/web-require-supabase-vars`):** `web.yml` → new step "Check Supabase build variables" before lint. Deploy builds (push / manual) **fail** with a message naming the missing variables and exactly where to add them; PR builds only **warn**. Deliberately not attaching the build job to the `staging` environment, because branch rules on that environment could block PR builds.
 - Verified the step's logic in 4 cases: PR + missing → warning, exit 0; push + both missing → error, exit 1; push + one missing → error naming it, exit 1; push + both set → exit 0.
 - **To get the form working now:** add the two repository variables, then GitHub → Actions → "Web" → latest run on `develop` → **Re-run all jobs** (re-runs see the current variable values), or merge this fix PR (that triggers a fresh deploy).
+
+---
+
+## 2026-11-21 — Design doc: green and purple accent colours
+
+User asked to allow **light green, dark green and purple**, with the large italic text coloured green and purple. Edited `Prepora_UI_Design.md` only (code not changed yet).
+
+- Base stays black/white/grey. New **accent palette**, chosen by WCAG contrast (large text needs ≥ 3 : 1):
+  - on dark: `accent-green-light #86EFAC` (14.1 : 1 on #0A0A0A), `accent-purple-light #C4B5FD` (10.7 : 1)
+  - on light: `accent-green-dark #166534` (7.1 : 1 on #FFFFFF), `accent-purple-dark #6D28D9` (7.1 : 1)
+  - The light shades fail on white (~1.4 : 1) and the dark shades are weak on black (~2.8 : 1), so the doc says which shade goes on which background.
+- **Large italic serif phrases** (*Band 8+*, *closer*, *isn't*): **green → purple gradient** across the phrase (light shades on dark, dark shades on light); a solid green or purple is allowed for very short words.
+- Other allowed small uses: eyebrow dot (light green), status dots, Platinum badge outline (purple).
+- Never coloured: buttons, backgrounds, cards, body text, borders, icons.
+- Updated in the doc: intro, Look, palette (new accent table + rules), Fonts, hero "Band 8+", eyebrow dot, final CTA headline, mobile Platinum badge.
+- Next: implement in `packages/ui` (`brand-accent-*` tokens, `text-accent-serif` gets the gradient, eyebrow dot) after the user confirms.
+
+---
+
+## 2026-11-22 — Green/purple accents implemented + frosted-glass header
+
+Branch `feature/ui-green-purple-accents` (from `develop` after PR #7). Includes the design-doc edit from the previous entry.
+
+**Accents** (`packages/ui/src/styles/globals.css`)
+- Raw colours: `brand-green-light #86EFAC`, `brand-purple-light #C4B5FD`, `brand-green-dark #166534`, `brand-purple-dark #6D28D9`.
+- Semantic `accent-green` / `accent-purple` (`--accent-*`): dark shades in `:root` (light sections), light shades in `.dark`. So `bg-accent-green`, `border-accent-purple` etc. pick the right shade automatically.
+- `text-accent-serif` (all big italic serif phrases: *Band 8+*, *closer*, *isn't*): **green → purple gradient** via `background-clip: text`, inside `@supports` (falls back to solid green, never invisible text); small right padding so the italic overhang isn't clipped; `box-decoration-break: clone` for wrapped lines.
+- Applied only where the doc allows: hero eyebrow dot + beta-countries dot (green), phone-mockup "Recording…" dot (pulsing green), Speaking module preview dot, Platinum "Most popular" badge outline (purple) on the landing page and `/design`.
+- `/design`: new "Accents" section (4 swatches + "Reach *Band 8+*" on light and on dark).
+- `packages/ui/README.md`: accent tokens and usage rules.
+
+**Header** (user: "should be a bit white and transparent")
+- `site-header.tsx`: frosted glass: `rgb(28 28 28 / 0.8)`, `backdrop-blur-xl backdrop-saturate-150`, `border-white/10`, faint inset top highlight.
+- Contrast checked: at 70% the grey nav links fell to 2.5:1 over white sections, so: 80% opacity, and inactive links are white/75 instead of grey. Result: over white sections white text 9.0:1, links 6.0:1; over the hero 17.8:1 / 10.3:1.
+- Design doc §1 updated (glass surface, link colour).
+
+**Gotcha found:** the first local build served **stale CSS** (the old `text-accent-serif`, no `--accent-*` at all) although the source was correct. Turbopack's cache didn't notice the change to a CSS file in the workspace package. `rm -rf apps/web/.next` + rebuild fixed it. CI always builds fresh, so it isn't affected. Saved as a memory note.
+
+**Verified** (clean build, `next start`, Chrome via DevTools)
+- Computed style of the hero phrase: `linear-gradient(90deg, rgb(134,239,172), rgb(196,181,253))` (light shades on dark).
+- Screenshots: hero (glass header, gradient *Band 8+*, green dot), header scrolled over white sections (readable), pricing (purple badge outline), final CTA (gradient *closer*), `/design` accents (dark-green→dark-purple on light, light shades on dark), phone 390px hero.
+- lint ✓, typecheck web + ui ✓, `next build` ✓.
+
+---
+
+## 2026-11-22 — Header: transparent at the top, adapts to the section behind it
+
+User feedback (screenshots): the glass header showed as a **grey bar** while scrolling the hero and looked bad over **white** sections; asked for it to be **transparent from the start of the page** and more transparent overall.
+
+**Change** (`apps/web/src/components/layout/site-header.tsx`, now a client component)
+- Overlays the page: `sticky top-0 -mb-16`, so the first section runs underneath it.
+- On scroll/resize (batched with `requestAnimationFrame`, passive listeners) it checks what's under the middle of the bar (`elementsFromPoint`, ignoring the header itself) and whether that sits inside a `.dark` section:
+  - **top (scrollY ≤ 8):** fully transparent, no border, no blur;
+  - **scrolled + dark behind:** `rgb(10 10 10 / 0.35)` + `backdrop-blur-xl`, `border-white/10`;
+  - **scrolled + light behind:** `bg-white/65` + blur, `border-black/5`, and the `dark` class is removed, so text, logo square and button turn dark via the tokens.
+  - `transition` on background/border for a smooth switch. `data-tone` attribute shows the current state.
+- First sections got +4rem top padding: hero (`pt-28 sm:pt-36`), `/status`, `/design` hero, 404, error page.
+- Design doc §1 updated (three header states; inactive links = text colour at 75%).
+
+**Verified** (clean build, viewport screenshots at real scroll positions via a new DevTools script)
+- Desktop 1440: y=0 transparent (hero grid visible under the menu); y=420 (in hero) `rgba(10,10,10,0.35)` + blur, no grey band; y=900 and 2600 (white sections) white glass with black text/button; y=4276 (final CTA) dark glass.
+- Phone 390: top transparent; scrolled, follows the section behind it.
+- `/status` (starts on white): light tone at the top, dark text. 404 (starts dark): transparent, white text.
+- lint ✓, typecheck ✓, build ✓.
+
+---
+
+## 2026-11-22 — Hero: live device showcase (phone ⇄ laptop) + flowing accent grid
+
+User request: the hero phone should be a **live, working component**, first the phone, then **transition to a laptop**; show live demos for **Speaking, Writing, Listening and Reading**; the grid lines/squares in the background should **flow in the green/purple accents**.
+
+**Showcase** (`apps/web/src/components/landing/showcase/`)
+- `hero-showcase.tsx` (client): one timer (100 ms tick) drives `{ index, t }` in a **single state object** (the first version changed the index inside another state's updater, which React may run twice in Strict Mode → skipped scenes; fixed before shipping).
+  - Order: Speaking (phone) → Writing (laptop) → Reading (laptop) → Listening (phone) → loop, 7.5 s each (`SCENE_MS`).
+  - Device frame **morphs** (width/height/radius transitions, 700 ms); the notch shrinks to a camera dot; the laptop base slides in; scenes cross-fade.
+  - **Laptop content is laid out at a fixed 520×292 and scaled to fit** (ResizeObserver), and the frame height follows the scale. The first version squeezed the laptop at 390 px (Writing text cut off, score panel a sliver).
+  - Tabs (`role=tablist`) to jump to a demo, thin green progress line on the active tab; a screen-reader live region announces the current demo.
+  - Pauses on hover/focus, when out of view (IntersectionObserver) or `document.hidden`. **Reduced motion:** no auto-advance; the selected scene shows its finished state.
+- Scenes (pure functions of `t` in ms): `speaking-scene` (timer, animated waveform, ping on mic, then band card 7.0 + FC/LR/GRA/P), `writing-scene` (typing essay with blinking caret, word count, countdown, then score panel 6.5 + criteria bars), `reading-scene` (green highlight sweeps the passage, T/F/NG answers picked at 1.6/3.2/4.8 s, "3 / 3 correct"), `listening-scene` (audio progress, 4 form answers typed in). Helpers in `shared.ts`.
+- `phone-mockup.tsx` removed (replaced by the showcase).
+- Stat cards: now a 3-column row of glass cards under the device (floating around a laptop would cover its screen).
+
+**Background** (`hero-background.tsx`, replaces the plain grid in the hero)
+- Grid kept (56 px); **light streaks flow along grid lines**: green (#86EFAC) along rows, purple (#C4B5FD) down columns, varied speeds/delays; **7 grid squares glow** green/purple (tinted fill + coloured 1 px edge + soft glow; a faint fill alone looked grey). Same bottom fade mask as the grid. Fixed positions (no `Math.random`), so server and client match.
+- Uses literal hex values: Tailwind only emits theme variables that some class uses, so `var(--color-brand-purple-light)` might not exist (purple wasn't used by any class). The Reading highlight was switched to a literal too.
+- New keyframes in `packages/ui` globals: `beam-x`, `beam-y`, `cell-glow`, `wave-bar`, `caret-blink` (plain `@keyframes`, always emitted; stopped by the reduced-motion rule).
+
+**Verified** (clean builds; Chrome via DevTools, frames captured over time)
+- Desktop 1440: 1.5 s Speaking recording → 6.5 s scoring → 10 s laptop Writing typing → 14 s Writing scored → 18.5 s Reading answers → 27 s phone Listening; the active tab matches at each frame; no console errors. Glowing squares now read green/purple; streaks visible.
+- Laptop scenes at 390 px (phone), 1024 px and 1440 px: identical layout, nothing clipped.
+- Phone 390 (tall viewport): all four scenes play; no horizontal overflow.
+- Reduced motion (emulated): stays on Speaking at 3 s and 10 s, finished state shown, no streaks.
+- Home page still static (prerendered). lint ✓, typecheck ✓, build ✓.
+- Design doc §2 updated (Right side: live showcase; new Background subsection).

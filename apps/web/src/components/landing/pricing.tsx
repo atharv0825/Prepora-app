@@ -70,7 +70,7 @@ export function Pricing() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     {p.name}
-                    {p.popular && <Badge variant="outline">Most popular</Badge>}
+                    {p.popular && <Badge variant="outline" className="border-accent-purple">Most popular</Badge>}
                   </CardTitle>
                   <CardDescription>{p.blurb}</CardDescription>
                   <p className="mt-4">

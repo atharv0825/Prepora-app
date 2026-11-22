@@ -1,6 +1,6 @@
 # @prepora/ui
 
-Prepora's design system: theme tokens, typography and shadcn/ui components (Base UI primitives), styled from [Prepora_UI_Design.md](../../Prepora_UI_Design.md). Monochrome: black, white and greys. Mobile-first.
+Prepora's design system: theme tokens, typography and shadcn/ui components (Base UI primitives), styled from [Prepora_UI_Design.md](../../Prepora_UI_Design.md). Black, white and greys with green and purple accents. Mobile-first.
 
 Live reference: **`/design`** in the web app (`pnpm dev:web` → http://localhost:3000/design).
 
@@ -29,7 +29,18 @@ Tokens are light by default. Add the **`dark`** class to any element (a section,
 
 Prefer the semantic tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-card`, `border-border`, `bg-primary`…), which flip with `dark`. Use `brand-*` only for values that must not flip.
 
-The only non-grey colour is `destructive` (errors, delete actions), always paired with text or an icon.
+### Accents (green and purple)
+
+| Token | Light sections | Dark sections |
+|---|---|---|
+| `accent-green` (`text-`/`bg-`/`border-accent-green`) | #166534 | #86EFAC |
+| `accent-purple` | #6D28D9 | #C4B5FD |
+
+The semantic `accent-*` tokens pick the right shade automatically (dark shade by default, light shade inside a `dark` element). Raw values: `brand-green-light`, `brand-purple-light`, `brand-green-dark`, `brand-purple-dark`.
+
+Use accents only for: italic serif phrases (`text-accent-serif` applies a green → purple gradient), small dots (eyebrow, status, recording) and the Platinum badge outline (`border-accent-purple`). Never for buttons, backgrounds, cards, body text, borders or icons.
+
+`destructive` (errors, delete actions) is the other non-grey colour, always paired with text or an icon.
 
 ## Typography
 
@@ -42,7 +53,7 @@ The only non-grey colour is `destructive` (errors, delete actions), always paire
 | `text-lead` | Sub-headline copy | 17 → 20px |
 | (body) | Hanken Grotesk 16px | 16px |
 | `text-eyebrow` | Small labels | 13px |
-| `text-accent-serif` | One emphasised phrase ("Band 8+") | inherits |
+| `text-accent-serif` | One emphasised phrase ("Band 8+"), green → purple gradient | inherits |
 
 Headings and body use Hanken Grotesk (headings light–regular with tight tracking). `h1`–`h4` get `font-heading` automatically.
 

@@ -31,7 +31,23 @@ export function isAdmin(role: Role | null | undefined): role is "admin" {
  * migration (`grant update (...) on public.profiles to authenticated`); tests/contract.test.ts
  * checks that. role and plan are never user-editable.
  */
-export const editableProfileFields = ["full_name", "country_code", "timezone"] as const;
+export const editableProfileFields = [
+  "full_name",
+  "country_code",
+  "timezone",
+  // Onboarding answers (M2-C1).
+  "test_type",
+  "target_band",
+  "exam_date",
+] as const;
+
+/** public.ielts_test_type */
+export type TestType = Database["public"]["Enums"]["ielts_test_type"];
+export const testTypes = Constants.public.Enums.ielts_test_type satisfies readonly TestType[];
+
+/** Target band range accepted by the database (1.0–9.0 in half steps). */
+export const TARGET_BAND_MIN = 1;
+export const TARGET_BAND_MAX = 9;
 export type EditableProfileField = (typeof editableProfileFields)[number];
 
 function isTimeZone(value: string): boolean {
@@ -67,6 +83,18 @@ export const ProfileUpdate = z
       .min(1)
       .max(64)
       .refine(isTimeZone, "Choose a valid time zone.")
+      .nullable(),
+    test_type: z.enum(testTypes, "Choose Academic or General Training.").nullable(),
+    target_band: z
+      .number("Choose a target band.")
+      .min(TARGET_BAND_MIN, "Choose a band from 1.0 to 9.0.")
+      .max(TARGET_BAND_MAX, "Choose a band from 1.0 to 9.0.")
+      .multipleOf(0.5, "Bands go in half steps (for example 6.5).")
+      .nullable(),
+    // ISO date (YYYY-MM-DD), same bounds as the database check.
+    exam_date: z
+      .iso.date("Choose a valid date.")
+      .refine((d) => d >= "2020-01-01" && d <= "2100-12-31", "Choose a valid date.")
       .nullable(),
   })
   .partial()

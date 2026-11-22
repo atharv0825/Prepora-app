@@ -1318,3 +1318,51 @@ Branch `feature/m1-i1-e2e` from `develop` (F4 and A1 merged).
 - typecheck web ✓; lint web ✓; `pnpm test` 132/132 ✓; workflow YAML parses; the `-x` container names match `supabase start --help` for CLI 2.116.0.
 - **Not verified:** the workflow on a GitHub runner (first run is on this PR).
 - Local Supabase is left running in the slim mode (4 containers, less RAM). `supabase stop && supabase start` brings back Studio/Mailpit/etc.
+
+## 2026-11-22 — M2-C1: Onboarding fields, country_regions, waitlist final shape
+
+**Goal (plan.md):** Migration: add `test_type`, `target_band`, `exam_date` to `profiles`; create `country_regions` (country_code, region, launch_wave, is_enabled); move `waitlist` to its final shape.
+
+Branch `feature/m2-c1-onboarding-schema` from `develop` (M1-I1 merged).
+
+**Migration `20261122155735_onboarding_countries_waitlist.sql`**
+- **profiles:**
+  - New enum `ielts_test_type` (`academic`, `general`) for `test_type`.
+  - `target_band numeric(2,1)`: 1.0–9.0, **half steps only** (`target_band*2` must be whole).
+  - `exam_date date`: 2020-01-01 to 2100-12-31; null = not booked, since the onboarding step is skippable.
+  - **Column grant** extended: the user may now also update `test_type`, `target_band`, `exam_date` (onboarding, M2-F2). `role`/`plan` are still server-only.
+- **country_regions:**
+  - New enum `market_region` (`IN`, `SA`, `SEA`, `EA`, `ANZ`; same values as `prices.region` in §4).
+  - Columns: `country_code char(2)` PK (`^[A-Z]{2}$`), `region` not null, `launch_wave smallint` 1–9 (null = not scheduled), `is_enabled` default **false**, `updated_at` (trigger `touch_updated_at()`).
+  - Partial index on enabled countries.
+  - RLS: **anyone (anon + authenticated) can read** (the gate runs before sign-in; non-personal data); **no writes through the API**. The service role seeds it (M2-B1); admin write policies come with `is_admin()` (M1-B3, not built yet).
+  - Countries not listed = not enabled, so non-APAC visitors simply get the waitlist.
+- **waitlist "final shape".** The plan doesn't spell it out; this is my interpretation for M2-A2 (admin list/export) and the beta invites:
+  - `invited_by` (admin who invited, FK auth.users, set null on delete), with a check that `invited_by` requires `invited_at`;
+  - `user_id` (the account the entry became; FK, set null; unique when set);
+  - partial index on not-yet-invited entries per country.
+  - Still written only via `join_waitlist()` (unchanged) or the service role; still unreadable through the API.
+  - **No FK** from `waitlist.country_code` to `country_regions`, because people from countries outside the list must still be able to join.
+
+**Shared contract**
+- `editableProfileFields` += `test_type`, `target_band`, `exam_date`.
+- New `TestType`, `testTypes`, `TARGET_BAND_MIN/MAX`.
+- `ProfileUpdate` gains `test_type` (enum), `target_band` (1–9, `multipleOf(0.5)`), `exam_date` (`z.iso.date`, same bounds as the DB).
+- **Contract test:** now takes the **union of all** `grant update (...) on table public.profiles to authenticated` across migrations (sorted) and fails if any column-level revoke on profiles ever appears.
+- DB types regenerated in both copies (`country_regions`, the two enums, new profile columns).
+
+**Verified**
+- `supabase db reset` applies all 4 migrations ✓.
+- `supabase test db` **68/68** ✓. New `onboarding_countries.test.sql` (30):
+  - columns and types;
+  - a user can set and clear the onboarding fields;
+  - 7.3 / 9.5 / 0.5 / 1999 date / unknown test type are rejected;
+  - role/plan still 42501;
+  - anon reads country_regions; anon/authenticated can't insert or enable (42501);
+  - lowercase code rejected; waitlist new columns; `invited_by` without `invited_at` rejected.
+  - M1-C1's `profiles.test.sql` column list updated for the 3 new columns.
+- `supabase db lint --level error`: no errors.
+- `pnpm test` **141/141** ✓ (+9 `ProfileUpdate` onboarding cases); typecheck shared/web/admin ✓.
+- Mutation check: removed `exam_date` from the migration grant → contract test failed; reverted.
+- **Not verified:** applying to staging (the DB migrations workflow does it after merge).
+- Note: staging profiles created by hand (the admin SQL from earlier) just get null onboarding fields.

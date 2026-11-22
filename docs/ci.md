@@ -18,6 +18,13 @@ M0-I1 summary of every pipeline. Branches: `feature/*` → PR into `develop` (st
 - **One-time requirement:** a `workers.dev` subdomain on the Cloudflare account (dashboard → Workers & Pages → "Your subdomain"). Until then the preview job fails with that instruction. `preview_urls: true` is set for the staging environment in each `wrangler.jsonc`.
 - Skipped for PRs from forks (no secrets). The admin preview needs the admin Worker to exist, i.e. after its first staging deploy.
 
+## End-to-end tests (M1-I1)
+
+- `e2e.yml` runs Playwright on PRs touching web/packages/supabase and on pushes to `develop`.
+- It starts a **local** Supabase in the runner (only db, auth, rest and kong), builds the web app against it and serves it on :3200. Nothing touches staging, and no secrets are needed.
+- Google can't be automated, so tests create real users with the local service role and sign them in through the admin API (`apps/web/e2e/support/local-supabase.ts`). Keys come from `supabase status`, and the helper refuses to run against a non-local URL.
+- Run locally: `supabase start` (repo root), then `pnpm --filter @prepora/web e2e`. A failed CI run uploads the Playwright report and traces as an artifact.
+
 ## Shared pieces
 
 - `.github/actions/cloudflare-preflight`: checks the token can manage Workers in the account and can see the `prepora.site` zone; readable errors, never prints the token.

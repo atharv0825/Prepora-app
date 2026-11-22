@@ -22,21 +22,20 @@ export const metadata: Metadata = {
 };
 
 const palette = [
-  { name: "brand-black", hex: "#0A0A0A", use: "Hero, footer, final CTA" },
-  { name: "brand-surface", hex: "#141414", use: "Cards on black" },
-  { name: "brand-line", hex: "#262626", use: "1px borders on dark" },
-  { name: "brand-white", hex: "#FFFFFF", use: "Light background, primary buttons" },
-  { name: "brand-stone", hex: "#F5F5F4", use: "Alternate light sections" },
-  { name: "brand-grey", hex: "#A3A3A3", use: "Muted text on dark" },
-  { name: "brand-slate", hex: "#525252", use: "Muted text on light" },
+  { name: "brand-ink", hex: "#08222B", use: "Text, monogram square" },
+  { name: "brand-deep", hex: "#0F3B47", use: "Deep teal (dark mode surfaces)" },
+  { name: "brand-teal", hex: "#1C5F66", use: "Muted text on mint, accent on light" },
+  { name: "brand-sea", hex: "#37918A", use: "Icons, secondary accent, beams" },
+  { name: "brand-mint", hex: "#68C1A7", use: "Strong borders, inputs on mint" },
+  { name: "brand-mist", hex: "#A7E6C9", use: "Borders on mint, device bezel" },
+  { name: "brand-foam", hex: "#EAFAF0", use: "Light-green components and bands" },
 ];
 
-// Accents: only for italic serif phrases (gradient), small dots and the Platinum badge.
+// Primary and status colours.
 const accents = [
-  { name: "brand-green-light", hex: "#86EFAC", use: "Accent on dark sections" },
-  { name: "brand-purple-light", hex: "#C4B5FD", use: "Accent on dark sections" },
-  { name: "brand-green-dark", hex: "#166534", use: "Accent on light sections" },
-  { name: "brand-purple-dark", hex: "#6D28D9", use: "Accent on light sections" },
+  { name: "brand-primary", hex: "#3FC48C", use: "Primary buttons, highlights (ink text)" },
+  { name: "brand-rust", hex: "#8C3F3F", use: "Errors and destructive actions only" },
+  { name: "white", hex: "#FFFFFF", use: "Page background" },
 ];
 
 const iconProps = { className: "size-5", strokeWidth: 1.5 } as const;
@@ -44,14 +43,14 @@ const iconProps = { className: "size-5", strokeWidth: 1.5 } as const;
 function Section({
   title,
   children,
-  dark = false,
+  mint = false,
 }: {
   title: string;
   children: React.ReactNode;
-  dark?: boolean;
+  mint?: boolean;
 }) {
   return (
-    <section className={dark ? "dark py-12 sm:py-16" : "py-12 sm:py-16"}>
+    <section className={mint ? "mint py-12 sm:py-16" : "py-12 sm:py-16"}>
       <div className="container-page">
         <h2 className="mb-8 text-h2">{title}</h2>
         {children}
@@ -63,8 +62,8 @@ function Section({
 export default function DesignSystemPage() {
   return (
     <div className="flex-1">
-      {/* Dark hero sample: grid texture, eyebrow, display type with serif accent, CTAs, glass cards */}
-      <section className="dark relative overflow-hidden">
+      {/* Hero sample: grid texture, eyebrow, display type with serif accent, CTAs, glass cards */}
+      <section className="relative overflow-hidden">
         <div aria-hidden className="bg-grid pointer-events-none absolute inset-0" />
         <div className="container-page relative grid gap-12 pt-32 pb-16 sm:pt-40 sm:pb-24 lg:grid-cols-[55fr_45fr] lg:items-center">
           <div className="flex animate-fade-up flex-col items-start gap-6">
@@ -106,9 +105,9 @@ export default function DesignSystemPage() {
                 style={{ animationDelay: `${i * 0.8}s` }}
               >
                 <CardContent className="flex items-center gap-3">
-                  <Icon {...iconProps} className="size-5 text-brand-grey" />
+                  <Icon {...iconProps} className="size-5 text-brand-sea" />
                   <div>
-                    <p className="text-xs text-brand-grey">{label}</p>
+                    <p className="text-xs text-brand-teal">{label}</p>
                     <p className="font-heading text-2xl font-semibold tracking-tight">{value}</p>
                   </div>
                 </CardContent>
@@ -133,7 +132,7 @@ export default function DesignSystemPage() {
         </div>
       </Section>
 
-      <Section title="Accents">
+      <Section title="Primary &amp; status">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {accents.map((c) => (
             <div key={c.name} className="overflow-hidden rounded-xl border">
@@ -153,8 +152,8 @@ export default function DesignSystemPage() {
               Reach <span className="text-accent-serif">Band 8+</span>.
             </p>
           </div>
-          <div className="dark rounded-xl border p-6">
-            <p className="text-xs text-muted-foreground">On dark</p>
+          <div className="mint rounded-xl border p-6">
+            <p className="text-xs text-muted-foreground">On mint</p>
             <p className="mt-2 text-h1">
               Reach <span className="text-accent-serif">Band 8+</span>.
             </p>
@@ -183,8 +182,8 @@ export default function DesignSystemPage() {
         </div>
       </Section>
 
-      {[false, true].map((dark) => (
-        <Section key={String(dark)} title={dark ? "Buttons · on dark" : "Buttons · on light"} dark={dark}>
+      {[false, true].map((mint) => (
+        <Section key={String(mint)} title={mint ? "Buttons · on mint" : "Buttons · on white"} mint={mint}>
           <div className="grid gap-6">
             <div className="flex flex-wrap items-center gap-3">
               <Button>Start free</Button>
@@ -244,7 +243,7 @@ export default function DesignSystemPage() {
           <Card variant="inverted">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                Platinum <Badge variant="outline" className="border-accent-purple">Most popular</Badge>
+                Platinum <Badge variant="outline" className="border-brand-primary bg-brand-primary/15">Most popular</Badge>
               </CardTitle>
               <CardDescription>220 AI credits a month, natural examiner voice.</CardDescription>
             </CardHeader>

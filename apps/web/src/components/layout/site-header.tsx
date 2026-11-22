@@ -23,7 +23,7 @@ type Tone = "dark" | "light";
 export function SiteHeader() {
   const ref = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
-  const [tone, setTone] = useState<Tone>("dark");
+  const [tone, setTone] = useState<Tone>("light");
 
   useEffect(() => {
     let frame = 0;

@@ -3,12 +3,12 @@ import { cn } from "cn"
 
 // Cards: ~22px radius, 1px border, no heavy shadows (Prepora_UI_Design.md).
 const cardVariantClasses = {
-  /** White card on light sections, #141414 card inside a `dark` section. */
+  /** White card on light sections. */
   default: "border-border bg-card text-card-foreground",
-  /** Solid black card with white text on a light section: highlighted feature, Platinum plan.
-   *  The `dark` class switches every token inside the card to the dark set. */
-  inverted: "dark border-border bg-background text-foreground",
-  /** Floating glass stat card for the dark hero (#141414 @ 70%, blur, 1px border). */
+  /** Light-green (#EAFAF0) card with a mist border: highlighted feature, Platinum plan.
+   *  The `mint` class switches every token inside the card to the mint set. */
+  inverted: "mint border-border bg-background text-foreground",
+  /** Floating glass stat card for the hero (light green @ 75%, blur, 1px mist border). */
   glass: "glass",
   /** Stone (#F5F5F4) card on white sections. */
   muted: "border-transparent bg-muted text-foreground",

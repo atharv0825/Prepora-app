@@ -48,7 +48,7 @@ export function SampleFeedback() {
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-foreground"
+                      className="h-full rounded-full bg-brand-primary"
                       style={{ width: `${(c.band / 9) * 100}%` }}
                     />
                   </div>
@@ -62,7 +62,7 @@ export function SampleFeedback() {
                   <li key={c.wrong} className="flex flex-wrap items-center gap-2">
                     <del className="text-muted-foreground decoration-foreground/50">{c.wrong}</del>
                     <span aria-hidden className="text-muted-foreground">→</span>
-                    <ins className="rounded-md bg-foreground px-1.5 py-0.5 text-background no-underline">
+                    <ins className="rounded-md bg-brand-primary px-1.5 py-0.5 text-brand-ink no-underline">
                       {c.right}
                     </ins>
                   </li>

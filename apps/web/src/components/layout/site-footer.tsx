@@ -5,11 +5,11 @@ import { Logo } from "./logo";
 const version = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0";
 const commit = process.env.NEXT_PUBLIC_COMMIT_SHA ?? "dev";
 
-/** Black footer with grey links, Privacy, Terms, Delete account and the app version
+/** Light-green footer with teal links, Privacy, Terms, Delete account and the app version
  *  (design doc §4, plan §9). */
 export function SiteFooter() {
   return (
-    <footer className="dark mt-auto border-t border-border">
+    <footer className="mint mt-auto border-t border-border">
       <div className="container-page grid gap-10 py-12 sm:py-16 md:grid-cols-[1.4fr_repeat(3,1fr)]">
         <div className="flex flex-col gap-3">
           <Logo />

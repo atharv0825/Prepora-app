@@ -27,7 +27,7 @@ const STATUS_BAR = 28; // h-7
 /**
  * Hero device showcase: live, self-playing demos of the four modules. Starts on the phone
  * (Speaking), the frame morphs into a laptop for Writing and Reading, back to the phone for
- * Listening, and loops. Tabs let visitors jump to a module.
+ * Listening, and loops. Decorative (aria-hidden); no tabs or stat cards under it.
  * Pauses on hover/focus, when scrolled out of view or the tab is hidden. With reduced motion it
  * doesn't auto-play and each scene shows its finished state.
  */
@@ -79,12 +79,10 @@ export function HeroShowcase() {
   const current = scenes[index]!;
   const laptop = current.device === "laptop";
 
-  const select = (i: number) => setPlay({ index: i, t: 0 });
-
   return (
     <div
       ref={root}
-      className="flex w-full flex-col items-center gap-5"
+      className="flex w-full flex-col items-center"
       onMouseEnter={() => (paused.current = true)}
       onMouseLeave={() => (paused.current = false)}
       onFocus={() => (paused.current = true)}
@@ -95,7 +93,7 @@ export function HeroShowcase() {
         <div ref={stage} className="flex w-full flex-col items-center">
           <div
             aria-hidden
-            className="relative overflow-hidden border border-brand-line bg-brand-black p-2.5 shadow-[0_40px_120px_-40px_rgba(255,255,255,0.18)] transition-[width,height,border-radius] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className="relative overflow-hidden border border-brand-line bg-brand-black p-2.5 shadow-[0_40px_120px_-40px_rgba(8,34,43,0.45)] transition-[width,height,border-radius] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
               width: laptop ? `min(100%, ${LAPTOP_MAX}px)` : "272px",
               height: laptop ? `${FRAME_CHROME + STATUS_BAR + LAPTOP_H * scale}px` : "540px",
@@ -103,11 +101,11 @@ export function HeroShowcase() {
             }}
           >
             <div
-              className="relative h-full overflow-hidden border border-brand-line bg-brand-surface transition-[border-radius] duration-700"
+              className="relative h-full overflow-hidden border border-brand-line bg-brand-foam transition-[border-radius] duration-700"
               style={{ borderRadius: laptop ? "10px" : "34px" }}
             >
               {/* Phone status bar / laptop camera dot */}
-              <div className="flex h-7 items-center justify-between px-6 text-[10px] text-brand-grey">
+              <div className="flex h-7 items-center justify-between px-6 text-[10px] text-brand-teal">
                 <span className={cn("transition-opacity duration-300", laptop && "opacity-0")}>9:41</span>
                 <span
                   className={cn(
@@ -151,35 +149,6 @@ export function HeroShowcase() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Module demos" className="flex flex-wrap justify-center gap-1.5">
-        {scenes.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            role="tab"
-            aria-selected={i === index}
-            onClick={() => select(i)}
-            className={cn(
-              "relative overflow-hidden rounded-full border px-3.5 py-1.5 text-xs transition-colors",
-              i === index
-                ? "border-foreground/40 text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {s.label}
-            {i === index && (
-              <span
-                aria-hidden
-                className="absolute bottom-0 left-0 h-px bg-accent-green"
-                style={{ width: `${(t / SCENE_MS) * 100}%` }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-      <p className="sr-only" aria-live="polite">
-        Showing the {current.label} demo.
-      </p>
     </div>
   );
 }

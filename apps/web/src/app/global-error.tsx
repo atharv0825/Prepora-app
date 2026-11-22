@@ -9,7 +9,7 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
     error instanceof Error && "digest" in error ? String((error as { digest?: string }).digest) : null;
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className="flex min-h-dvh items-center bg-background text-foreground">
         <title>Something went wrong · Prepora</title>
         <main className="container-page flex flex-col items-start gap-6 py-24">

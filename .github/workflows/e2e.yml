@@ -35,6 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Supabase's fixed host ports (54320-54329, supabase/config.toml) sit inside Linux's default
+      # ephemeral range (32768-60999). An outgoing connection (e.g. an image pull) can grab one
+      # first: "failed to bind host port 0.0.0.0:54322/tcp: address already in use". Move the
+      # ephemeral range above them before anything starts.
+      - name: Keep Supabase ports out of the ephemeral range
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65535"
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -49,7 +55,10 @@ jobs:
       # Only what the tests use: Postgres, Auth (GoTrue), PostgREST and the Kong gateway.
       # Skipping the rest saves minutes and avoids image pulls we don't need.
       - name: Start local Supabase
-        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        run: |
+          args="-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+          # One retry for transient Docker errors on the runner.
+          supabase start $args || { echo "::warning::supabase start failed; retrying once"; supabase stop --no-backup || true; supabase start $args; }
 
       - name: Install Chromium
         run: pnpm --filter @prepora/web exec playwright install --with-deps chromium

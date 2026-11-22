@@ -2,10 +2,11 @@
 // milestone that adds them; until then they resolve to the 404 page.
 
 /**
- * Pre-launch: no accounts yet, so the header shows "Join waitlist" (→ the landing form) and hides
- * "Log in". Set to false in M1 when sign-up and login exist.
+ * true: the header shows "Join waitlist" (→ the landing form) and hides "Log in".
+ * false since M1-F1: sign-up and login exist (Google), so the header shows "Log in" / "Start free".
+ * While Google's consent screen is in "Testing", only listed test users can actually sign in.
  */
-export const waitlistMode = true;
+export const waitlistMode = false;
 
 export const routes = {
   home: "/",
@@ -14,8 +15,10 @@ export const routes = {
   howItWorks: "/#how-it-works",
   pricing: "/#pricing", // full pricing page in M9
   contact: "/#contact", // final CTA section; a real contact page/email later
-  login: "/login", // M1
-  signup: "/signup", // M1
+  login: "/login", // M1-F1
+  signup: "/signup", // M1-F1
+  authCallback: "/auth/callback", // M1-F1, Google OAuth return (docs/auth.md)
+  app: "/app", // signed-in home (M1-F1 placeholder)
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)

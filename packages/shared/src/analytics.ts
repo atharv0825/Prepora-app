@@ -2,7 +2,9 @@
 // live here so the web app can only send events we've agreed on. Each milestone's contract step
 // adds or adjusts entries; M0-I2 only defines them, nothing is captured yet.
 
-type Plan = "free" | "gold" | "platinum";
+import type { Database } from "./db";
+
+type Plan = Database["public"]["Enums"]["plan_tier"]; // from the profiles migration (M1-C1)
 type Module = "speaking" | "writing" | "reading" | "listening";
 type Provider = "razorpay" | "paddle";
 

@@ -946,3 +946,47 @@ Branch `feature/m0-i2-observability`, **stacked on `feature/m0-i1-ci`** (which i
 1. Sentry: create projects `prepora-web`, `prepora-admin` (Next.js) and `prepora-functions` (Deno). Add GitHub **variables** `SENTRY_DSN_WEB` and `SENTRY_DSN_ADMIN`. Run `supabase secrets set SENTRY_DSN=<functions DSN> --project-ref <staging ref>` yourself.
 2. PostHog: create the project and pick a region (it's permanent). Add GitHub variables `POSTHOG_KEY` (`phc_…`) and `POSTHOG_HOST` (`https://us.i.posthog.com` or `https://eu.i.posthog.com`). In project settings, also turn off autocapture and replay.
 3. Re-run the Web and Admin workflows on `develop` after adding the variables (keys are baked in at build time).
+
+## 2026-11-22 — M1-C1: profiles table + RLS
+
+**Goal (plan.md):** Migration: `profiles` table (id, full_name, role, plan, country_code, timezone, created_at) + RLS (user reads/updates own row; role can't be self-edited).
+
+Branch `feature/m1-c1-profiles` from `develop` (A1, I1, I2 are merged).
+
+**Migration `supabase/migrations/20261122100148_profiles.sql`**
+- Enums: `app_role` (`user`, `admin`, `content_editor`) and `plan_tier` (`free`, `gold`, `platinum`), values from Implementation Plan §4. Enums give the generated TS types exact unions.
+- `profiles` columns:
+  - `id uuid` PK → `auth.users(id) on delete cascade`.
+  - `full_name` (1–100 characters, not blank).
+  - `role` (default `user`) and `plan` (default `free`), both not null.
+  - `country_code char(2)` (`^[A-Z]{2}$`).
+  - `timezone` (IANA name, checked against `pg_timezone_names` by a trigger, since a CHECK can't query the catalog).
+  - `created_at`, plus **`updated_at`** (not in the step text; the trigger keeps it current).
+- Later columns (`test_type`, `target_band`, `exam_date`, `plan_expires_at`) come with their own milestones.
+- **Security:**
+  - RLS policies: `authenticated` may select and update only where `(select auth.uid()) = id`.
+  - Column privileges: `authenticated` may update **only** `full_name`, `country_code` and `timezone`, so `role` and `plan` (and `id`) can't be changed by the user at all. That's stronger than a policy check: the database refuses with 42501.
+  - Plan stays server-only, as §4 requires (billing Edge Functions use the service role).
+  - No insert/delete grants: rows come from the auth trigger (M1-B2) and go with the user.
+  - `anon` has no access.
+- `role`/`plan` changes by admins go through the service role for now; `is_admin()` policies come in M1-B3.
+
+**Tests `supabase/tests/database/profiles.test.sql` (26 pgTAP)**
+- Structure, defaults, enum values, FK.
+- anon can't read.
+- User A sees only their own row and can't read B's; A can update name/country/timezone; an update aimed at B's row changes nothing.
+- Role, plan and id changes → 42501; insert/delete → 42501; unknown time zone → 22023; lowercase country and blank name → 23514.
+- Values saved correctly, B unchanged, `updated_at` moves, deleting the auth user deletes the profile.
+- Profiles are inserted with `on conflict do nothing`, so the tests keep working once M1-B2's trigger creates them.
+
+**Types**
+- `pnpm db:types` regenerated `packages/shared/src/db.ts` and `supabase/functions/_shared/db.ts` (profiles + enums). `db:types:check` is up to date.
+- `analytics.ts` `Plan` now uses the DB enum `plan_tier` instead of a copied union.
+
+**Verified**
+- Local `supabase db reset` applies all 3 migrations ✓; `supabase test db` 38/38 ✓ (26 profiles + 12 waitlist); `supabase db lint --level error` no errors ✓.
+- **Mutation check:** changed the grant to `grant update on table` (all columns) → "cannot change own role", "cannot change own plan" and "role and plan untouched" failed as expected; reverted → all pass.
+- typecheck shared/web/admin ✓; `pnpm test` 50/50 ✓.
+- **Not verified:** applying to staging. The DB migrations workflow does that when this merges to `develop`.
+
+**Note:** the user says Google OAuth is already enabled on the hosted Supabase project (client ID/secret set). The local `config.toml` and the redirect URLs are M1-B1.

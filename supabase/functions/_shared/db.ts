@@ -12,6 +12,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          country_code: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          plan: Database["public"]["Enums"]["plan_tier"]
+          role: Database["public"]["Enums"]["app_role"]
+          timezone: string | null
+          updated_at: string
+        }
+        Insert: {
+          country_code?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          plan?: Database["public"]["Enums"]["plan_tier"]
+          role?: Database["public"]["Enums"]["app_role"]
+          timezone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          country_code?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          plan?: Database["public"]["Enums"]["plan_tier"]
+          role?: Database["public"]["Enums"]["app_role"]
+          timezone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waitlist: {
         Row: {
           country_code: string | null
@@ -50,7 +83,8 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "user" | "admin" | "content_editor"
+      plan_tier: "free" | "gold" | "platinum"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -177,6 +211,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["user", "admin", "content_editor"],
+      plan_tier: ["free", "gold", "platinum"],
+    },
   },
 } as const

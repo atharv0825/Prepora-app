@@ -30,6 +30,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Sentry/PostHog (M0-I2), repository VARIABLES (public values, not secrets). Unset = off.
+  #   SENTRY_DSN_WEB  → browser SDK (inlined at build) and Worker SDK (--var SENTRY_DSN at deploy)
+  #   POSTHOG_KEY, POSTHOG_HOST → browser PostHog (inlined at build)
+  NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_WEB }}
+  NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+  NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
   NEXT_TELEMETRY_DISABLED: 1
   # Public Supabase settings, inlined into the build (M0-F3). Set as repository VARIABLES
   # (Settings → Secrets and variables → Actions → Variables), not secrets: both are public.
@@ -110,12 +116,21 @@ jobs:
           api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           zone-name: prepora.site
+      # Worker variables for Sentry (M0-I2): release matches the browser build
+      # (prepora-<app>@<version>+<sha7>, next.config.ts); the DSN only when the variable is set.
+      - name: Sentry Worker variables
+        id: sentry
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          args="--var SENTRY_RELEASE:prepora-web@${version}+${GITHUB_SHA::7}"
+          if [ -n "${NEXT_PUBLIC_SENTRY_DSN}" ]; then args="$args --var SENTRY_DSN:${NEXT_PUBLIC_SENTRY_DSN}"; else echo "::notice::SENTRY_DSN_WEB not set: server errors are not reported."; fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
       - name: Upload preview version
         id: upload
         run: |
           set -o pipefail
           alias="pr-${PR_NUMBER}"
-          if ! pnpm --filter @prepora/web exec opennextjs-cloudflare upload --env staging -- --preview-alias "$alias" --tag "$alias" 2>&1 | tee upload.log; then
+          if ! pnpm --filter @prepora/web exec opennextjs-cloudflare upload --env staging -- --preview-alias "$alias" --tag "$alias" --var APP_ENV:preview ${{ steps.sentry.outputs.args }} 2>&1 | tee upload.log; then
             if grep -qiE "workers\.dev subdomain|subdomain" upload.log; then
               echo "::error::Preview URLs need a workers.dev subdomain on the Cloudflare account. One-time setup: Cloudflare dashboard → Workers & Pages → (Account details / Settings) → 'Your subdomain' → choose a name. Then re-run this job."
             fi
@@ -170,4 +185,13 @@ jobs:
           api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           zone-name: prepora.site
-      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging
+      # Worker variables for Sentry (M0-I2): release matches the browser build
+      # (prepora-<app>@<version>+<sha7>, next.config.ts); the DSN only when the variable is set.
+      - name: Sentry Worker variables
+        id: sentry
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          args="--var SENTRY_RELEASE:prepora-web@${version}+${GITHUB_SHA::7}"
+          if [ -n "${NEXT_PUBLIC_SENTRY_DSN}" ]; then args="$args --var SENTRY_DSN:${NEXT_PUBLIC_SENTRY_DSN}"; else echo "::notice::SENTRY_DSN_WEB not set: server errors are not reported."; fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging -- ${{ steps.sentry.outputs.args }}

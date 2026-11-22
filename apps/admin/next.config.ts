@@ -1,7 +1,9 @@
 import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import pkg from "./package.json" with { type: "json" };
+import { releaseName } from "../../packages/shared/src/observability";
 
 // Version shown in the sidebar footer: package.json version + short commit SHA.
 function commitSha(): string {
@@ -15,12 +17,15 @@ function commitSha(): string {
   }
 }
 
+const sha = commitSha();
+
 const nextConfig: NextConfig = {
   // Shared packages ship TypeScript source; let Next compile them.
   transpilePackages: ["@prepora/ui", "@prepora/shared"],
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
-    NEXT_PUBLIC_COMMIT_SHA: commitSha(),
+    NEXT_PUBLIC_COMMIT_SHA: sha,
+    NEXT_PUBLIC_SENTRY_RELEASE: releaseName("admin", pkg.version, sha),
   },
   // No Cloudflare Images binding (see wrangler.jsonc).
   images: { unoptimized: true },
@@ -47,7 +52,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry build integration (M0-I2). Source-map upload is off until SENTRY_AUTH_TOKEN exists
+// (release workflow, plan §9); without it the build doesn't contact Sentry at all.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  telemetry: false,
+  silent: !process.env.CI,
+});
 
 // Gives `next dev` access to Cloudflare bindings via getCloudflareContext().
 initOpenNextCloudflareForDev();

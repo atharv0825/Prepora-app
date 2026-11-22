@@ -23,4 +23,5 @@ M0-I1 summary of every pipeline. Branches: `feature/*` → PR into `develop` (st
 - `.github/actions/cloudflare-preflight`: checks the token can manage Workers in the account and can see the `prepora.site` zone; readable errors, never prints the token.
 - Secrets (environment `staging`): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD`.
 - Repository variables (public, baked into the web build): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- Repository variables for monitoring (M0-I2, optional, unset = off): `SENTRY_DSN_WEB`, `SENTRY_DSN_ADMIN`, `POSTHOG_KEY`, `POSTHOG_HOST`. Deploy and preview steps also pass `SENTRY_DSN` and `SENTRY_RELEASE` to the Worker with `--var`, and previews additionally get `APP_ENV=preview`. See [observability.md](observability.md).
 - Dependency rule: pnpm 12 and Deno 2 refuse packages published < 24 h ago; pin older versions and commit lockfiles.

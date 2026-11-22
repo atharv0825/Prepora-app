@@ -903,3 +903,46 @@ Already in place before this step: lint, type-check, build, staging deploy on `d
 **Manual steps for you**
 1. Cloudflare dashboard → **Workers & Pages** → find **"Your subdomain"** (account details / settings) → choose a name (e.g. `prepora`). One-time, free.
 2. Merge PR A1 (admin shell), then this PR. On this PR the preview job will show the URL in a PR comment.
+
+## 2026-11-22 — M0-I2: Sentry and PostHog connected (no events yet)
+
+**Goal (plan.md):** Sentry and PostHog projects created and connected (no events yet).
+
+Branch `feature/m0-i2-observability`, **stacked on `feature/m0-i1-ci`** (which is stacked on A1). Merge order: A1 → I1 → I2.
+
+**Code is wired and off until keys exist.** Creating the Sentry/PostHog accounts and projects is a dashboard step for you (see below and `docs/observability.md`).
+
+**Packages** (all older than 24 h): `@sentry/nextjs` 11.16.0 + `@sentry/core` 11.16.0 (web, admin), `posthog-js` 1.453.1 (web). `pnpm-workspace.yaml`: `core-js: false` (posthog-js dependency; its postinstall only prints a donation message).
+
+**Shared contract (`packages/shared`)**
+- `src/analytics.ts`: the PostHog event contract from Implementation Plan §7. 22 events with typed properties, plus `AnalyticsPerson` for identify. A runtime list is type-checked against the interface. Exported as `@prepora/shared/analytics`.
+- `src/observability.ts`: `appEnvironment(hostname)` (localhost → development, `*.workers.dev` → preview, `staging.`/`admin-staging.` → staging, else production), `releaseName()` → `prepora-<app>@<version>+<sha7>`, and Sentry privacy defaults (`dataCollection`: no automatic user info, cookies, bodies or query strings; tracing 0).
+- Tests: `analytics.test.ts`, `observability.test.ts` (+13 tests).
+
+**Sentry (web + admin)**
+- Browser: `src/instrumentation-client.ts` (`@sentry/nextjs`), disabled without `NEXT_PUBLIC_SENTRY_DSN` and on localhost; captures router transitions.
+- Server: new Worker entry `worker.mjs` = `withSentry` (`@sentry/nextjs/cloudflare`) around `.open-next/worker.js` (re-exports OpenNext's Durable Objects); `wrangler.jsonc` `main` points to it. DSN/release come from Worker vars `SENTRY_DSN` / `SENTRY_RELEASE`.
+- `src/instrumentation.ts` `onRequestError` and the `error.tsx` / `global-error.tsx` pages use **`@sentry/core`'s `captureException`**, not `@sentry/nextjs`. The first version used `@sentry/nextjs` there, as Sentry's docs suggest, and pushed the Worker from 1.34 → **2.61 MB gzipped** (free limit 3 MB). The bundle metafile showed two ~1.4 MB copies of the Node SDK + OpenTelemetry, one from instrumentation and one from the SSR of `error.tsx`. `@sentry/core` reaches the same client through Sentry's global carrier (same version), so nothing is lost on Workers. Locally (`next dev`) server errors aren't sent.
+- `next.config.ts`: `withSentryConfig` (telemetry off; source-map upload disabled until `SENTRY_AUTH_TOKEN` exists) + `NEXT_PUBLIC_SENTRY_RELEASE`.
+- Edge Functions: already done in M0-B3; they only need the `SENTRY_DSN` secret.
+
+**PostHog (web only; the admin doesn't track staff)**
+- Initialised in `instrumentation-client.ts` only when `NEXT_PUBLIC_POSTHOG_KEY` is set and not on localhost. Autocapture, pageviews, pageleave, exceptions and session replay are **off**. `person_profiles: identified_only`, `persistence: memory` (no cookies/localStorage until the cookie notice, plan §7). Registers `environment` and `app_version`.
+- `apps/web/src/lib/analytics`: typed `track()`, `identify()`, `resetAnalytics()`; no-ops when PostHog isn't loaded. No call sites yet: **no events**.
+
+**CI (`web.yml`, `admin.yml`)**
+- Repository variables → build env: `SENTRY_DSN_WEB` / `SENTRY_DSN_ADMIN` → `NEXT_PUBLIC_SENTRY_DSN`; `POSTHOG_KEY`, `POSTHOG_HOST` (web).
+- New "Sentry Worker variables" step before upload/deploy: `--var SENTRY_RELEASE:prepora-<app>@<version>+<sha7>`, plus `--var SENTRY_DSN:…` when set. PR previews also get `--var APP_ENV:preview`. I checked OpenNext's `deploy` source, which passes the args after `--` through to `wrangler deploy`.
+- Docs: new `docs/observability.md` (what runs where, setup steps, how to check); `docs/ci.md` variables; `.env.example` for web and (new) admin.
+
+**Verified**
+- `pnpm test` 50/50 ✓; typecheck shared/web/admin ✓; lint web/admin ✓.
+- Linux Docker (`node:24-bookworm`, frozen install, same as CI): OpenNext build ✓ for both. `wrangler deploy --dry-run --env staging --var SENTRY_DSN:…`: **web 1.52 MB gzipped** (was 1.34), **admin 1.35 MB** (was 1.18).
+- Linux Docker smoke test: built web Worker under `wrangler dev --env staging` with a fake DSN → `/` 200, `/status` 200, `/does-not-exist` 404, no errors in the log. The wrapped entry boots and serves.
+- The local Windows OpenNext build fails with "Access is denied" on pnpm symlinks in `.open-next/server-functions`, a known Windows issue unrelated to this change. Use Docker/CI.
+- **Not verified:** a real event reaching Sentry or PostHog (no projects/keys yet; by design no events are sent), and the CI `--var` steps on a real runner (they run on this PR).
+
+**Manual steps for you** (details in `docs/observability.md`)
+1. Sentry: create projects `prepora-web`, `prepora-admin` (Next.js) and `prepora-functions` (Deno). Add GitHub **variables** `SENTRY_DSN_WEB` and `SENTRY_DSN_ADMIN`. Run `supabase secrets set SENTRY_DSN=<functions DSN> --project-ref <staging ref>` yourself.
+2. PostHog: create the project and pick a region (it's permanent). Add GitHub variables `POSTHOG_KEY` (`phc_…`) and `POSTHOG_HOST` (`https://us.i.posthog.com` or `https://eu.i.posthog.com`). In project settings, also turn off autocapture and replay.
+3. Re-run the Web and Admin workflows on `develop` after adding the variables (keys are baked in at build time).

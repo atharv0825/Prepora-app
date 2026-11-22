@@ -6,6 +6,9 @@
     "dev:web": "pnpm --filter @prepora/web dev",
     "preview:web": "pnpm --filter @prepora/web preview",
     "deploy:web": "pnpm --filter @prepora/web run deploy --env staging",
+    "dev:admin": "pnpm --filter @prepora/admin dev",
+    "preview:admin": "pnpm --filter @prepora/admin preview",
+    "deploy:admin": "pnpm --filter @prepora/admin run deploy --env staging",
     "db:types": "node scripts/gen-db-types.mjs",
     "db:types:linked": "node scripts/gen-db-types.mjs --linked",
     "db:types:check": "node scripts/gen-db-types.mjs --check"

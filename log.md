@@ -1195,3 +1195,48 @@ Branch `feature/m1-f2-session-middleware` from `develop` (F1 merged).
   - Garbage cookie → 307 `/login`. After a global logout, the old refresh token → 307 `/login` and the cookie is cleared.
 - **Not verified:** the OpenNext/Workers build in Docker. Docker Desktop's VM has 3.7 GB RAM, shared with 12 local Supabase containers. Two runs lost the client connection ("unexpected EOF"); one container exited 0 but `--rm` removed its logs before they could be read; the third attempt hit Docker engine 500 errors. The PR's Web workflow runs the same OpenNext build on a clean runner.
 - **Not verified on staging** yet: after merge, sign in → `/app`, open `/login` (should bounce to `/app`), sign out isn't built yet (M1-F3).
+
+## 2026-11-22 — M1-F2 follow-up: Docker/Workers verification done
+
+- First attempts failed in Docker, not in the app. Docker Desktop's VM has 3.7 GB, shared with 12 local Supabase containers; the client lost the connection ("unexpected EOF") and then the engine returned 500 errors.
+- Fix: `docker desktop restart`; `supabase stop` during the build (data kept); container run detached with output to a mounted file.
+- Result (`node:24-bookworm`, frozen install, placeholder public Supabase values):
+  - OpenNext build ✓ (Edge middleware); dry run **1.95 MB gzipped** (was 1.52 MB before F2: the middleware bundles @supabase/ssr + supabase-js; free limit 3 MB).
+  - `wrangler dev --env staging`: `/` 200, `/app` → 307 `/login`, `/app/writing?task=2` → 307 `/login?next=%2Fapp%2Fwriting%3Ftask%3D2`, `/login` 200, `/status` 200.
+- CI also passed for the F2 PR (Web workflow), and the `develop` staging deploy succeeded.
+
+## 2026-11-22 — M1-F3: Logout, account menu, profile page (name)
+
+**Goal (plan.md):** Logout, "account" menu, basic profile page (name).
+
+Branch `feature/m1-f3-account` from `develop` (F2 merged).
+
+**Changes**
+- `packages/ui/src/components/dropdown-menu.tsx`: new dropdown on Base UI `Menu` (Root/Trigger/Content/Item/LinkItem/Label/Separator). Keyboard, focus return and roles come from Base UI. Rounded popup in the design tokens.
+- `apps/web/src/app/(app)/app/layout.tsx`: signed-in shell, a sticky white glass header with the logo and **account menu**. It calls `getAccount()` again (second line of defence after the middleware).
+- `components/account/account-menu.tsx`: avatar button with initials (`aria-label="Account menu for <name>"`); the menu shows name + email, **Profile**, **Log out** (calls the `signOut` server action in a transition: "Logging out…").
+- `/app/profile` + `components/account/profile-form.tsx`:
+  - Name field with `useActionState`: inline field error, form error, a "Name saved" toast, and a Saving… state.
+  - Email shown read-only ("From your Google account").
+  - If the profile row doesn't exist yet (M1-B2's trigger isn't built), a "still being set up" notice is shown and the form is disabled.
+- `lib/account-actions.ts` (`"use server"`):
+  - `signOut()` → `auth.signOut({ scope: "local" })` (this device only), revalidate, redirect `/`.
+  - `updateProfileName()` → `ProfileUpdate` (shared zod, strict) → `getUser()` → `update profiles set full_name` for the caller's row (RLS + column grant from M1-C1).
+  - Zero rows updated → "profile isn't set up yet"; DB error → generic message, logged.
+  - Each action checks the session itself; Server Functions are public endpoints.
+- `lib/supabase/session.ts`: `getCurrentUser` and the new `getAccount` (user + own profile row + display name) are wrapped in React `cache()`, so the layout and page share one Auth call per request.
+- `lib/account.ts`: `displayName()` (profile name → Google name → email → "Account") and `initials()`. Tests: `account.test.ts` (+10).
+- `routes.profile` = `/app/profile`. The `/app` page now uses the layout's header.
+
+**Verified**
+- typecheck web + ui ✓; lint web ✓; `pnpm test` 115/115 ✓; `next build` ✓ (`/app`, `/app/profile` dynamic).
+- `next start` on :3100 against local Supabase. A real session was minted with the service role; server actions were called with **React's own `encodeReply`** (as the browser sends them), using the action IDs from the build manifest.
+  - `/app`: menu button for "Test Student" with initials "TS".
+  - `/app/profile` without a profile row: notice shown, input disabled; the action returns "profile isn't set up yet".
+  - With a row (created with the service role as a stand-in for M1-B2): `"  Asha Rao "` → saved as `Asha Rao`; blank → "Enter your name."; 101 chars → "Use 100 characters or fewer."; extra `role=admin`, `plan=platinum` fields → name saved, **role stays `user`, plan `free`** (checked in the DB).
+  - Menu shows the saved name after revalidation.
+  - Log out → `x-action-redirect: /`, the auth cookie cleared. `/app` with the browser's cookies → 307 `/login`; **replaying the old cookie** → 307 `/login`; the name action after logout doesn't change the DB.
+- Test hiccups (not app bugs):
+  - A `next start` left over from F2's test was still on :3100, so the first run hit the old build. I identified its command line, stopped it, and reran.
+  - My hand-built action body first used the wrong field prefix (`1_` instead of React's `_1_`), so every save looked like "Enter your name". Switched to `encodeReply`.
+- **Not verified:** in a real browser (menu opening, keyboard navigation, toast, mobile layout) or on staging. The staging profile page will show "still being set up" until **M1-B2** (sign-up trigger) creates profile rows.

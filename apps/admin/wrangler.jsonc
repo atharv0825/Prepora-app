@@ -27,6 +27,8 @@
   "env": {
     "staging": {
       "name": "prepora-admin-staging",
+      // Per-PR preview versions (M0-I1): pr-<n>-<name>.<subdomain>.workers.dev
+      "preview_urls": true,
       "routes": [{ "pattern": "admin-staging.prepora.site", "custom_domain": true }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-admin-staging" }],
       "vars": { "APP_ENV": "staging" }

@@ -1406,3 +1406,32 @@ Branch `feature/m2-c2-onboarding-contract` from `develop` (M2-C1 merged).
 
 **Verified:** both workflow files parse; the retry lines pass `bash -n`. **Not verified yet:** the next CI run on this PR.
 - **Verified on CI (commit `85a742d`):** E2E ✓. The runner applied `net.ipv4.ip_local_port_range = 60000 65535`; Supabase started first time, without the retry; **Playwright 12 passed (38.7 s)**. DB migrations ✓.
+
+## 2026-11-22 — M2-B1: Seed country_regions (APAC), enable Wave 1
+
+**Goal (plan.md):** Seed `country_regions` with all APAC countries; enable Wave 1 (IN, NP, BD, LK).
+
+Branch `feature/m2-b1-seed-countries` from `develop` (M2-C2 merged). Also carries the log-only commit `568dd65` (CI port-fix verification), which landed after C2's merge.
+
+**Migration `20261122163802_seed_country_regions.sql`.** A migration rather than `seed.sql`, because seed files run only locally and staging/production need the data.
+- **40 countries**, waves from Implementation Plan §8.2:
+  - **Wave 1, enabled:** IN (region IN), NP, BD, LK (SA).
+  - **Wave 2, disabled:** PH, VN, ID, MY, TH (SEA), PK (SA).
+  - **Wave 3, disabled:** AU, NZ (ANZ), SG (SEA), HK, JP, KR, TW (EA).
+  - **Listed, no wave, disabled:** BT, MV, AF (SA); MM, KH, LA, BN, TL (SEA); MO, MN, **CN** (EA); FJ, PG, WS, TO, VU, SB, KI, FM, MH, NR, PW, TV (ANZ, the Pacific).
+- My choices (the plan only says "all APAC"):
+  - Mainland China is listed but unscheduled (§8.2: out of scope).
+  - North Korea isn't listed.
+  - Pacific island states go in ANZ.
+  - Afghanistan is South Asia.
+  - Non-APAC countries aren't listed, which means "not enabled" (waitlist).
+- `on conflict (country_code) do nothing`: re-running never overwrites admin changes (M2-A2 toggles `is_enabled`).
+
+**Tests**
+- New `country_regions_seed.test.sql` (14): 40 rows; enabled set = exactly IN/NP/BD/LK; wave 1/2/3 sets match §8.2; no later-wave country enabled; regions spot-checked; CN unscheduled and disabled; KP and US/GB/AE absent; anon sees the 4 enabled.
+- `onboarding_countries.test.sql` (M2-C1) inserted IN/PH, which now collide with the seed. It uses the unassigned codes ZZ/ZY instead (the same checks).
+
+**Verified**
+- `supabase db reset` (5 migrations) ✓; `supabase test db` **82/82** ✓; `db lint` no errors; `db:types:check` up to date (data-only change).
+- **Re-run check:** set IN `is_enabled=false`, re-applied the migration SQL → `INSERT 0 0`, still 40 rows, **IN still false**; then restored.
+- **Not verified:** staging (the DB migrations workflow applies it on merge to `develop`).

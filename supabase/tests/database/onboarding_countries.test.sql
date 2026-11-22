@@ -65,15 +65,17 @@ select col_default_is('public', 'country_regions', 'is_enabled', 'false', 'count
 select ok((select relrowsecurity from pg_class where oid = 'public.country_regions'::regclass),
   'RLS is enabled on country_regions');
 
+-- Unassigned ISO codes (ZZ, ZY), so this doesn't clash with the M2-B1 seed.
 insert into public.country_regions (country_code, region, launch_wave, is_enabled) values
-  ('IN', 'IN', 1, true), ('PH', 'SEA', 2, false);
+  ('ZZ', 'IN', 1, true), ('ZY', 'SEA', 2, false);
 
 set local role anon;
-select is((select count(*)::int from public.country_regions), 2, 'anon can read country_regions');
-select is((select is_enabled from public.country_regions where country_code = 'IN'), true,
+select is((select count(*)::int from public.country_regions where country_code in ('ZZ', 'ZY')), 2,
+  'anon can read country_regions');
+select is((select is_enabled from public.country_regions where country_code = 'ZZ'), true,
   'anon sees which countries are enabled');
 select throws_ok(
-  $$ update public.country_regions set is_enabled = true where country_code = 'PH' $$,
+  $$ update public.country_regions set is_enabled = true where country_code = 'ZY' $$,
   '42501', null, 'anon cannot enable a country');
 reset role;
 
@@ -82,12 +84,12 @@ select throws_ok(
   $$ insert into public.country_regions (country_code, region) values ('XX', 'SA') $$,
   '42501', null, 'signed-in users cannot add countries');
 select throws_ok(
-  $$ update public.country_regions set is_enabled = true where country_code = 'PH' $$,
+  $$ update public.country_regions set is_enabled = true where country_code = 'ZY' $$,
   '42501', null, 'signed-in users cannot enable a country');
 reset role;
 
 select throws_ok(
-  $$ insert into public.country_regions (country_code, region) values ('in', 'IN') $$,
+  $$ insert into public.country_regions (country_code, region) values ('zz', 'IN') $$,
   '23514', null, 'country codes must be two uppercase letters');
 
 -- ── waitlist final shape ────────────────────────────────────────────────────────────────────

@@ -14,22 +14,22 @@ export function ReadingScene({ t }: SceneProps) {
   const marked = t >= 6000;
   const highlight = Math.min(100, (t / 4800) * 100);
   return (
-    <div className="flex h-full flex-col text-white">
-      <div className="flex items-center justify-between border-b border-brand-line px-4 py-2 text-[10px] text-brand-grey">
-        <span className="font-medium text-white">Reading · Passage 1</span>
-        <span className={cn("transition-opacity", marked ? "text-brand-green-light opacity-100" : "opacity-0")}>
+    <div className="flex h-full flex-col text-brand-ink">
+      <div className="flex items-center justify-between border-b border-brand-mist px-4 py-2 text-[10px] text-brand-teal">
+        <span className="font-medium text-brand-ink">Reading · Passage 1</span>
+        <span className={cn("transition-opacity", marked ? "text-brand-sea opacity-100" : "opacity-0")}>
           3 / 3 correct
         </span>
       </div>
       <div className="grid flex-1 grid-cols-2 overflow-hidden">
-        <div className="space-y-2 border-r border-brand-line p-4 text-[11px] leading-relaxed text-brand-grey">
-          <p className="font-heading text-xs text-white">Can bees recognise faces?</p>
+        <div className="space-y-2 border-r border-brand-mist p-4 text-[11px] leading-relaxed text-brand-teal">
+          <p className="font-heading text-xs text-brand-ink">Can bees recognise faces?</p>
           <p>
             <span
-              className="bg-no-repeat text-white transition-[background-size] duration-300"
+              className="bg-no-repeat text-brand-ink transition-[background-size] duration-300"
               style={{
                 backgroundImage:
-                  "linear-gradient(color-mix(in oklab, #86efac 30%, transparent), color-mix(in oklab, #86efac 30%, transparent))",
+                  "linear-gradient(color-mix(in oklab, #3fc48c 35%, transparent), color-mix(in oklab, #3fc48c 35%, transparent))",
                 backgroundSize: `${highlight}% 100%`,
               }}
             >
@@ -45,9 +45,9 @@ export function ReadingScene({ t }: SceneProps) {
             return (
               <li key={item.q} className="text-[11px]">
                 <p className="flex gap-1.5">
-                  <span className="text-brand-grey">{i + 1}.</span>
+                  <span className="text-brand-teal">{i + 1}.</span>
                   <span className="flex-1">{item.q}</span>
-                  {marked && <Check className="size-3.5 text-brand-green-light" strokeWidth={2} />}
+                  {marked && <Check className="size-3.5 text-brand-sea" strokeWidth={2} />}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1 pl-3.5">
                   {options.map((o) => (
@@ -56,8 +56,8 @@ export function ReadingScene({ t }: SceneProps) {
                       className={cn(
                         "rounded-full border px-1.5 py-px text-[9px] transition-colors",
                         chosen && o === item.answer
-                          ? "border-white bg-white text-brand-black"
-                          : "border-brand-line text-brand-grey",
+                          ? "border-brand-primary bg-brand-primary text-brand-ink"
+                          : "border-brand-mist text-brand-teal",
                       )}
                     >
                       {o}

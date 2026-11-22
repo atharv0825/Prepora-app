@@ -671,3 +671,146 @@ User request: the hero phone should be a **live, working component**, first the 
 - Reduced motion (emulated): stays on Speaking at 3 s and 10 s, finished state shown, no streaks.
 - Home page still static (prerendered). lint ✓, typecheck ✓, build ✓.
 - Design doc §2 updated (Right side: live showcase; new Background subsection).
+
+---
+
+## 2026-11-22 — White page, light-green components, new teal/green palette
+
+User request: hero background **white** with a **light-grey flowing grid** (instead of black); components that were **black become light green**; adopt the palette `#08222B #0F3B47 #1C5F66 #37918A #68C1A7 #A7E6C9 #EAFAF0`, **primary `#3FC48C`**, plus `#8C3F3F`; update the design doc.
+
+**Tokens** (`packages/ui/src/styles/globals.css`)
+- New brand colours: `brand-ink #08222B`, `brand-deep #0F3B47`, `brand-teal #1C5F66`, `brand-sea #37918A`, `brand-mint #68C1A7`, `brand-mist #A7E6C9`, `brand-foam #EAFAF0`, `brand-primary #3FC48C`, `brand-rust #8C3F3F`. Green/purple accent tokens removed; old neutrals (`brand-black` …) kept.
+- Light scheme: text `#08222B`, **primary buttons `#3FC48C` with `#08222B` text** (7.5 : 1; white text on that green is 2.2 : 1), ring `#37918A`, destructive `#8C3F3F` (interpretation: the user didn't say what `#8C3F3F` was for; it's used for errors only).
+- New **`mint` scheme class** (replaces `dark` on the website): `#EAFAF0` background, `#A7E6C9` borders, `#1C5F66` muted text, white cards. `dark` kept, retuned to deep teal, for the mobile app's dark mode.
+- Serif accent gradient: `#1C5F66 → #37918A` (accent-green / new accent-teal). `#3FC48C` is too light for text on white.
+- `bg-grid`: light-grey lines `#E7EAEA`. `glass`: light green `#EAFAF0` @ 75%, `#A7E6C9` border, ink text.
+
+**Components**
+- Hero: `dark` removed (white). `hero-background.tsx`: streaks `#3FC48C` (rows) / `#37918A` (columns), squares glow mist/mint.
+- `mint` instead of `dark`/black: feature-strip highlighted column, `Card variant="inverted"` (Platinum), final CTA, footer. "Most popular" badge: green outline + faint fill.
+- Showcase scenes: white cards, teal secondary text, green mic button / progress / answers, `#3FC48C` reading highlight.
+- Sample-feedback bars + correction chips and module-preview bars/play button: green instead of ink.
+- 404, error, global-error, mobile menu: no longer dark. Header default tone `light`. `themeColor` `#ffffff`.
+- `/design` reference page: new palette + "on mint" samples.
+- Design doc: palette table, usage rules, every section's colours rewritten.
+
+**Verified:** typecheck ✓, lint ✓. Full-page headless Chrome screenshot of the user's dev server (:3000): hero, showcase, stat cards, feature strip, modules, feedback look right. Pricing / final CTA / footer were not captured (scroll-reveal hadn't run) — not visually checked.
+
+---
+
+## 2026-11-22 — Black device body, logo PNG, green wordmark, nav selection
+
+User request: laptop/phone **should be black**; **reduce hero top margin**; use the supplied **PNG as the logo**; **"Prepora" text not black**; nav links (Home, Modules, How it works…) **should show the selection**.
+
+- `hero-showcase.tsx`: frame `bg-brand-black` + `border-brand-line`, black notch, `#141414` laptop base. Screen stays light green (`#EAFAF0`).
+- `hero.tsx`: top padding `pt-28 sm:pt-36` → `pt-20 sm:pt-24`.
+- Logo: user's PNG resized to 256 px → `apps/web/public/logo.png`; `logo.tsx` renders it (`next/image`, 32 px) + wordmark in **`brand-logo #0FA467`** (sampled from the PNG; new token; 3.2 : 1, OK for large text).
+- New `apps/web/src/hooks/use-nav-active.ts` (scroll-spy): on `/` the active link follows the section under the header (Home at the top; Modules / How it works / Pricing / Contact as each section passes 120 px; Contact at page bottom); clicking a link scrolls there so it becomes active. Other pages: by pathname. Used by `nav-links.tsx` and `mobile-nav.tsx`. Removed `src/hooks/.gitkeep`.
+- Active style: light-green `#EAFAF0` pill, medium weight, short `#3FC48C` underline; inactive hover gets the pill.
+- Design doc §1/§2 and overall-style updated.
+
+**Verified:** typecheck ✓, lint ✓. Headless screenshot of the top of `/`: black phone, green logo + wordmark, Home selected, smaller top gap. **Not verified:** scroll-spy switching (headless screenshots of `/#how-it-works` came out blank) — user to check by clicking/scrolling. The dev server on :3000 stopped responding after `.next` was cleared; needs a restart.
+
+---
+
+## 2026-11-22 — Serif accent in #8C3F3F, hero headline lifted 1.5 grid cells
+
+User request: the **big italic text** should be **`#8C3F3F`**; the hero headline block's top margin should be **reduced by 1.5 background grid squares**.
+
+- `globals.css` `text-accent-serif`: gradient removed; solid `#8C3F3F` (7.2 : 1 on white, 6.5 : 1 on `#EAFAF0`). Applies to *Band 8+* and the final CTA's *closer*.
+- `hero.tsx`: left column gets `lg:-translate-y-21` (84 px = 1.5 × 56 px cells). Done with `translate` rather than padding because the hero top padding (96 px on desktop) can't shrink by 84 px without the text going under the 64 px header, and the column is vertically centred against the showcase. `translate` is a separate CSS property from the fade-up `transform`, so they don't clash. Desktop (≥ 1024 px) only; on phones the single-column layout is unchanged.
+- Design doc: palette row for `brand-rust` and every "gradient" mention updated; hero position note added.
+
+**Verified:** typecheck ✓, lint ✓. Headless Chrome screenshot of `/` at 1530×740: *Band 8+* renders in `#8C3F3F`; eyebrow moved from ~205 px to ~135 px from the top, headline starts higher.
+
+---
+
+## 2026-11-22 — Hero trimmed: no eyebrow, beta line, demo tabs or stat cards
+
+User request: the user had already deleted the **"Your AI IELTS Coach"** eyebrow themselves. Also remove **"Free beta opening in India, Nepal, Bangladesh and Sri Lanka"**, the **showcase tabs** (Speaking · Writing · Reading · Listening + the screen-reader "Showing the … demo" line) and the **stat cards** (IELTS modules 4 · Official criteria 4/4 · Part 2 prep 1:00), and **move the section below up**.
+
+- `hero.tsx`: removed the `stats` array, the stat-card list, the beta line and unused imports (`Badge`, lucide icons); "See how it works" stays as a single link under the form.
+- `hero-showcase.tsx`: removed the tablist, the `select` handler and the `aria-live` line. The demo still auto-plays and pauses on hover/focus/out of view; the device is `aria-hidden` (decorative).
+- Spacing: with the right column shorter, the 84 px lift pushed the headline right under the header, so the left column lift is now **40 px** (`lg:-translate-y-10`; headline starts ~2 grid cells down). Hero bottom padding `pb-28 sm:pb-36` → `pb-24 sm:pb-28`. Net effect: the feature strip moved up ~200 px.
+- Design doc §2: eyebrow, tabs and stat cards marked removed; position note updated; parallax note dropped.
+
+**Verified:** typecheck ✓, lint ✓. Headless Chrome screenshot at 1530×1000: headline clear of the header, device and text balanced, feature strip visible in the first screen.
+
+---
+
+## 2026-11-22 — Hero text vertically centred, "See how it works" removed
+
+User request: **increase the top margin**, **remove "See how it works"**, and put the headline + subtext + waitlist form **vertically in the middle** (equal space above and below).
+
+- `hero.tsx`: removed the 40 px `lg:-translate-y-10` lift, so the text column is centred against the device by the grid's `items-center`. Removed the "See how it works" link and its now-unused imports (`Link`, `buttonVariants`, `cn`, `routes`).
+- Design doc §2: position note updated.
+
+**Verified:** typecheck ✓, lint ✓. Headless Chrome screenshot at 1530×750: text block ~190–590 px, header ends at 64 px, feature strip starts at ~693 px → ~125 px above, ~105 px below.
+
+---
+
+## 2026-11-22 — Live module previews in brand-rust brown
+
+User request: the four module cards' previews should stay the same but be **live**, in **our brown (`#8C3F3F`)** instead of green.
+
+- New client component `apps/web/src/components/landing/module-previews.tsx` (moved the four previews out of `modules-grid.tsx`, which stays a server component and imports them).
+  - `useLoop()`: 8 s loop, 100 ms tick, runs only while the card is on screen (IntersectionObserver) and the tab is visible; reduced motion → fixed at 70% of the loop, no ticking.
+  - Speaking: pulsing brown dot, timer counting up, waveform bars animated with the existing `wave-bar` keyframes.
+  - Writing: four lines fill with brown (55% tint) one after another, blinking caret at the typing point, word count 190 → 268, countdown.
+  - Reading: passage lines turn brown one per 0.8 s, then "Not Given" is selected (brown dot + text).
+  - Listening: brown button with white icon (7.2 : 1), brown progress bar 25% → 75%, time ticks; Play icon during the last 1.2 s.
+- Layout and copy of the cards unchanged. Design doc §4 + palette row updated.
+
+**Verified:** typecheck ✓, lint ✓. Headless Chrome screenshot (1440×2000) after ~6 s: timers advanced (1:05, 32:04), writing caret mid-line on the last line, reading "Not Given" picked, listening bar ~70%; all brown.
+
+---
+
+## 2026-11-22 — Cartoon journey film: Mumbai → New York
+
+User request: above the grey How it works section, add a **cartoon film**: a character **boards a plane in Mumbai (left)**, the plane **takes off and lands in New York**; show an **identifiable landmark** for each city.
+
+- New `apps/web/src/components/landing/journey-scene.tsx` (client SVG, viewBox 1200×320) + `journey.tsx` (section wrapper: rounded bordered card inside `Reveal`). Inserted after `<ModulesGrid />` in `app/(marketing)/page.tsx`; modules section bottom padding reduced (`pb-10 sm:pb-14`) so the film sits close to it.
+- Landmarks drawn as simplified silhouettes: **Gateway of India** (Mumbai, rust tint), **Statue of Liberty** + skyline with the **Empire State Building** (New York, sea/mint).
+- Timeline (15 s, pure functions of loop time): 0–2.6 s student walks from the Gateway to the stairs → 2.6–3.4 s climbs, boards → stairs fade → 4.2–5.6 s taxi/roll → 5.6–7 s climb → 7–8 s cruise → 8–9.4 s descent → roll-out → 10.4 s stairs appear → student steps out, walks down, walks towards the city → waves. Plane pitch follows its motion (clamped ±22°), landing gear retracts in the air; walking legs/arms swing; actors fade at the loop seam; clouds drift continuously.
+- Dashed flight path is **sampled from the plane's own motion** (first version used a hand-drawn curve that didn't match the plane).
+- rAF clock, only while on screen and tab visible; reduced motion → final frame. `role="img"` + descriptive `aria-label`.
+- Design doc §4: new "Journey film" entry.
+
+**Verified:** typecheck ✓, lint ✓. Headless Chrome barely advances rAF, so key frames were checked with a temporary `?jt=<ms>` freeze (removed afterwards; grep confirms): 3.0 s boarding, 6.3 s climbing (nose up), 7.5 s cruising, 9.8 s landed, 11.3 s stepping down the stairs, 13.8 s waving in New York. Final screenshot in page context after removing the hook.
+
+---
+
+## 2026-11-22 — Journey film moved into the Modules gap, shorter, no card
+
+User request: don't make the film a **separate module/card**; put it in the **empty space between Modules and How it works**, and **reduce its height**.
+
+- Deleted `journey.tsx` (the card wrapper) and its import/usage in `page.tsx`. `JourneyScene` is now rendered at the bottom of `modules-grid.tsx` inside a `Reveal` (`mt-12 sm:mt-16`); modules bottom padding `pb-8 sm:pb-10`.
+- `journey-scene.tsx`: sky gradient and sun removed (transparent, sits on white); viewBox cropped to `0 40 1200 262`; cruise height 150 → 110; clouds lowered/smaller; SVG capped `max-h-44 sm:max-h-52` (176 / 208 px), centred; city labels 15 → 19 SVG units so they stay readable at the smaller size.
+- Design doc §4 Journey entry updated.
+
+**Verified:** typecheck ✓, lint ✓. Headless screenshot at 1530 px wide: film ~210 px tall in the white gap under the module cards, no card, How it works directly below.
+
+---
+
+## 2026-11-22 — Journey film stands on the grey section edge, smaller gap above
+
+User request: the film should sit **on the grey line** (top edge of How it works) and the **margin between the module cards and the film** should be reduced.
+
+- `modules-grid.tsx`: section bottom padding removed (`pb-0`); film wrapper margin `mt-12 sm:mt-16` → `mt-4 sm:mt-6`.
+- `journey-scene.tsx`: viewBox ends exactly at the ground (`0 40 1200 223`), so the grey section's top edge is the ground; ground line removed; runway is now a 5 px strip just above the edge with a white dashed centre line; sea line moved above the edge; "Mumbai" label moved above the Gateway, "New York" above the torch; height cap `max-h-40 sm:max-h-48`.
+- Design doc §4 Journey entry updated.
+
+**Verified:** typecheck ✓, lint ✓. Headless screenshot at 1530 px: Gateway, plane wheels, student and skyline stand on the grey edge; ~25 px gap under the cards.
+
+---
+
+## 2026-11-22 — Journey film: no Mumbai; plane lands in New York, student walks into NYU
+
+User request: **remove Mumbai**; the plane just **comes from the left side and lands in New York**; the **character goes into NYU**.
+
+- `journey-scene.tsx` rewritten timeline (13 s loop): 0–2.6 s plane flies in from off-screen left at cruise height (gear up) → 2.6–5 s long, gentle descent (pitch clamp tightened from ±22° to ±16°; the user's screenshot showed the old descent too steep) → roll-out to x=640 → stairs out → student fades in at the door, walks down, walks to the NYU door → door opens (dark), student fades in → door closes. Only a fade-out at the loop seam (plane enters off-screen).
+- Removed the Gateway of India, sea line, boarding stairs and waving. New `Nyu` drawing: brick-tinted building with windows, cornice, two NYU-violet (`#57068C`) flags and a violet "NYU" banner over the door. Runway moved left (x 120–760). Flight path sampled from the plane motion up to touchdown.
+- Reduced motion: student walking to NYU (8.6 s). `aria-label` updated.
+- Design doc §4 Journey entry rewritten.
+
+**Verified:** typecheck ✓, lint ✓. Key frames via the temporary `?jt=` freeze (removed; grep = 0): 1.5 s flying in, 3.8 s descending, 5.6 s landed, 7.2 s on the stairs, 9.0 s at the NYU door (door opening), 9.6 s going in.

@@ -25,20 +25,20 @@ const features = [
   },
 ];
 
-/** White panel overlapping the bottom of the dark hero (design doc §3). One column is solid black. */
+/** White panel overlapping the bottom of the hero (design doc §3). One column is light green. */
 export function FeatureStrip() {
   return (
     <section aria-label="Features" className="container-page relative z-10 -mt-20 sm:-mt-24">
-      <div className="grid gap-2 rounded-3xl border border-border bg-background p-2 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.35)] sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 rounded-3xl border border-border bg-background p-2 shadow-[0_30px_80px_-40px_rgba(8,34,43,0.3)] sm:grid-cols-2 lg:grid-cols-4">
         {features.map(({ icon: Icon, title, body, highlight }) => (
           <div
             key={title}
             className={cn(
               "flex flex-col gap-3 rounded-2xl p-6",
-              highlight && "dark bg-background text-foreground",
+              highlight && "mint bg-background text-foreground",
             )}
           >
-            <Icon className="size-6" strokeWidth={1.5} aria-hidden />
+            <Icon className={cn("size-6", highlight && "text-brand-teal")} strokeWidth={1.5} aria-hidden />
             <h3 className="text-h3">{title}</h3>
             <p className="text-sm text-muted-foreground">{body}</p>
           </div>

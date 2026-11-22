@@ -53,7 +53,7 @@ const plans = [
   },
 ];
 
-/** Plan cards: Free bordered, Platinum solid black with "Most popular" (design doc §4). */
+/** Plan cards: Free bordered, Platinum light green with "Most popular" (design doc §4). */
 export function Pricing() {
   const anchor = routes.pricing.split("#")[1];
   return (
@@ -70,7 +70,7 @@ export function Pricing() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     {p.name}
-                    {p.popular && <Badge variant="outline" className="border-accent-purple">Most popular</Badge>}
+                    {p.popular && <Badge variant="outline" className="border-brand-primary bg-brand-primary/15">Most popular</Badge>}
                   </CardTitle>
                   <CardDescription>{p.blurb}</CardDescription>
                   <p className="mt-4">

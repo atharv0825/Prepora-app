@@ -2,8 +2,8 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 
-// Pill buttons (Prepora_UI_Design.md). Colours come from tokens, so the same variant is
-// white-on-black inside a `dark` section and black-on-white on light sections.
+// Pill buttons (Prepora_UI_Design.md). Colours come from tokens: the primary pill is green
+// (#3FC48C) with deep-teal text (#08222B) on white and on mint sections.
 // Hover inverts: solid pill → outlined, outlined pill → solid.
 // Sizes are mobile-first: default/lg are ≥ 44px tall (comfortable touch targets).
 const buttonVariants = cva(

@@ -1,15 +1,15 @@
 /*
  * Prepora design system — tokens, typography and utilities (M0-F2).
- * Source of truth: Prepora_UI_Design.md. Black, white and greys, plus green and purple accents
- * used sparingly (italic serif phrases, small dots, the Platinum badge).
+ * Source of truth: Prepora_UI_Design.md. White pages, light-green (mint) components, a
+ * teal → mint palette and a green primary (#3FC48C).
  *
  * Apps import this once:  import "@prepora/ui/globals.css";
  * Fonts are loaded by the app (next/font) and exposed as CSS variables:
  *   --font-hanken-grotesk, --font-instrument-serif
  *
- * Light vs dark: tokens are light by default. Add the `dark` class to ANY element (a hero
- * section, a single card, <html>) and everything inside switches to the dark tokens.
- * That's how the page goes dark hero → white sections without separate components.
+ * Schemes: tokens are light (white) by default. Add the `mint` class to ANY element (a card,
+ * a band, the footer) and everything inside switches to the light-green tokens. `dark` is
+ * kept for the mobile app's dark mode.
  */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -23,22 +23,31 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------------------------
- * Raw brand palette (design doc token → Tailwind colour)
- *   bg-dark #0A0A0A → brand-black     surface-dark #141414 → brand-surface
- *   border-dark #262626 → brand-line  white #FFFFFF → brand-white
- *   bg-light #F5F5F4 → brand-stone    text-on-dark-muted #A3A3A3 → brand-grey
- *   text-on-light-muted #525252 → brand-slate
+ * Brand palette (design doc → Colour palette). A teal → mint scale plus one green primary:
+ *   brand-ink   #08222B  text, darkest tone        brand-deep  #0F3B47
+ *   brand-teal  #1C5F66  muted text, accent on light brand-sea   #37918A  icons, secondary accent
+ *   brand-mint  #68C1A7  strong borders, inputs    brand-mist  #A7E6C9  borders on green surfaces
+ *   brand-foam  #EAFAF0  light-green component surfaces (replaces the old black cards)
+ *   brand-primary #3FC48C  primary buttons, beams, highlights (always with brand-ink text)
+ *   brand-rust  #8C3F3F  errors / destructive only
  * Prefer the semantic tokens (bg-background, text-muted-foreground, …) in components;
- * use brand-* only when a value must not flip between light and dark.
+ * use brand-* only when a value must not flip between schemes.
  *
- * Accents (design doc → Accent colours). Shade depends on the background:
- *   on dark:  brand-green-light #86EFAC, brand-purple-light #C4B5FD
- *   on light: brand-green-dark  #166534, brand-purple-dark  #6D28D9
- * Components should use the semantic accent-green / accent-purple, which pick the right shade
- * automatically (dark shade by default, light shade inside a `dark` element).
- * Never colour buttons, backgrounds, cards, body text, borders or icons with accents.
+ * Legacy neutrals (brand-black … brand-slate) are still available; the website no longer
+ * uses black sections.
  * ------------------------------------------------------------------------------------------- */
 @theme {
+  --color-brand-ink: #08222b;
+  --color-brand-deep: #0f3b47;
+  --color-brand-teal: #1c5f66;
+  --color-brand-sea: #37918a;
+  --color-brand-mint: #68c1a7;
+  --color-brand-mist: #a7e6c9;
+  --color-brand-foam: #eafaf0;
+  --color-brand-primary: #3fc48c;
+  --color-brand-rust: #8c3f3f;
+  --color-brand-logo: #0fa467; /* logo square green; wordmark (3.2 : 1, large text only) */
+
   --color-brand-black: #0a0a0a;
   --color-brand-surface: #141414;
   --color-brand-line: #262626;
@@ -46,10 +55,6 @@
   --color-brand-stone: #f5f5f4;
   --color-brand-grey: #a3a3a3;
   --color-brand-slate: #525252;
-  --color-brand-green-light: #86efac;
-  --color-brand-purple-light: #c4b5fd;
-  --color-brand-green-dark: #166534;
-  --color-brand-purple-dark: #6d28d9;
 
   --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-drift: drift 6s ease-in-out infinite;
@@ -100,7 +105,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-accent-green: var(--accent-green);
-  --color-accent-purple: var(--accent-purple);
+  --color-accent-teal: var(--accent-teal);
 
   /* --radius = 16px → rounded-lg 16px, rounded-xl ≈ 22px (cards: design asks 20–24px). */
   --radius-sm: calc(var(--radius) * 0.5);
@@ -112,58 +117,81 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Light (default): white page, black text. */
+/* Light (default): white page, deep-teal text, green primary. */
 :root {
   --radius: 1rem;
 
   --background: #ffffff;
-  --foreground: #0a0a0a;
+  --foreground: #08222b;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #08222b;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --primary: #0a0a0a;
-  --primary-foreground: #ffffff;
-  --secondary: #f5f5f4;
-  --secondary-foreground: #0a0a0a;
+  --popover-foreground: #08222b;
+  --primary: #3fc48c;
+  --primary-foreground: #08222b; /* 7.5 : 1 on #3FC48C */
+  --secondary: #eafaf0;
+  --secondary-foreground: #08222b;
   --muted: #f5f5f4;
-  --muted-foreground: #525252;
-  --accent: #f5f5f4;
-  --accent-foreground: #0a0a0a;
-  --border: #e5e5e5;
-  --input: #d4d4d4;
-  --ring: #0a0a0a;
-  /* Accents on light backgrounds (7.1 : 1 on white). */
-  --accent-green: #166534;
-  --accent-purple: #6d28d9;
-  /* The only non-grey colour: errors/destructive actions, so they're recognisable.
-     Always paired with text or an icon, never colour alone. */
-  --destructive: #b91c1c;
+  --muted-foreground: #4b5d61;
+  --accent: #eafaf0;
+  --accent-foreground: #08222b;
+  --border: #e5e7e6;
+  --input: #c9d6d1;
+  --ring: #37918a;
+  /* Accents on white: dark teal 7.3 : 1, sea 3.8 : 1 (large text / icons only). */
+  --accent-green: #1c5f66;
+  --accent-teal: #37918a;
+  /* Errors/destructive (7.2 : 1 on white). Always paired with text or an icon. */
+  --destructive: #8c3f3f;
 }
 
-/* Dark: hero, footer, final CTA, inverted cards, and the mobile app's default. */
+/* Mint: light-green components and bands (highlighted feature, Platinum card, device
+   showcase, final CTA, footer). Replaces the old black "inverted" surfaces. */
+.mint {
+  --background: #eafaf0;
+  --foreground: #08222b;
+  --card: #ffffff;
+  --card-foreground: #08222b;
+  --popover: #eafaf0;
+  --popover-foreground: #08222b;
+  --primary: #3fc48c;
+  --primary-foreground: #08222b;
+  --secondary: #ffffff;
+  --secondary-foreground: #08222b;
+  --muted: #d6f3e3;
+  --muted-foreground: #1c5f66; /* 6.8 : 1 on #EAFAF0 */
+  --accent: #d6f3e3;
+  --accent-foreground: #08222b;
+  --border: #a7e6c9;
+  --input: #68c1a7;
+  --ring: #1c5f66;
+  --accent-green: #1c5f66;
+  --accent-teal: #37918a;
+  --destructive: #8c3f3f;
+}
+
+/* Dark: kept for the mobile app's dark mode. Not used on the website. */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ffffff;
-  --card: #141414;
-  --card-foreground: #ffffff;
-  --popover: #141414;
-  --popover-foreground: #ffffff;
-  --primary: #ffffff;
-  --primary-foreground: #0a0a0a;
-  --secondary: #1f1f1f;
-  --secondary-foreground: #ffffff;
-  --muted: #141414;
-  --muted-foreground: #a3a3a3;
-  --accent: #1f1f1f;
-  --accent-foreground: #ffffff;
-  --border: #262626;
-  --input: #333333;
-  --ring: #ffffff;
-  /* Accents on dark backgrounds (14.1 : 1 and 10.7 : 1 on #0A0A0A). */
-  --accent-green: #86efac;
-  --accent-purple: #c4b5fd;
-  --destructive: #f87171;
+  --background: #08222b;
+  --foreground: #eafaf0;
+  --card: #0f3b47;
+  --card-foreground: #eafaf0;
+  --popover: #0f3b47;
+  --popover-foreground: #eafaf0;
+  --primary: #3fc48c;
+  --primary-foreground: #08222b;
+  --secondary: #0f3b47;
+  --secondary-foreground: #eafaf0;
+  --muted: #0f3b47;
+  --muted-foreground: #a7e6c9;
+  --accent: #1c5f66;
+  --accent-foreground: #eafaf0;
+  --border: #1c5f66;
+  --input: #37918a;
+  --ring: #3fc48c;
+  --accent-green: #3fc48c;
+  --accent-teal: #a7e6c9;
+  --destructive: #e08a8a;
 }
 
 @layer base {
@@ -177,7 +205,8 @@
   body {
     @apply bg-background text-base/relaxed text-foreground;
   }
-  /* A `dark` section repaints its own background and text. */
+  /* A `mint` / `dark` section repaints its own background and text. */
+  .mint,
   .dark {
     @apply bg-background text-foreground;
   }
@@ -245,10 +274,8 @@
   letter-spacing: 0.02em;
   font-weight: 500;
 }
-/* The single emphasised phrase in large headings, e.g. "Band 8+": Instrument Serif italic with
-   a green → purple gradient (shades follow light/dark via --accent-*). The small right padding
-   keeps the italic overhang of the last letter inside the gradient; box-decoration-break keeps
-   the gradient intact when the phrase wraps. */
+/* The single emphasised phrase in large headings, e.g. "Band 8+": Instrument Serif italic in
+   solid #8C3F3F. The small right padding keeps the italic overhang of the last letter clear. */
 @utility text-accent-serif {
   font-family: var(--font-serif);
   font-style: italic;
@@ -256,35 +283,27 @@
   letter-spacing: -0.01em;
   padding-right: 0.08em;
   margin-right: -0.08em;
-  color: var(--accent-green); /* solid green if gradient text isn't supported */
-  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
-    background-image: linear-gradient(90deg, var(--accent-green), var(--accent-purple));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    -webkit-box-decoration-break: clone;
-    box-decoration-break: clone;
-  }
+  color: #8c3f3f; /* brand-rust, solid (7.2 : 1 on white, 6.5 : 1 on #EAFAF0) */
 }
 
 /* ---------------------------------------------------------------------------------------------
  * Surfaces
  * ------------------------------------------------------------------------------------------- */
-/* Faint grid behind the hero (white lines at ~5% on black), fading out towards the bottom. */
+/* Light-grey grid behind the hero (on white), fading out towards the bottom. */
 @utility bg-grid {
   background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 1px);
+    linear-gradient(to right, #e7eaea 1px, transparent 1px),
+    linear-gradient(to bottom, #e7eaea 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
 }
-/* Floating glass stat cards: #141414 at ~70%, blurred, 1px border. */
+/* Floating glass stat cards: light green (#EAFAF0) at ~75%, blurred, 1px mist border. */
 @utility glass {
-  background-color: color-mix(in oklab, var(--color-brand-surface) 70%, transparent);
+  background-color: color-mix(in oklab, var(--color-brand-foam) 75%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--color-brand-line);
-  color: var(--color-brand-white);
+  border: 1px solid var(--color-brand-mist);
+  color: var(--color-brand-ink);
 }
 /* Content width + mobile-first side padding. */
 @utility container-page {

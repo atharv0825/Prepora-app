@@ -7,7 +7,8 @@ import { getCurrentUser } from "@/lib/supabase/session";
 export const metadata: Metadata = { title: "Home · Prepora", robots: { index: false } };
 
 // Landing page after sign-in (M1-F1). Placeholder until the app shell and modules arrive:
-// M1-F2 moves the signed-out redirect into proxy.ts for all of /app/*, M1-F3 adds the account menu.
+// src/middleware.ts guards all of /app/* (M1-F2); the check below is a second line of defence.
+// M1-F3 adds the account menu.
 export default async function AppHome() {
   const user = await getCurrentUser();
   if (!user) redirect(`${routes.login}?next=${encodeURIComponent(routes.app)}`);

@@ -1138,3 +1138,34 @@ Branch `feature/m1-f1-auth-pages` from `develop` (B1 incl. the Google-only revis
 - **Not verified:** a full Google round trip (needs a real Google login), the session cookie after the exchange, and `/app` signed in. Also not checked visually in a browser or on a phone; no OpenNext build in Docker for this step (CI builds it on the PR).
 
 **To test after merge (staging):** with the staging redirect URLs set (docs/auth.md) and your Google account listed as a test user, open https://staging.prepora.site/signup → Continue with Google → you should land on `/app` with your name.
+
+## 2026-11-22 — M1-F2: Session middleware, /app/* protected
+
+**Goal (plan.md):** Session handling with `@supabase/ssr`: middleware that refreshes the session and protects `/app/*` routes.
+
+Branch `feature/m1-f2-session-middleware` from `develop` (F1 merged).
+
+**Decision: `src/middleware.ts` (Edge), not Next 16's `proxy.ts`.** `proxy.ts` always runs on Node.js. OpenNext Cloudflare 1.20 detects Node middleware and warns that it is "experimental … not officially maintained … use at your own risk"; Edge middleware is its supported path. Next 16 still runs `middleware.ts` and prints a deprecation notice at build. Revisit when OpenNext supports `proxy.ts` properly.
+
+**Changes (apps/web)**
+- `src/middleware.ts`, following Supabase's SSR guide:
+  - `createServerClient` → `getClaims()`, with nothing in between. That verifies the token and refreshes it when expired.
+  - Refreshed cookies are written to the request (for this render) and the response.
+  - The `Cache-Control: private, no-cache, no-store…` headers that @supabase/ssr passes are applied.
+  - Then `routeDecision`: signed out on `/app/*` → `/login?next=<path+query>`; signed in on `/login`/`/signup` → safe `next` or `/app`.
+  - Redirects carry the refreshed cookies and `private, no-store`, and signed-in responses get `private, no-store`.
+  - Matcher: `/app`, `/app/:path*`, `/login`, `/signup` only. Marketing pages stay static/cacheable; `/auth/callback` sets the session itself.
+- `src/lib/auth-routes.ts`: pure `isProtectedPath` (`/app` and `/app/…`, not `/apple`), `isAuthPage`, `routeDecision`. Tests: `auth-routes.test.ts` (+15).
+- `/login`, `/signup`: removed their own "already signed in" check (middleware does it; saves an Auth call). `/app` keeps `getCurrentUser()` as a second line of defence and to read the name.
+- Comments in `lib/supabase/server.ts` and the `/app` page now say `src/middleware.ts` instead of `proxy.ts`.
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 107/107 ✓.
+- `next build` against local Supabase ✓ (route list shows "ƒ Proxy (Middleware)"). `.next/server/middleware-manifest.json` has an **Edge** middleware with exactly the 4 matchers; `functions-config-manifest` has no Node middleware, so OpenNext uses its supported path.
+- `next start` on :3100 against local Supabase with **real session cookies**. The user was created with the service role, the session minted via admin `generate_link` + `verify` (Google can't be automated), and the cookies encoded by @supabase/ssr itself (`sb-127-auth-token`). Script deleted afterwards.
+  - Signed out: `/app` → 307 `/login`; `/app/writing?task=2` → 307 `/login?next=%2Fapp%2Fwriting%3Ftask%3D2`; `/login` 200; `/` 200, not matched (still `s-maxage` static).
+  - Signed in: `/app` 200 "Welcome"; `/login` → 307 `/app`; `/signup?next=/app/reading` → 307 `/app/reading`; `/login?next=//evil.com` → 307 `/app`. All `private, no-store`.
+  - Expired access token with a valid refresh token: `/app` 200, 1 Set-Cookie with a **new** access token whose expiry is in the future.
+  - Garbage cookie → 307 `/login`. After a global logout, the old refresh token → 307 `/login` and the cookie is cleared.
+- **Not verified:** the OpenNext/Workers build in Docker. Docker Desktop's VM has 3.7 GB RAM, shared with 12 local Supabase containers. Two runs lost the client connection ("unexpected EOF"); one container exited 0 but `--rm` removed its logs before they could be read; the third attempt hit Docker engine 500 errors. The PR's Web workflow runs the same OpenNext build on a clean runner.
+- **Not verified on staging** yet: after merge, sign in → `/app`, open `/login` (should bounce to `/app`), sign out isn't built yet (M1-F3).

@@ -1,4 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  AUTH_EVENT_COOKIE,
+  AUTH_EVENT_MAX_AGE,
+  authEventKind,
+  type AuthEventKind,
+} from "@/lib/analytics/auth-event";
 import { callbackStep, loginUrlWithError } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,18 +20,30 @@ export async function GET(request: NextRequest) {
     return go(loginUrlWithError(step.error, searchParams.get("next")));
   }
 
+  let kind: AuthEventKind;
   try {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(step.code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(step.code);
     if (error) {
       // Expired/used code, or the PKCE verifier cookie is missing (different browser/device).
       console.warn("auth callback: code exchange failed", error.code ?? error.message);
       return go(loginUrlWithError("callback", step.next));
     }
+    kind = authEventKind(data.user?.created_at, data.user?.last_sign_in_at);
   } catch (err) {
     console.error("auth callback failed", err);
     return go(loginUrlWithError("config", step.next));
   }
 
-  return go(step.next);
+  // M1-F4: tell the browser which analytics event to send (signup_completed / login_completed).
+  // Readable by JS on purpose; it holds only "signup" or "login".
+  const response = go(step.next);
+  response.cookies.set(AUTH_EVENT_COOKIE, kind, {
+    path: "/",
+    maxAge: AUTH_EVENT_MAX_AGE,
+    sameSite: "lax",
+    secure: request.nextUrl.protocol === "https:",
+    httpOnly: false,
+  });
+  return response;
 }

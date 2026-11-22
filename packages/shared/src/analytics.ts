@@ -2,16 +2,20 @@
 // live here so the web app can only send events we've agreed on. Each milestone's contract step
 // adds or adjusts entries; M0-I2 only defines them, nothing is captured yet.
 
-import type { Database } from "./db";
+import type { Plan } from "./types/profile";
 
-type Plan = Database["public"]["Enums"]["plan_tier"]; // from the profiles migration (M1-C1)
+/** How someone signed in (M1-B1: Google OAuth or a 6-digit email code). */
+export type AuthMethod = "google" | "email_otp";
 type Module = "speaking" | "writing" | "reading" | "listening";
 type Provider = "razorpay" | "paddle";
 
 export interface AnalyticsEvents {
   landing_viewed: { country?: string; utm_source?: string; page: string };
   waitlist_joined: { country?: string; source: string };
-  signup_completed: { method: string; country?: string };
+  /** First sign-in of a new account (profile just created). */
+  signup_completed: { method: AuthMethod; country?: string };
+  /** Every later sign-in. */
+  login_completed: { method: AuthMethod };
   onboarding_completed: { test_type: string; target_band: number; exam_date?: string };
   module_opened: { module: Module };
   speaking_part_started: { part: 1 | 2 | 3; topic_id: string };
@@ -56,6 +60,7 @@ export const analyticsEvents = [
   "landing_viewed",
   "waitlist_joined",
   "signup_completed",
+  "login_completed",
   "onboarding_completed",
   "module_opened",
   "speaking_part_started",
@@ -76,3 +81,6 @@ export const analyticsEvents = [
   "topup_purchased",
   "mic_permission_denied",
 ] as const satisfies readonly AnalyticsEvent[];
+
+/** Auth events (M1-C2), sent by the web app after sign-in (M1-F1/F4). */
+export const authEvents = ["signup_completed", "login_completed"] as const satisfies readonly AnalyticsEvent[];

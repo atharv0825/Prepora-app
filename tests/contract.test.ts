@@ -5,8 +5,25 @@ import { describe, expect, it } from "vitest";
 import { PINNED_FUNCTION_REGION } from "../packages/shared/src/api/regions";
 import { editableProfileFields } from "../packages/shared/src/types/profile";
 import { AUTH_PROVIDER } from "../packages/shared/src/constants/auth";
+import {
+  actionKeys,
+  allowanceTypes,
+  creditErrorCodes,
+  creditErrorStatus,
+  gatedFeatures,
+  planFeatures,
+  planLimitCounts,
+} from "../packages/shared/src/api/credits";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+
+/** All migrations in order, as one string. */
+const migrations = () =>
+  readdirSync(new URL("../supabase/migrations/", import.meta.url))
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => read(`supabase/migrations/${f}`))
+    .join(String.fromCharCode(10));
 
 /** String literals of a TS union type: `export type Name = | "a" | "b";` */
 function unionMembers(source: string, typeName: string): string[] {
@@ -28,6 +45,39 @@ describe("frontend ↔ Edge Function contract", () => {
     const web = unionMembers(read("packages/shared/src/api/errors.ts"), "ApiErrorCode");
     expect(web).toEqual(edge);
     expect(edge.length).toBeGreaterThan(5);
+  });
+
+  it("credit error statuses (M3-C3) match the errors.* helpers", () => {
+    const edge = read("supabase/functions/_shared/errors.ts");
+    for (const code of creditErrorCodes) {
+      const status = edge.match(new RegExp(`new HttpError\\((\\d{3}), "${code}"`))?.[1];
+      expect(Number(status), code).toBe(creditErrorStatus[code]);
+    }
+  });
+});
+
+describe("credits contract (M3-C3) ↔ database", () => {
+  it("plan limit keys match plan_limits_valid()", () => {
+    const fn = migrations().match(/create function public\.plan_limits_valid[\s\S]+?\$\$;/)?.[0] ?? "";
+    const arrays = [...fn.matchAll(/unnest\(array\[([^\]]+)\]\)/g)].map((m) =>
+      [...m[1]!.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]!),
+    );
+    expect(arrays).toEqual([[...planLimitCounts], [...planFeatures]]);
+  });
+
+  it("action keys and their required features match the credit_costs seed", () => {
+    const seed = migrations().match(/insert into public\.credit_costs[\s\S]+?on conflict/)?.[0] ?? "";
+    const rows = [...seed.matchAll(/\('([a-z0-9_]+)',\s*'[^']*',\s*\d+,\s*(?:null|'([a-z_]+)')/g)];
+    expect(rows.map((r) => r[1]).sort()).toEqual([...actionKeys].sort());
+    const features = [...new Set(rows.map((r) => r[2]).filter(Boolean))].sort();
+    expect(features).toEqual([...gatedFeatures].sort());
+  });
+
+  it("allowance types match the usage_allowance columns and plans.limits counts", () => {
+    const table = migrations().match(/create table public\.usage_allowance \(([\s\S]+?)\n\);/)?.[1] ?? "";
+    const used = [...table.matchAll(/^\s+([a-z_]+)_used integer/gm)].map((m) => m[1]);
+    expect(used).toEqual([...allowanceTypes]);
+    for (const type of allowanceTypes) expect(planLimitCounts).toContain(type);
   });
 });
 

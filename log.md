@@ -1674,3 +1674,28 @@ Done together on one branch, as asked.
 - `pnpm test` 249/249 ✓; web, admin, shared typecheck ✓; web lint ✓.
 - API e2e (credits, RLS, admin users, admin countries/waitlist) 13/13 ✓ against local Supabase.
 - **Not verified:** `deno check` of the regenerated `supabase/functions/_shared/db.ts` (only Deno 1.37 here; CI runs Deno 2); staging (the migrations workflow applies these on merge).
+
+## 2026-11-23 — M3-C3: Credit types, Zod schemas and error codes
+
+**What:** `@prepora/shared/api/credits`, the contract for everything credits: the shapes M3-B1/B3/B5 will return and M3-B6/F1–F3 will consume.
+
+**Error codes:** the API convention is lowercase snake_case (M0-C2, enforced by the contract test), so plan.md's `INSUFFICIENT_CREDITS`, `DAILY_CAP_REACHED`, `ALLOWANCE_EXCEEDED`, `FEATURE_NOT_IN_PLAN` are `insufficient_credits` (existed), `daily_cap_reached`, `allowance_exceeded`, `feature_not_in_plan`. Added to both `ApiErrorCode` (shared) and `ErrorCode` (Edge Functions), with Edge helpers and statuses: **402** insufficient credits / allowance used up (paying fixes it), **429** daily cap (wait until tomorrow), **403** feature not in plan.
+
+**Schemas and types** (`credits.ts`)
+- `PlanLimits`: strict Zod mirror of `plan_limits_valid()` (all 11 keys, whole numbers ≥ 0, booleans, nothing else); `planLimitCounts`, `planFeatures`, `gatedFeatures`.
+- `ActionKey` (the 10 seeded actions), `AllowanceType` (reading/listening/practice/mock), `CreditSource`, `PlanTier`.
+- `SpendResult` (spend_credits, M3-B1): `{ ok: true, reservation_id, action_key, credits, balance_after, spent_today }` or `{ ok: false, code: insufficient_credits | daily_cap_reached | feature_not_in_plan, action_key, credits, balance?, daily_cap?, spent_today?, feature? }`. Refusals are values, not exceptions, so the Edge helper can map them to HTTP.
+- `AllowanceResult` (use_allowance, M3-B3): ok, or `allowance_exceeded` with used/limit.
+- `CreditBalance` (get-my-credits, M3-B5): plan, balance, buckets (expiry soonest first, `expires_at` null = never), spent_today, daily_cap, period_start, allowances.
+- `creditErrorStatus`, `creditErrorMessages` (title + what to do next, for the M3-F3 dialogs), `isCreditErrorCode`, `spendableToday()`, `allowanceRemaining()`.
+- All schemas are `.strict()` (unknown fields rejected) and accept Postgres JSON timestamps (`+00:00`).
+
+**Contract tests** (`tests/contract.test.ts`, read the SQL/Deno sources as text): plan-limit keys = `plan_limits_valid()` arrays; action keys and required features = the `credit_costs` seed; allowance types = `usage_allowance` `*_used` columns and plan counts; credit error statuses = the Edge `errors.*` helpers. (The existing check keeps the two error-code unions equal.)
+
+**Branching:** stacked on `feature/m3-c1-c2-credits-schema` (needs its generated DB types and migrations).
+
+**Verified**
+- `pnpm test` **273/273** ✓ (+20 `credits.test.ts`, +4 contract).
+- web, admin, shared typecheck ✓; web and admin lint ✓.
+- `deno check supabase/functions/_shared/errors.ts` ✓ (Deno 1.37 locally; the file has no imports. CI runs Deno 2 on the functions).
+- No database change in this step.

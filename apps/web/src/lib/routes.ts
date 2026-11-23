@@ -17,6 +17,7 @@ export const routes = {
   contact: "/#contact", // final CTA section; a real contact page/email later
   login: "/login", // M1-F1
   signup: "/signup", // M1-F1
+  waitlistPage: "/waitlist", // M2-F1: where /signup sends visitors from countries not launched yet
   authCallback: "/auth/callback", // M1-F1, Google OAuth return (docs/auth.md)
   app: "/app", // signed-in home (M1-F1 placeholder)
   profile: "/app/profile", // M1-F3

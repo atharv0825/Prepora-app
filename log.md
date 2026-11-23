@@ -1641,3 +1641,36 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - The journey's first run timed out at "Start free" → `/signup` for the same reason (first dev compile); it passed after warm-up.
 - Web typecheck and lint ✓. No app code changed.
 - **Not verified:** the CI run of this spec (production build).
+
+## 2026-11-23 — M3-C1 + M3-C2: Plans & credits schema, seeded plans and credit costs
+
+Done together on one branch, as asked.
+
+**M3-C1: schema** (`20261123165854_credits_schema.sql`, plan §4/§5.5)
+- `plans` (id = `plan_tier`, name, `limits jsonb`, is_active). `limits` is checked by `plan_limits_valid()`: all 11 keys present, counts are whole numbers ≥ 0, flags are booleans, unknown keys rejected (so the M3-A1 editor can't save broken limits).
+- `credit_costs` (action_key, label, credits, **required_feature** `ocr`/`ai_gen`/`premium_voice` or null, model, est_cost_usd, is_active). `required_feature` gives M3-B1's "checks plan feature flags" its data.
+- `credit_buckets` (source enum `monthly/welcome/exam_pack/topup/admin`, granted, remaining with `0 ≤ remaining ≤ granted`, expires_at null = never). Partial index for "spendable, soonest expiry first".
+- `credit_ledger`: append-only; reason enum `grant/spend/refund/expire/admin_adjust` with a **sign check** (grant/refund > 0, spend/expire < 0, admin_adjust ≠ 0); `action_key` FK; `ref_id`; **`reservation_id`** to group one spend across several buckets and its refund (M3-B1/B2). Index for the daily cap (today's spends).
+- `usage_allowance` (user_id + period_start PK, four counters ≥ 0).
+- `ai_usage` (tokens, audio seconds, real cost, credits charged, success, latency, reservation_id); user set to null on account deletion so cost history stays complete.
+- **Access:** plans and credit_costs readable by everyone (also signed out, for pricing); buckets, ledger and allowance: users read their own; ai_usage: no client access; **no client writes anywhere** (service role and the M3-B functions only).
+- Not in this step: `prices`, `subscriptions`, `payment_events`, `profiles.plan_expires_at` (M9).
+
+**M3-C2: seed** (`20261123165857_seed_plans_credit_costs.sql`, `on conflict do nothing` so re-running never overwrites admin tuning)
+- Free 8 credits + 10 welcome, daily cap 8; allowances 2/2/5, no mock tests; no OCR, generation or natural voice; summary feedback.
+- Gold 100, cap 40; 15/15/30, 2 mocks; OCR, detailed feedback.
+- Platinum 220, cap 60; 30/30/60, 4 mocks; OCR, generation, natural voice, detailed feedback.
+- 10 actions (§2.5): speaking P1 5 / P2 4 / P3 6, writing T1 4 / T2 4, OCR 1, natural voice 4, generated cue card 2 / writing prompt 1 / reading passage 5. Full Speaking (15) and mock AI parts (23) are sums of parts, charged part by part; Reading/Listening grading uses the allowance (no rows). Estimated costs from §2.6; natural voice's model ("gemini-tts") and price are estimates to confirm (§2.6 says so); the writing prompt has no estimate in §2.6 (null).
+
+**Bug caught by the tests:** `plan_limits_valid` first accepted a limits object with a key missing: the per-key check is NULL for a missing key, and `bool_and` ignores NULLs. Fixed with `coalesce(…, false)`.
+
+**Tests**
+- pgTAP `credits_schema.test.sql` (+46): tables, enums, RLS on, privileges (no client writes, ai_usage closed), limits contract (missing/unknown key, negative, fractional, non-boolean), bucket range, ledger sign rules and FK, own-rows-only reads, no self-grants.
+- pgTAP `plans_credit_costs_seed.test.sql` (+19): every number from §2.5, new Free user = 18 credits (M3 exit), full Speaking 15, mock 23, generated Reading test 15, gated actions name real flags, the §2.5 Gold/Platinum examples fit, every estimate ≤ US$0.01 per credit, re-seeding keeps admin changes.
+- `apps/web/e2e/credits-rls.spec.ts` (+3, real PostgREST + sessions): anon reads plans/costs; users see only their own buckets/ledger; self-grant, balance edit, ai_usage read and plan edit → 42501.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **209/209** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` 249/249 ✓; web, admin, shared typecheck ✓; web lint ✓.
+- API e2e (credits, RLS, admin users, admin countries/waitlist) 13/13 ✓ against local Supabase.
+- **Not verified:** `deno check` of the regenerated `supabase/functions/_shared/db.ts` (only Deno 1.37 here; CI runs Deno 2); staging (the migrations workflow applies these on merge).

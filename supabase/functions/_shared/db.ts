@@ -12,6 +12,62 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          action_key: string
+          audio_seconds: number
+          cost_usd: number
+          created_at: string
+          credits_charged: number
+          id: number
+          input_tokens: number
+          latency_ms: number | null
+          model: string
+          output_tokens: number
+          reservation_id: string | null
+          success: boolean
+          user_id: string | null
+        }
+        Insert: {
+          action_key: string
+          audio_seconds?: number
+          cost_usd?: number
+          created_at?: string
+          credits_charged?: number
+          id?: never
+          input_tokens?: number
+          latency_ms?: number | null
+          model: string
+          output_tokens?: number
+          reservation_id?: string | null
+          success: boolean
+          user_id?: string | null
+        }
+        Update: {
+          action_key?: string
+          audio_seconds?: number
+          cost_usd?: number
+          created_at?: string
+          credits_charged?: number
+          id?: never
+          input_tokens?: number
+          latency_ms?: number | null
+          model?: string
+          output_tokens?: number
+          reservation_id?: string | null
+          success?: boolean
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_action_key_fkey"
+            columns: ["action_key"]
+            isOneToOne: false
+            referencedRelation: "credit_costs"
+            referencedColumns: ["action_key"]
+          },
+        ]
+      }
       country_regions: {
         Row: {
           country_code: string
@@ -32,6 +88,144 @@ export type Database = {
           is_enabled?: boolean
           launch_wave?: number | null
           region?: Database["public"]["Enums"]["market_region"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_buckets: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          granted: number
+          id: string
+          remaining: number
+          source: Database["public"]["Enums"]["credit_source"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          granted: number
+          id?: string
+          remaining: number
+          source: Database["public"]["Enums"]["credit_source"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          granted?: number
+          id?: string
+          remaining?: number
+          source?: Database["public"]["Enums"]["credit_source"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      credit_costs: {
+        Row: {
+          action_key: string
+          credits: number
+          est_cost_usd: number | null
+          is_active: boolean
+          label: string
+          model: string | null
+          required_feature: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_key: string
+          credits: number
+          est_cost_usd?: number | null
+          is_active?: boolean
+          label: string
+          model?: string | null
+          required_feature?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_key?: string
+          credits?: number
+          est_cost_usd?: number | null
+          is_active?: boolean
+          label?: string
+          model?: string | null
+          required_feature?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      credit_ledger: {
+        Row: {
+          action_key: string | null
+          bucket_id: string | null
+          created_at: string
+          delta: number
+          id: number
+          reason: Database["public"]["Enums"]["credit_ledger_reason"]
+          ref_id: string | null
+          reservation_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action_key?: string | null
+          bucket_id?: string | null
+          created_at?: string
+          delta: number
+          id?: never
+          reason: Database["public"]["Enums"]["credit_ledger_reason"]
+          ref_id?: string | null
+          reservation_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action_key?: string | null
+          bucket_id?: string | null
+          created_at?: string
+          delta?: number
+          id?: never
+          reason?: Database["public"]["Enums"]["credit_ledger_reason"]
+          ref_id?: string | null
+          reservation_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_ledger_action_key_fkey"
+            columns: ["action_key"]
+            isOneToOne: false
+            referencedRelation: "credit_costs"
+            referencedColumns: ["action_key"]
+          },
+          {
+            foreignKeyName: "credit_ledger_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "credit_buckets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          id: Database["public"]["Enums"]["plan_tier"]
+          is_active: boolean
+          limits: Json
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          id: Database["public"]["Enums"]["plan_tier"]
+          is_active?: boolean
+          limits: Json
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          id?: Database["public"]["Enums"]["plan_tier"]
+          is_active?: boolean
+          limits?: Json
+          name?: string
           updated_at?: string
         }
         Relationships: []
@@ -75,6 +269,36 @@ export type Database = {
           test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
           timezone?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      usage_allowance: {
+        Row: {
+          listening_tests_used: number
+          mock_tests_used: number
+          period_start: string
+          practice_sessions_used: number
+          reading_tests_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          listening_tests_used?: number
+          mock_tests_used?: number
+          period_start: string
+          practice_sessions_used?: number
+          reading_tests_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          listening_tests_used?: number
+          mock_tests_used?: number
+          period_start?: string
+          practice_sessions_used?: number
+          reading_tests_used?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -172,9 +396,17 @@ export type Database = {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
       }
+      plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"
+      credit_ledger_reason:
+        | "grant"
+        | "spend"
+        | "refund"
+        | "expire"
+        | "admin_adjust"
+      credit_source: "monthly" | "welcome" | "exam_pack" | "topup" | "admin"
       ielts_test_type: "academic" | "general"
       launch_status: "enabled" | "waitlist"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
@@ -307,6 +539,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
+      credit_ledger_reason: [
+        "grant",
+        "spend",
+        "refund",
+        "expire",
+        "admin_adjust",
+      ],
+      credit_source: ["monthly", "welcome", "exam_pack", "topup", "admin"],
       ielts_test_type: ["academic", "general"],
       launch_status: ["enabled", "waitlist"],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],

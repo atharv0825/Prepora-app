@@ -387,16 +387,44 @@ export type Database = {
           waiting: number
         }[]
       }
+      allowance_period_start: { Args: never; Returns: string }
+      credit_balance: { Args: { p_user_id: string }; Returns: number }
+      credit_day_start: { Args: never; Returns: string }
+      credits_spent_today: { Args: { p_user_id: string }; Returns: number }
+      expire_credit_buckets: { Args: never; Returns: number }
       get_launch_status: {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      grant_credits: {
+        Args: {
+          p_amount: number
+          p_expires_at?: string
+          p_source: Database["public"]["Enums"]["credit_source"]
+          p_user_id: string
+        }
+        Returns: string
+      }
+      grant_free_monthly_credits: { Args: never; Returns: number }
+      grant_signup_credits: { Args: { p_user_id: string }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       join_waitlist: {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
       }
+      lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
       plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
+      refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
+      run_credit_maintenance: { Args: never; Returns: Json }
+      spend_credits: {
+        Args: { p_action_key: string; p_ref_id?: string; p_user_id: string }
+        Returns: Json
+      }
+      use_allowance: {
+        Args: { p_type: string; p_user_id: string }
+        Returns: Json
+      }
+      user_plan_limits: { Args: { p_user_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"

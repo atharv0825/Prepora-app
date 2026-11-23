@@ -167,6 +167,26 @@ export const SpendResult = z.discriminatedUnion("ok", [
 ]);
 export type SpendResult = z.infer<typeof SpendResult>;
 
+/**
+ * refund_credits(reservation_id) (M3-B2). Idempotent: a repeat call is "already_refunded";
+ * an unknown reservation is "not_found".
+ */
+export const RefundResult = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      status: z.enum(["refunded", "already_refunded"]),
+      reservation_id: uuid,
+      refunded: count,
+      balance_after: count,
+    })
+    .strict(),
+  z
+    .object({ ok: z.literal(false), status: z.literal("not_found"), reservation_id: uuid, refunded: z.literal(0) })
+    .strict(),
+]);
+export type RefundResult = z.infer<typeof RefundResult>;
+
 /** use_allowance(user_id, type) (M3-B3). */
 export const AllowanceResult = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), type: AllowanceType, used: count, limit: count }).strict(),

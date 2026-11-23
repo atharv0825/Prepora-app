@@ -1699,3 +1699,45 @@ Done together on one branch, as asked.
 - web, admin, shared typecheck ✓; web and admin lint ✓.
 - `deno check supabase/functions/_shared/errors.ts` ✓ (Deno 1.37 locally; the file has no imports. CI runs Deno 2 on the functions).
 - No database change in this step.
+
+## 2026-11-23 — M3-B1…B4: Credits engine (spend, refund, allowance, grants + pg_cron)
+
+Done together on one branch (the four steps were given together).
+
+**Common rules**
+- Every function takes a user id, so **only the service role** (Edge Functions, pg_cron) may execute them. EXECUTE is revoked from `public`, `anon` and `authenticated` (Supabase grants new functions to anon/authenticated directly).
+- Refusals are JSON results matching the M3-C3 Zod schemas (`SpendResult`, `RefundResult`, `AllowanceResult`), not exceptions. Programming errors (unknown action, user or allowance type) raise `22023`.
+- **Concurrency:** spend and refund take a per-user transaction lock (`lock_user_credits`) and lock buckets `FOR UPDATE`, so parallel spends can't both pass the balance or cap check. Concurrency tests are M3-B7.
+
+**M3-B1 `spend_credits(user_id, action_key, ref_id)`** (`…171502`)
+- Checks, in order: action exists and is active → the plan has the action's `required_feature` → enough credits (`insufficient_credits`, with the balance) → daily cap (`daily_cap_reached`, with cap and spent today). Credits come before the cap because waiting until tomorrow wouldn't help an empty balance.
+- Spends from the bucket that **expires first** (never-expiring last, oldest first), possibly across several buckets, one ledger row per bucket, all with one `reservation_id`.
+- Expired buckets never count or get spent, even before the expiry job zeroes them.
+- The daily cap counts today's (midnight UTC) spends that weren't refunded.
+- Users without a profile row (M1-B2 not built) are treated as Free.
+- Helpers: `credit_balance`, `credits_spent_today`, `user_plan_limits`, `credit_day_start`.
+
+**M3-B2 `refund_credits(reservation_id)`** (`…171505`): puts each debited credit back into the bucket it came from with matching `refund` ledger rows. Idempotent (`already_refunded`), `not_found` for unknown reservations. A refunded spend stops counting toward today's cap. `RefundResult` added to `@prepora/shared/api/credits`.
+
+**M3-B3 `use_allowance(user_id, type)`** (`…171508`): counts one curated Reading/Listening test, practice session or mock test against the plan's monthly limit; period = calendar month in UTC (`allowance_period_start()`, one place to change for billing periods in M9). The row is locked before the check.
+
+**M3-B4 grants** (`…171512`)
+- `grant_credits(user, source, amount, expires_at)`: one bucket + one `grant` ledger entry (for admin grants in M3-A2 too).
+- Sign-up: trigger on `auth.users` (not `profiles`, which isn't created at sign-up yet) grants **10 welcome (never expire, spent last) + 8 monthly (1 month)** = 18 credits. Idempotent; a failure logs a warning and never blocks sign-up.
+- **Existing users** were backfilled with the same sign-up grant by the migration.
+- `run_credit_maintenance()`: expire buckets past their date (remaining → 0, one `expire` entry each), then give Free users without an unexpired monthly bucket a new one (rolling monthly periods per user; idempotent; paid plans are granted by billing in M9). Set-based statements, no per-user locks; one job-level lock so runs can't overlap.
+- **pg_cron**: `create extension pg_cron` and job `prepora-credit-maintenance` hourly at `:07`.
+
+**Tests**
+- pgTAP `credits_engine.test.sql` (+62): privileges (only service role), sign-up grant (18, buckets, ledger, once), spend (amounts, expiry order, multi-bucket, ledger, reservation), cap, feature flags (Free/Gold), insufficient, expired buckets ignored, unknown action/user, refunds (buckets restored, cap freed, idempotent, not found, multi-bucket), allowances (limits, per type, Free mocks 0, Gold 2, UTC month, unknown type), maintenance (expiry + ledger, fresh Free monthly, none for Gold, no roll-over, re-run grants nothing), grant validation, ledger-explains-buckets invariant, cron job scheduled.
+- `credits_schema.test.sql`: the own-buckets RLS check now asserts "no other user's rows" (users now get sign-up buckets).
+- `credits.test.ts` (+2): `RefundResult`.
+- `apps/web/e2e/credits-rls.spec.ts` (real PostgREST + sessions): a new user has 18 credits (8 monthly + 10 welcome); users can't call spend/refund/allowance/maintenance; the service role spends, gets `feature_not_in_plan`, refunds and counts an allowance, and **every response parses with the M3-C3 Zod schemas**; the user sees the full history (grant 10, grant 8, spend −4, refund 4).
+
+**Verified**
+- `supabase db reset` + `supabase test db` **271/271** ✓; `db lint` clean; `db:types:check` ✓.
+- `pnpm test` 275/275 ✓; web, admin, shared typecheck ✓; web lint ✓.
+- API e2e (credits, RLS, admin) 14/14 ✓ against local Supabase.
+- **Not verified:** pg_cron firing on its own (the function is tested directly; the schedule is checked to exist); the browser e2e suite (no UI changed; your `next dev` was on :3000 — CI runs it); `deno check` of the regenerated function types (Deno 2 in CI); staging, including `create extension pg_cron` there (the migrations dry-run in CI checks it).
+
+**Branching:** stacked on `feature/m3-c3-credit-types` (PR not merged yet) with `develop` merged in.

@@ -71,7 +71,8 @@ select throws_ok($$ insert into public.credit_ledger (user_id, delta, reason, ac
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"c0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
-select is((select count(*) from public.credit_buckets), 1::bigint, 'a user sees only their own bucket');
+select is((select count(*) from public.credit_buckets where user_id <> 'c0000000-0000-0000-0000-000000000001'), 0::bigint,
+  'a user sees only their own buckets');
 select is((select count(*) from public.credit_ledger where user_id = 'c0000000-0000-0000-0000-000000000002'), 0::bigint,
   'a user can''t see someone else''s ledger');
 select is((select reading_tests_used from public.usage_allowance), 1, 'a user sees only their own allowance');

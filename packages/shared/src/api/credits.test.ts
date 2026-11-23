@@ -3,6 +3,7 @@ import {
   AllowanceResult,
   CreditBalance,
   PlanLimits,
+  RefundResult,
   SpendResult,
   allowanceRemaining,
   creditErrorCodes,
@@ -73,6 +74,20 @@ describe("SpendResult", () => {
     ["extra fields", { ok: false, code: "insufficient_credits", action_key: "ocr", credits: 1, secret: "x" }],
   ])("rejects %s", (_label, value) => {
     expect(SpendResult.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("RefundResult", () => {
+  const id = "3f1c2b9e-8a7d-4c6b-9e2f-1a2b3c4d5e6f";
+
+  it("parses refunded, already refunded and not found", () => {
+    expect(RefundResult.parse({ ok: true, status: "refunded", reservation_id: id, refunded: 4, balance_after: 18 }).ok).toBe(true);
+    expect(RefundResult.parse({ ok: true, status: "already_refunded", reservation_id: id, refunded: 0, balance_after: 18 }).ok).toBe(true);
+    expect(RefundResult.parse({ ok: false, status: "not_found", reservation_id: id, refunded: 0 }).ok).toBe(false);
+  });
+
+  it("rejects a not-found result that claims a refund", () => {
+    expect(RefundResult.safeParse({ ok: false, status: "not_found", reservation_id: id, refunded: 4 }).success).toBe(false);
   });
 });
 

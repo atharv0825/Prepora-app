@@ -1597,6 +1597,34 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop with a test admin: list, search "asha" → profile, `?plan=gold&country=NP` filter, content editor → "Admins only". Screenshots checked. On phones the table scrolls sideways (kept at 720 px so columns stay readable).
 - **Not verified:** staging (needs an admin account: M1-B3's seed, or set `role = 'admin'` on your profile in the dashboard; and M1-B2 so real users have profile rows to list); the CI build.
 
+## 2026-11-23 — M2-A2: Country waves page + waitlist with CSV export
+
+**What:** two admin pages. **Countries** (`/countries`, new nav item under Business): countries grouped by launch wave, one switch per country to open or close sign-up, with how many people are waiting there. **Waitlist** (`/waitlist`): filter by country (incl. "unknown") and status (still waiting / invited / everyone), 50 per page, and **Export CSV** with the same filters (`/waitlist/export`).
+
+**How**
+- Migration `20261123154120_admin_countries_waitlist.sql` (uses `is_admin()` from M2-A1):
+  - `country_regions`: `grant update (is_enabled)` + policy "admins can update". Only the switch; regions and waves stay migration-only. A non-admin's update matches no rows.
+  - `waitlist`: `grant select` + policy "admins can read". Still no writes through the API (`join_waitlist()` only).
+  - `admin_waitlist_by_country()`: waiting/invited counts per country, `SECURITY INVOKER` (reads through the policy, so non-admins get nothing); EXECUTE revoked from anon.
+- Toggle: `setCountryEnabled` Server Function (validates input, writes with the admin's session, "only admins" when RLS updated nothing) + a `role="switch"` button with an optimistic flip and toasts. The country gate (M2-F1) reads `is_enabled` on every `/signup`, so it takes effect at once.
+- CSV (`@prepora/shared/api/admin-waitlist`): RFC 4180 quoting, CRLF, UTF-8 BOM for Excel, and **formula-injection protection**: cells starting with `= + - @` (tab, CR) get a leading `'`, since emails and sources come from the public form. The route checks the session and `is_admin()` (401/403), fetches in 1,000-row batches (max 50,000), sends `Cache-Control: private, no-store` and a filename like `prepora-waitlist-VN-waiting-2026-11-23.csv`.
+- Admins only on both pages (content editors see the "Admins only" notice; export → 403).
+- Nav: Countries added (built), Waitlist marked built; "Enable or disable countries" removed from the Plans placeholder.
+- An M2-C1 pgTAP assertion changed: a non-admin's `is_enabled` update used to fail with 42501 (no grant); it now updates no rows (column grant + admin-only policy).
+
+**Branching:** stacked on `feature/m2-a1-users-list` (PR #36) for `is_admin()` and the admin-only pieces.
+
+**Tests**
+- pgTAP `admin_countries_waitlist.test.sql` (+18): column/table privileges (only `is_enabled` updatable, anon nothing), student and editor can't toggle or read, admin reads all, counts per country, enabling opens `get_launch_status` and disabling closes it, waves not updatable, no direct inserts.
+- `admin-waitlist.test.ts` (shared, +15): query parsing, query strings, CSV quoting, formula neutralising, BOM/CRLF, filename. `countries.test.ts` (admin, +5): wave grouping, sorting, counts, region labels.
+- `apps/web/e2e/admin-countries-waitlist.spec.ts` (+2, real PostgREST + sessions): admin toggles the Philippines (not Vietnam, which country-gate.spec relies on in parallel) and the gate follows; student can't; only the admin reads entries and counts.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **144/144** ✓; `db lint` clean; `db:types:check` ✓.
+- `pnpm test` 249/249 ✓; admin, web and shared typecheck + lint ✓.
+- API e2e (admin countries/waitlist, admin users, RLS) 10/10 ✓ against local Supabase.
+- The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop: Vietnam switched on with **one click** → DB and `get_launch_status('VN')` = enabled, off again → waitlist; waitlist filtered to Vietnam; CSV download checked (headers, BOM, rows, `=…` email exported as `'=…`); content editor → "Admins only" and export 403. Screenshots checked.
+- **Not verified:** staging (needs an admin account, M1-B3 or set your role in the dashboard); the CI build.
 ## 2026-11-23 — M2-I1: Playwright journey (sign up → onboarding → home, country gate)
 
 **What:** `apps/web/e2e/journey.spec.ts`, the M2 milestone as one visitor takes it, on mobile (Pixel 7) and desktop, against local Supabase:

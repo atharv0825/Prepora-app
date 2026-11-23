@@ -83,9 +83,11 @@ set local role authenticated;
 select throws_ok(
   $$ insert into public.country_regions (country_code, region) values ('XX', 'SA') $$,
   '42501', null, 'signed-in users cannot add countries');
-select throws_ok(
-  $$ update public.country_regions set is_enabled = true where country_code = 'ZY' $$,
-  '42501', null, 'signed-in users cannot enable a country');
+-- M2-A2 grants UPDATE (is_enabled) with an admins-only policy: a non-admin's update matches no
+-- rows instead of erroring (admin_countries_waitlist.test.sql covers admins).
+update public.country_regions set is_enabled = true where country_code = 'ZY';
+select is((select is_enabled from public.country_regions where country_code = 'ZY'), false,
+  'signed-in users cannot enable a country');
 reset role;
 
 select throws_ok(

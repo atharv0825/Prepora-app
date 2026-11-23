@@ -1569,3 +1569,30 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - Full Playwright suite against `next dev` + local Supabase: **31 passed**, 5 skipped (RLS desktop-only). Your own `next dev` was running on :3000 and Next allows one dev server per folder, so it ran from a temporary git worktree on :3200 (removed afterwards).
 - Screenshots on mobile and desktop checked by eye.
 - **Not verified:** staging (needs M1-B2 for real users' profile rows); the CI build.
+
+## 2026-11-23 — M2-A1: Admin users list
+
+**What:** the admin panel's **Users** page (`/users`): search by email or name, filter by country and plan, 25 per page, newest first; each row opens a read-only **profile** (`/users/[id]`).
+
+**How**
+- Migration `20261123151050_admin_users.sql`:
+  - `public.is_admin()`: the RLS helper planned for **M1-B3**, created here because this step needs it (M1-B3 is now only "seed one admin"). `SECURITY DEFINER`, reads the caller's own role.
+  - `admin_list_users(p_search, p_country, p_plan, p_limit, p_offset)` and `admin_get_user(p_id)`: `SECURITY DEFINER` RPCs that raise `42501` unless `is_admin()`. They join `auth.users` for email, last sign-in and provider, which the API can't expose otherwise. Search is case-insensitive "contains" on email or name with `%`/`_` matched literally; country normalised; page size capped at 100; `total_count` for paging.
+  - The admin app keeps the public key only: no service-role key.
+  - EXECUTE revoked from `public` **and `anon`**: Supabase's default privileges grant new functions to anon directly (caught by the pgTAP privilege test).
+- **Admins only** (not content editors): students' personal data. Editors opening Users see an "Admins only" notice; the database refuses them anyway.
+- `@prepora/shared/api/admin-users`: lenient URL query parsing (invalid values dropped, since lists are shareable links), RPC args, query-string builder, row types (generated RPC types mark every column non-null; nullable ones are widened).
+- Admin app: server-rendered pages; the filter is a plain GET form (works without JS, results are links). Country names via `Intl.DisplayNames`, dates in UTC. Nav modules get a `built` flag so the `[section]` placeholder route skips Users; the dashboard shows "Live" for it.
+- Profile page: account (joined, last sign-in, provider, id), location, IELTS goal; progress says it arrives with M4–M7. Plan changes and suspension are later milestones (plan §6).
+
+**Tests**
+- pgTAP `admin_users.test.sql` (+27): privileges (anon has none), student and content editor refused, admin search by email/name, literal `%`/`_`, country/plan filters, combined filters, limit/offset/cap, detail row.
+- `admin-users.test.ts` (shared, +7) and `apps/admin/src/lib/users.test.ts` (+6) + nav test (+1).
+- `apps/web/e2e/admin-users.spec.ts` (+3, real PostgREST with real sessions): admin search + detail; student and editor get `42501`; anon refused.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **126/126** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` 229/229 ✓; admin, web and shared typecheck + lint ✓.
+- API e2e (admin-users + RLS) 8/8 ✓ against local Supabase.
+- The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop with a test admin: list, search "asha" → profile, `?plan=gold&country=NP` filter, content editor → "Admins only". Screenshots checked. On phones the table scrolls sideways (kept at 720 px so columns stay readable).
+- **Not verified:** staging (needs an admin account: M1-B3's seed, or set `role = 'admin'` on your profile in the dashboard; and M1-B2 so real users have profile rows to list); the CI build.

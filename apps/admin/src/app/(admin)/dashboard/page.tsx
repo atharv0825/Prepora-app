@@ -48,7 +48,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="divide-y divide-border">
-              {sectionModules.map(({ slug, label, icon: Icon, milestone, summary }) => (
+              {sectionModules.map(({ slug, label, icon: Icon, milestone, summary, built }) => (
                 <li key={slug}>
                   <Link href={`/${slug}`} className="group flex items-center gap-3 py-3">
                     <Icon className="size-4 shrink-0 text-brand-sea" strokeWidth={1.5} aria-hidden />
@@ -56,7 +56,7 @@ export default function DashboardPage() {
                       <span className="block text-sm font-medium group-hover:underline">{label}</span>
                       <span className="block truncate text-xs text-muted-foreground">{summary}</span>
                     </span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{milestone}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{built ? "Live" : milestone}</span>
                   </Link>
                 </li>
               ))}

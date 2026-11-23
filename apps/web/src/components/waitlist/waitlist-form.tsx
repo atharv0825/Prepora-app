@@ -18,7 +18,7 @@ export function WaitlistForm({
   location,
   className,
 }: {
-  location: "hero" | "final_cta";
+  location: "hero" | "final_cta" | "signup_gate";
   className?: string;
 }) {
   const [state, formAction, pending] = useActionState(joinWaitlist, initial);

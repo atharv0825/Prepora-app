@@ -24,6 +24,8 @@ export type AdminModule = {
   milestone: string;
   summary: string;
   features: string[];
+  /** True once the module has its own page; the placeholder route ([section]) skips it. */
+  built?: boolean;
 };
 
 export type NavGroup = { title: string; items: AdminModule[] };
@@ -120,6 +122,7 @@ export const navGroups: NavGroup[] = [
         label: "Users",
         icon: Users,
         milestone: "M2",
+        built: true, // M2-A1: list, search, filters, profile view
         summary: "Search users, view progress, change plans for support cases.",
         features: [
           "Search by email or name, filter by country and plan",
@@ -196,6 +199,9 @@ export const navGroups: NavGroup[] = [
 
 /** All modules except the dashboard (it has its own page). */
 export const sectionModules = navGroups.flatMap((g) => g.items).filter((m) => m.slug !== "dashboard");
+
+/** Modules still shown as "what you'll do here" placeholders. */
+export const placeholderModules = sectionModules.filter((m) => !m.built);
 
 export function findModule(slug: string): AdminModule | undefined {
   return navGroups.flatMap((g) => g.items).find((m) => m.slug === slug);

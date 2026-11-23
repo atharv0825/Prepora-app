@@ -396,6 +396,7 @@ export type Database = {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      get_my_credits: { Args: never; Returns: Json }
       grant_credits: {
         Args: {
           p_amount: number

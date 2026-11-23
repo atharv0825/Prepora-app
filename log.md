@@ -1741,3 +1741,36 @@ Done together on one branch (the four steps were given together).
 - **Not verified:** pg_cron firing on its own (the function is tested directly; the schedule is checked to exist); the browser e2e suite (no UI changed; your `next dev` was on :3000 — CI runs it); `deno check` of the regenerated function types (Deno 2 in CI); staging, including `create extension pg_cron` there (the migrations dry-run in CI checks it).
 
 **Branching:** stacked on `feature/m3-c3-credit-types` (PR not merged yet) with `develop` merged in.
+
+## 2026-11-23 — M3-B5…B7: get_my_credits, withCredits, concurrency tests
+
+Done together on one branch (the three steps were given together).
+
+**M3-B5 `get_my_credits()`** (`20261123173137_get_my_credits.sql`): an RPC (`/rest/v1/rpc/get_my_credits`) rather than an Edge Function: one read, no AI, no secrets. Takes **no user id**: always answers for `auth.uid()`, so users only ever see their own; refused (42501) without a session; anon has no EXECUTE. Returns `CreditBalance` (M3-C3): plan, spendable balance, unexpired non-empty buckets soonest-expiry first, spent today (refunds excluded) vs daily cap, allowance period and used/limit for all four allowances.
+
+**M3-B6 `withCredits(ctx, actionKey, fn, { refId })`** (`supabase/functions/_shared/credits.ts`)
+- Reserve (`spend_credits`, service role) → run `fn` → log one `ai_usage` row with the real model/tokens/audio/cost and credits charged → on error: `refund_credits`, log a failed row (credits 0, with usage if fn threw an `AiCallError`), **rethrow fn's own error**.
+- A refusal becomes `HttpError` 402/429/403 with the shared code and details for the dialog (cost, balance, cap, spent today, missing feature); `fn` never runs.
+- Refund or logging failures are logged and never replace fn's result or error; usage numbers are cleaned (rounded, no negatives/NaN).
+- Action keys are copied into Deno (`ACTION_KEYS`); a contract test keeps them equal to `@prepora/shared/api/credits`.
+- CI (`edge-functions.yml`): `deno check` now includes `_shared/*.ts` (shared helpers were unchecked until a function imported them), plus a `deno test _shared/` step.
+
+**M3-B7 concurrency tests** (`apps/web/e2e/credits-concurrency.spec.ts`): pgTAP runs in one session and can't race, so these fire 12 calls at once through PostgREST (separate DB connections) against local Supabase: parallel spends never overdraw (exactly 3 of 12 × 6 credits succeed; balances seen 12/6/0), parallel spends respect the daily cap (exactly 2 of 12 for Free), soonest-expiring bucket first under concurrency, 12 parallel refunds of one reservation refund once, spends and refunds racing stay consistent, 12 parallel allowance uses stop at the limit (2). Each checks that every bucket's remaining = the sum of its ledger entries and stays within 0…granted. The sequential rules (cap, expiry order, refunds) are already in `credits_engine.test.sql` (M3-B1…B4).
+
+**The tests catch the race:** with the per-user lock removed from `spend_credits` in the local DB only, "respects the daily cap" failed on both runs and "never overdraws" on one of two (the bucket locks and the `remaining ≥ 0` check catch some cases but end them in database errors). Restored with `supabase db reset`; everything passes again.
+
+**Tests**
+- pgTAP `get_my_credits.test.sql` (+14): privileges, balance/spent today with a refunded spend, buckets (no expired/empty, order), balance = listed buckets, allowances, exact field set, another user's own numbers (Gold cap), no session refused.
+- Deno `_shared/credits_test.ts` (+9, fake client): success path and ai_usage row; each refusal → status/code/details, fn not run; failure → refund + failed row + same error; AiCallError usage logged; refund/log failures don't hide errors or results; usage cleaning; no user → 401; DB error or malformed result → internal error before fn runs.
+- `credits-rls.spec.ts`: `get_my_credits` output **parses with the `CreditBalance` Zod schema**; anon refused.
+- Contract test: Deno `ACTION_KEYS` = shared `actionKeys`.
+- One-off run of `withCredits` with the real service-role client against local Supabase (throwaway script, not committed): success logged with tokens/cost, failure refunded (ledger spend −4, refund +4) and logged with its usage, OCR on Free refused with `feature_not_in_plan`, balance 14.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **285/285** ✓; `db lint` clean; types regenerated.
+- `pnpm test` **276/276** ✓; web, admin, shared typecheck ✓; web lint ✓.
+- Deno 2.9.6 (via npx, locally only): `deno check --frozen` on every function and `_shared/*.ts` ✓ (lock unchanged); `deno test --frozen _shared/` 9/9 ✓.
+- API e2e (credits, concurrency, RLS, admin) **21/21** ✓; the concurrency spec passed 3 runs in a row.
+- **Not verified:** a real Edge Function using `withCredits` deployed (M3-I1 adds a dummy one); staging.
+
+**Branching:** stacked on `feature/m3-b1-b4-credits-engine` (PR not merged yet) with `develop` merged in.

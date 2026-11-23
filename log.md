@@ -1560,7 +1560,7 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 **Branching:** stacked on `feature/m2-f2-onboarding` (needs its fields and helpers), with `develop` (M2-F1) merged in; the `log.md` conflict was resolved there by keeping both entries. Merge the M2-F2 PR first; this PR then shows only the M2-F3 changes.
 
 **Tests**
-- `dashboard.test.ts` (+23): modules + recommendation, greeting by hour and time zone, first name, countdown (1 day, 61 days, today, past, none), labels.
+- `dashboard.test.ts` (+15): modules + recommendation, greeting by hour and time zone, first name, countdown (1 day, 61 days, today, past, none), labels.
 - `e2e/dashboard.spec.ts` (+2): onboarded student (General, 6.5, exam in 30 days, UTC) sees the greeting, "30 days to go", Free plan credits placeholder and four coming-soon tiles with no links; without a date/time zone → "Not booked yet" and "Welcome back".
 - Existing e2e greeting checks updated (`Welcome, Asha Rao` → `…, Asha`); `createTestUser` can now set `timezone`.
 

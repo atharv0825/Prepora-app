@@ -82,7 +82,7 @@ export const ONBOARDED = { test_type: "academic", target_band: 7 } as const;
 export async function createTestUser(
   fullName: string,
   role: "user" | "admin" | "content_editor" = "user",
-  profile: Partial<Pick<Database["public"]["Tables"]["profiles"]["Insert"], "test_type" | "target_band" | "exam_date">> = {},
+  profile: Partial<Pick<Database["public"]["Tables"]["profiles"]["Insert"], "test_type" | "target_band" | "exam_date" | "timezone">> = {},
 ): Promise<TestUser> {
   const admin = adminClient();
   const { url, publishableKey } = localSupabase();

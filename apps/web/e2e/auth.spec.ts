@@ -32,7 +32,7 @@ test.describe("signed in", () => {
   test("lands on /app with their name, and login sends them back to /app", async ({ page }) => {
     await page.goto("/app");
     await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByRole("heading", { name: /welcome, asha rao/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /, asha$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Account menu for Asha Rao" })).toBeVisible();
 
     await page.goto("/login");

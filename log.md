@@ -1542,3 +1542,30 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - **Not verified:** staging with a real Google account (needs M1-B2 for the profile row); the CI build.
 
 **Merge note:** branched from `develop` before M2-F1 (PR not merged yet); both append to `log.md`, so the second merge needs a trivial conflict fix there (keep both entries).
+
+## 2026-11-23 — M2-F3: Home dashboard
+
+**What:** `/app` is now the home dashboard (UI design §home screen): a large time-of-day greeting, a **goal card** (target band, test type, exam countdown), an **AI credits** placeholder, and a 2×2 grid of the four **module tiles** (Reading, Listening, Writing, Speaking), all "Coming soon".
+
+**How**
+- `src/lib/dashboard.ts` (pure, tested):
+  - `dashboardModules`: the four modules in exam order with `status: "soon"`. Later milestones flip one to `"available"` with an `href` (Reading M4, Listening M5, Writing M6, Speaking M7) and the tile becomes a link.
+  - `recommendedModule()`: the green "recommended next" tile from the UI design; the first available module, so none while all are coming soon.
+  - `greeting(hourIn(tz))`: morning / afternoon / evening in the student's saved time zone (from onboarding); "Welcome back" without one. `firstName()` for the greeting.
+  - `examCountdown(exam_date, today)`: days to go / exam day / passed / not booked, with "today" in the student's time zone.
+- `src/components/dashboard/dashboard-cards.tsx`: server components (no client JS). Tiles use `secondary` (light green) and `primary` for the recommended one; coming-soon tiles are plain `div`s with `aria-disabled`, not links. Sections are labelled regions.
+- Credits card: "Coming soon" + the plan name (Free/Gold/Platinum from `profiles.plan`). No balance shown until M3 builds the credits engine.
+- Onboarding redirect from M2-F2 kept; no profile row (M1-B2 not live) → the dashboard still renders with empty values.
+
+**Branching:** stacked on `feature/m2-f2-onboarding` (needs its fields and helpers), with `develop` (M2-F1) merged in; the `log.md` conflict was resolved there by keeping both entries. Merge the M2-F2 PR first; this PR then shows only the M2-F3 changes.
+
+**Tests**
+- `dashboard.test.ts` (+23): modules + recommendation, greeting by hour and time zone, first name, countdown (1 day, 61 days, today, past, none), labels.
+- `e2e/dashboard.spec.ts` (+2): onboarded student (General, 6.5, exam in 30 days, UTC) sees the greeting, "30 days to go", Free plan credits placeholder and four coming-soon tiles with no links; without a date/time zone → "Not booked yet" and "Welcome back".
+- Existing e2e greeting checks updated (`Welcome, Asha Rao` → `…, Asha`); `createTestUser` can now set `timezone`.
+
+**Verified**
+- `pnpm test` 215/215 ✓; web typecheck and lint ✓.
+- Full Playwright suite against `next dev` + local Supabase: **31 passed**, 5 skipped (RLS desktop-only). Your own `next dev` was running on :3000 and Next allows one dev server per folder, so it ran from a temporary git worktree on :3200 (removed afterwards).
+- Screenshots on mobile and desktop checked by eye.
+- **Not verified:** staging (needs M1-B2 for real users' profile rows); the CI build.

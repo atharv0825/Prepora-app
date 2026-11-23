@@ -10,6 +10,10 @@ export type ApiErrorCode =
   | "method_not_allowed"
   | "conflict"
   | "insufficient_credits"
+  // Credits & allowances (M3-C3): see packages/shared/src/api/credits.ts.
+  | "daily_cap_reached"
+  | "allowance_exceeded"
+  | "feature_not_in_plan"
   | "rate_limited"
   | "wrong_region"
   | "internal";

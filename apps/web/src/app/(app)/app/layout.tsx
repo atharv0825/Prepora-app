@@ -19,6 +19,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
         person={{
           plan: account.profile?.plan ?? "free",
           country_code: account.profile?.country_code ?? undefined,
+          // Onboarding answers (M2-F2), for segmenting by test type / goal.
+          test_type: account.profile?.test_type ?? undefined,
+          target_band: account.profile?.target_band ?? undefined,
+          exam_date: account.profile?.exam_date ?? undefined,
         }}
       />
       <header className="sticky top-0 z-40 border-b border-black/5 bg-white/80 backdrop-blur-xl">

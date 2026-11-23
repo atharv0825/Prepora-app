@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
+import { ONBOARDED, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M1-I1: the session gate end to end (middleware M1-F2, pages M1-F1/F3).
 
@@ -21,7 +21,7 @@ test.describe("signed in", () => {
   let user: TestUser;
 
   test.beforeEach(async ({ context, baseURL }) => {
-    user = await createTestUser("Asha Rao");
+    user = await createTestUser("Asha Rao", "user", ONBOARDED);
     await context.addCookies(user.cookies.map((c) => ({ ...c, url: baseURL! })));
   });
 
@@ -32,7 +32,7 @@ test.describe("signed in", () => {
   test("lands on /app with their name, and login sends them back to /app", async ({ page }) => {
     await page.goto("/app");
     await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByRole("heading", { name: /welcome, asha rao/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /, asha$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Account menu for Asha Rao" })).toBeVisible();
 
     await page.goto("/login");

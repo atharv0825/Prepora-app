@@ -1517,3 +1517,55 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - curl against `next dev` + local Supabase: VN, XX → `307 /waitlist` (`private, no-store`); IN, no header → 200.
 - Full Playwright suite against `next dev` on :3200 + local Supabase (temporary config without the build step, which runs out of memory here): **21 passed**, 5 skipped (RLS runs desktop-only), including the 8 new country-gate runs.
 - **Not verified:** staging (real `CF-IPCountry` from a non-enabled country, e.g. via VPN); the OpenNext Worker build with `getCloudflareContext` in the middleware (CI builds it).
+
+## 2026-11-23 — M2-F2: Onboarding flow (3 steps)
+
+**What:** new users opening `/app` are sent to `/app/onboarding`: **Academic or General Training → target band (4.0–9.0, half steps) → exam date (skippable)**, then land on the home page.
+
+**How**
+- `src/components/onboarding/onboarding-flow.tsx` (client): one step at a time, answers kept in state and saved once at the end. Native radio groups and a date input (keyboard / screen reader support from the browser), progress bar, Back keeps answers, per-step errors from the shared contract (`onboardingInput`, M2-C2). Date picker limited to the student's today … +2 years. "Skip, I haven't booked yet" saves `exam_date = null`. Mobile: full-width stacked buttons.
+- `src/lib/onboarding-actions.ts` (`completeOnboarding`): checks the session, validates again on the server with "today" in the **browser's time zone** (so a date that's today for the student isn't rejected by a UTC server), saves `test_type`, `target_band`, `exam_date` and `timezone` (plan §11 lists time zone under onboarding) through the user's own session (RLS + M2-C1 column grant).
+- `src/lib/onboarding.ts`: pure helpers (time zone check, local date, picker range, days between, band format). `addYears` is now exported from `@prepora/shared/api/onboarding` so browser and server use the same max date.
+- `/app` redirects to onboarding when `needsOnboarding(profile)`; `/app/onboarding` redirects home once done.
+- **Only when the profile row exists.** Until M1-B2 (sign-up trigger) creates rows, real Google users have none; sending them to a form they can't save would trap them, so they keep seeing the home page.
+- Analytics: `onboarding_completed` (test_type, target_band, exam_date, days_to_exam) after a successful save; the signed-in layout now also sends test_type / target_band / exam_date as PostHog person properties.
+
+**Tests**
+- `onboarding.test.ts` (+11): time zones, local date across zones, range (incl. Feb 29), days between, band format.
+- `e2e/onboarding.spec.ts` (+2): new user → `/app` redirects to onboarding → empty step shows an error → General → 6.5 → Skip → home, DB has the answers + a time zone, onboarding then redirects home; second test with Back keeping the band and a real date saved.
+- `e2e/support/local-supabase.ts`: `createTestUser(name, role, profile)` + `ONBOARDED`; the signed-in auth tests use onboarded users (they expect the home page).
+
+**Verified**
+- `pnpm test` 192/192 ✓; web + shared typecheck and lint ✓.
+- Full Playwright suite against `next dev` + local Supabase (temporary config without the build, which runs out of memory here): **17 passed**, 5 skipped (RLS desktop-only).
+- Screenshots of all 3 steps on mobile (Pixel 7) and desktop checked by eye.
+- **Not verified:** staging with a real Google account (needs M1-B2 for the profile row); the CI build.
+
+**Merge note:** branched from `develop` before M2-F1 (PR not merged yet); both append to `log.md`, so the second merge needs a trivial conflict fix there (keep both entries).
+
+## 2026-11-23 — M2-F3: Home dashboard
+
+**What:** `/app` is now the home dashboard (UI design §home screen): a large time-of-day greeting, a **goal card** (target band, test type, exam countdown), an **AI credits** placeholder, and a 2×2 grid of the four **module tiles** (Reading, Listening, Writing, Speaking), all "Coming soon".
+
+**How**
+- `src/lib/dashboard.ts` (pure, tested):
+  - `dashboardModules`: the four modules in exam order with `status: "soon"`. Later milestones flip one to `"available"` with an `href` (Reading M4, Listening M5, Writing M6, Speaking M7) and the tile becomes a link.
+  - `recommendedModule()`: the green "recommended next" tile from the UI design; the first available module, so none while all are coming soon.
+  - `greeting(hourIn(tz))`: morning / afternoon / evening in the student's saved time zone (from onboarding); "Welcome back" without one. `firstName()` for the greeting.
+  - `examCountdown(exam_date, today)`: days to go / exam day / passed / not booked, with "today" in the student's time zone.
+- `src/components/dashboard/dashboard-cards.tsx`: server components (no client JS). Tiles use `secondary` (light green) and `primary` for the recommended one; coming-soon tiles are plain `div`s with `aria-disabled`, not links. Sections are labelled regions.
+- Credits card: "Coming soon" + the plan name (Free/Gold/Platinum from `profiles.plan`). No balance shown until M3 builds the credits engine.
+- Onboarding redirect from M2-F2 kept; no profile row (M1-B2 not live) → the dashboard still renders with empty values.
+
+**Branching:** stacked on `feature/m2-f2-onboarding` (needs its fields and helpers), with `develop` (M2-F1) merged in; the `log.md` conflict was resolved there by keeping both entries. Merge the M2-F2 PR first; this PR then shows only the M2-F3 changes.
+
+**Tests**
+- `dashboard.test.ts` (+15): modules + recommendation, greeting by hour and time zone, first name, countdown (1 day, 61 days, today, past, none), labels.
+- `e2e/dashboard.spec.ts` (+2): onboarded student (General, 6.5, exam in 30 days, UTC) sees the greeting, "30 days to go", Free plan credits placeholder and four coming-soon tiles with no links; without a date/time zone → "Not booked yet" and "Welcome back".
+- Existing e2e greeting checks updated (`Welcome, Asha Rao` → `…, Asha`); `createTestUser` can now set `timezone`.
+
+**Verified**
+- `pnpm test` 215/215 ✓; web typecheck and lint ✓.
+- Full Playwright suite against `next dev` + local Supabase: **31 passed**, 5 skipped (RLS desktop-only). Your own `next dev` was running on :3000 and Next allows one dev server per folder, so it ran from a temporary git worktree on :3200 (removed afterwards).
+- Screenshots on mobile and desktop checked by eye.
+- **Not verified:** staging (needs M1-B2 for real users' profile rows); the CI build.

@@ -21,6 +21,7 @@ export const routes = {
   authCallback: "/auth/callback", // M1-F1, Google OAuth return (docs/auth.md)
   app: "/app", // signed-in home (M1-F1 placeholder)
   profile: "/app/profile", // M1-F3
+  onboarding: "/app/onboarding", // M2-F2: 3 steps after the first sign-in
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)

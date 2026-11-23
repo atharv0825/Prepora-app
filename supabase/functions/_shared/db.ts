@@ -155,6 +155,14 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_waitlist_by_country: {
+        Args: never
+        Returns: {
+          country_code: string
+          invited: number
+          waiting: number
+        }[]
+      }
       get_launch_status: {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]

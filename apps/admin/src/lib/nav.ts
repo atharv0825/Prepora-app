@@ -4,6 +4,7 @@ import {
   Coins,
   FileClock,
   Gauge,
+  Globe,
   Headphones,
   type LucideIcon,
   Mic,
@@ -135,6 +136,7 @@ export const navGroups: NavGroup[] = [
         label: "Waitlist",
         icon: ClipboardList,
         milestone: "M2",
+        built: true, // M2-A2: list by country and status, CSV export
         summary: "Beta waitlist by country, CSV export and invites.",
         features: [
           "Sign-ups by country and source",
@@ -148,16 +150,28 @@ export const navGroups: NavGroup[] = [
     title: "Business",
     items: [
       {
+        slug: "countries",
+        label: "Countries",
+        icon: Globe,
+        milestone: "M2",
+        built: true, // M2-A2: launch waves, one switch per country
+        summary: "Launch waves: switch sign-up on or off per country.",
+        features: [
+          "Countries grouped by launch wave",
+          "Enable or disable sign-up per country",
+          "People waiting per country",
+        ],
+      },
+      {
         slug: "plans",
         label: "Plans & pricing",
         icon: ScrollText,
         milestone: "M3",
-        summary: "Credits, allowances and caps per plan; regional prices; launch waves.",
+        summary: "Credits, allowances and caps per plan; regional prices.",
         features: [
           "Monthly credits, allowances and daily caps per plan",
           "Credit cost per action",
           "Regional prices, exam packs, top-ups",
-          "Enable or disable countries (launch waves)",
         ],
       },
       {

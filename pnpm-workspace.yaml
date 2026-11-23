@@ -8,4 +8,5 @@ allowBuilds:
   workerd: true         # Cloudflare Workers runtime binary (local preview)
   sharp: false          # image optimisation is off on Cloudflare Workers
   unrs-resolver: false
+  core-js: false        # postinstall only prints a donation message (via posthog-js)
 

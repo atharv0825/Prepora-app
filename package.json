@@ -11,6 +11,11 @@
     "deploy:admin": "pnpm --filter @prepora/admin run deploy --env staging",
     "db:types": "node scripts/gen-db-types.mjs",
     "db:types:linked": "node scripts/gen-db-types.mjs --linked",
-    "db:types:check": "node scripts/gen-db-types.mjs --check"
+    "db:types:check": "node scripts/gen-db-types.mjs --check",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "5.1.1"
   }
 }

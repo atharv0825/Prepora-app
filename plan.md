@@ -53,7 +53,7 @@ Each step has an ID for tracking it in GitHub Issues or a project board:
 | # | Milestone | Backend track | Frontend track | Admin track | Weeks |
 |---|---|---|---|---|---|
 | M0 | Foundations | Supabase projects, migration pipeline, Edge Function template | Next.js app shell, design system, layout | Admin app shell | 1 |
-| M1 | Authentication | Supabase Auth (Google, email OTP), profiles, RLS | Sign-up, login, logout, session handling | Admin login + role guard | 2 |
+| M1 | Authentication | Supabase Auth (Google only), profiles, RLS | Sign-up, login, logout, session handling | Admin login + role guard | 2 |
 | M2 | Onboarding & country gate | Profile fields, `country_regions`, waitlist | Onboarding flow, waitlist page, home dashboard | Users list, country waves | 2–3 |
 | M3 | Plans & credits engine | `plans`, `credit_*` tables, `spend_credits`, monthly grants | Credit balance, allowance meters, plan badge | Plans/credits editor, grant credits | 3 |
 | M4 | Reading | Reading tables, `grade-test`, band conversion | Reading test UI, results, history | Reading test builder | 3–4 |
@@ -115,18 +115,18 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 |---|---|---|
 | M1-C1 | Contract | Migration: `profiles` table (id, full_name, role, plan, country_code, timezone, created_at) + RLS (user reads/updates own row; role can't be self-edited). |
 | M1-C2 | Contract | Shared types: `Profile`, `Role`; auth event names (`signup_completed`, `login_completed`). |
-| M1-B1 | Backend | Enable Supabase Auth: Google OAuth + email OTP. Set redirect URLs for local, preview, staging and prod. |
+| M1-B1 | Backend | Enable Supabase Auth: Google OAuth only (email OTP dropped 2026-11-22; email provider off). Set redirect URLs for local, preview, staging and prod. |
 | M1-B2 | Backend | Trigger: create a `profiles` row on new `auth.users` (default plan `free`, role `user`). |
 | M1-B3 | Backend | Postgres helper `is_admin()` for RLS; seed one admin account. |
-| M1-B4 | Backend | Auth email templates (OTP) with Prepora branding; custom SMTP (Resend) to avoid the default rate limit. |
-| M1-F1 | Frontend | Sign-up and login pages: "Continue with Google" + email OTP (enter email → enter 6-digit code). |
+| M1-B4 | Backend | ~~Auth email templates (OTP) + custom SMTP~~ Not needed while sign-in is Google only (no auth emails). Revisit SMTP when the app sends its own emails. |
+| M1-F1 | Frontend | Sign-up and login pages: "Continue with Google" (the only method). |
 | M1-F2 | Frontend | Session handling with `@supabase/ssr`: middleware that refreshes the session and protects `/app/*` routes. |
 | M1-F3 | Frontend | Logout, "account" menu, basic profile page (name). |
 | M1-F4 | Frontend | Identify the user in PostHog and Sentry after login. |
 | M1-A1 | Admin | Admin login (same Supabase Auth) + middleware that allows only `role in (admin, content_editor)`. |
-| M1-I1 | Integration | Playwright: sign up with email OTP (using local Supabase's Inbucket mailbox) → land on `/app`. RLS test: user A can't read user B's profile. |
+| M1-I1 | Integration | Playwright: signed-in user (created with the service role on local Supabase, since Google can't be automated) → lands on `/app`; signed-out → redirected to login. RLS test: user A can't read user B's profile. |
 
-**Exit:** a new user signs up with Google or email OTP on staging; a non-admin is blocked from the admin panel.
+**Exit:** a new user signs up with Google on staging; a non-admin is blocked from the admin panel.
 
 ---
 

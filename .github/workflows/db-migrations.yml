@@ -43,12 +43,19 @@ jobs:
     name: Apply migrations to a fresh DB
     runs-on: ubuntu-latest
     steps:
+      # Supabase's fixed host ports (54320-54329, supabase/config.toml) sit inside Linux's default
+      # ephemeral range (32768-60999). An outgoing connection (e.g. an image pull) can grab one
+      # first: "failed to bind host port 0.0.0.0:54322/tcp: address already in use". Move the
+      # ephemeral range above them before anything starts.
+      - name: Keep Supabase ports out of the ephemeral range
+        run: sudo sysctl -w net.ipv4.ip_local_port_range="60000 65535"
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       # Starts only Postgres, applies every migration + seed. Fails the job on any SQL error.
-      - run: supabase db start
+      - name: Start Postgres (one retry for transient Docker errors)
+        run: supabase db start || { echo "::warning::supabase db start failed; retrying once"; supabase stop --no-backup || true; supabase db start; }
       - run: supabase db lint --level error
       # pgTAP tests in supabase/tests (RLS + function behaviour).
       - run: supabase test db

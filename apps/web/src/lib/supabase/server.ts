@@ -22,7 +22,7 @@ export async function createClient() {
           }
         } catch {
           // Called from a Server Component, where cookies are read-only. Safe to ignore:
-          // the session refresh in proxy.ts (M1-F2) writes the cookies instead.
+          // the session refresh in src/middleware.ts (M1-F2) writes the cookies instead.
         }
       },
     },

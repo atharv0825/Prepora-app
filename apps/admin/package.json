@@ -17,10 +17,15 @@
     "@opennextjs/cloudflare": "1.20.18",
     "@prepora/shared": "workspace:*",
     "@prepora/ui": "workspace:*",
+    "@sentry/core": "11.16.0",
+    "@sentry/nextjs": "11.16.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.119.2",
     "lucide-react": "^1.77.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
@@ -31,6 +36,7 @@
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
+    "vitest": "5.1.1",
     "wrangler": "^4.148.0"
   }
 }

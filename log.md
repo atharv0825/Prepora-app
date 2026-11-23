@@ -851,3 +851,668 @@ Branch `feature/m0-a1-admin-shell` (from `develop` after PR #9). Read the user's
 - **Not verified:** Linux/OpenNext build + wrangler dry run (Docker Desktop wasn't running; didn't start it). The PR's `Admin` workflow runs exactly that build.
 
 **Note:** there's no authentication until M1-A1. The shell contains no user data, but consider Cloudflare Access on `admin-staging.prepora.site` until then.
+
+---
+
+## 2026-11-22 — M0-A1 follow-up: Linux/Cloudflare build verified
+
+The A1 entry left the Linux/OpenNext build unverified (Docker was off). Docker was running now, so it was run (same steps as CI, `node:24-bookworm`, read-only repo copy, no `.env.local`):
+- frozen install ✓, admin lint ✓, admin typecheck ✓, **admin OpenNext build ✓**
+- `wrangler deploy --dry-run --env staging` (admin) → 1.18 MB gzipped, `WORKER_SELF_REFERENCE (prepora-admin-staging)` ✓
+- web OpenNext build still ✓ (after moving the Cloudflare preflight into the composite action)
+
+---
+
+## 2026-11-22 — M0-I1: CI pipelines: unit tests + Cloudflare preview per PR
+
+**Goal (plan.md):** GitHub Actions: lint, type-check, unit tests, build, Cloudflare preview deploy per PR, deploy to staging on develop.
+
+Branch `feature/m0-i1-ci`, **stacked on `feature/m0-a1-admin-shell`** (PR not merged yet; I1 edits its `admin.yml`). Merge A1 first.
+
+Already in place before this step: lint, type-check, build, staging deploy on `develop` (web, admin, functions, migrations). New here:
+
+**Unit tests (Vitest 5.1.1, 4 days old → passes the age rule)**
+- Root `vitest.config.mts` (`.mts` avoids Vite's CJS warning); `pnpm test` / `pnpm test:watch`. Tests sit next to the code (`*.test.ts`, relative imports) plus `tests/` for cross-package checks.
+- Vitest also added as a devDependency of shared, web and admin (pnpm only lets a package import its own deps; their type-checks include the test files). Deduped, nothing new downloaded.
+- **37 tests in 6 files:**
+  - `packages/shared/src/api/waitlist.test.ts`: lowercases/trims, rejects bad emails, 254-char limit (same as DB), source ≤ 64.
+  - `packages/shared/src/api/errors.test.ts`: `isApiErrorBody` accepts the Edge Function shape, rejects 9 malformed values.
+  - `apps/web/src/lib/routes.test.ts`: `isActive` (root exact, hash links never active, prefix not look-alike); every main nav link is a known route.
+  - `apps/web/.../showcase/shared.test.ts`: `mmss`, `typed`.
+  - `apps/admin/src/lib/nav.test.ts`: 12 modules with unique slugs, milestones and features; dashboard excluded from section pages; `findModule`; `isActive`.
+  - **`tests/contract.test.ts`**: the frontend copies must match the Deno Edge Functions (which can't import `packages/shared`): pinned region vs `_shared/region.ts`, API error codes vs `_shared/errors.ts` (parsed as text).
+- **Mutation check:** set the shared region to `ap-south-1` → contract test failed as expected; reverted → 37/37 pass.
+- New workflow **`unit-tests.yml`**: every PR + push to `develop`, `pnpm install --frozen-lockfile` + `pnpm test`. No path filter (seconds; shared code affects everything).
+
+**Preview per PR (web + admin)**
+- Mechanism: `opennextjs-cloudflare upload --env staging -- --preview-alias pr-<n> --tag pr-<n>` = `wrangler versions upload`: the PR build becomes a new **version** of the staging Worker with an alias URL `https://pr-<n>-prepora-<app>-staging.<subdomain>.workers.dev`. **Staging traffic is not touched**, nothing to clean up, no per-PR DNS records/certificates. Checked in OpenNext's source that args after `--` are passed through to Wrangler; dry run in Docker reached `versions upload` with the alias flags.
+- New `preview` job in `web.yml` and `admin.yml` (PRs from this repo only; forks have no secrets): download build artifact → shared preflight → upload → extract URL → **one sticky PR comment per app** (`actions/github-script`, marker comment, updated on every push) + job summary. Job permissions: `contents: read`, `pull-requests: write`.
+- `wrangler.jsonc` (web + admin): `"preview_urls": true` for `env.staging` only (top level and production stay off).
+- **Requires a `workers.dev` subdomain on the Cloudflare account** (one-time; the account has none, which is the same thing that blocked the first web deploy). The cf CLI has no command for it and Wrangler isn't logged in, so it's a manual dashboard step. Until then the preview job fails with exactly that instruction.
+- Tested offline: the upload step with a stubbed `pnpm` (success → URL extracted to `$GITHUB_OUTPUT`; "subdomain" failure → instruction + exit 1); the comment script in Node against a fake GitHub API (no comment → create; existing marker → update the same comment).
+- Escaping trap: embedding the JS comment script via Python turned `"\n"` into real newlines (broke the YAML twice); now uses `String.fromCharCode(10)`. All workflows parse.
+
+**Also**
+- `docs/ci.md`: overview of every workflow, previews, shared pieces, secrets/variables.
+- Regenerating `apps/web/cloudflare-env.d.ts` would have pulled in a reference to `./.open-next/worker` (present only after a local build), which could break CI's pre-build type-check → reverted, not committed.
+
+**Verified**
+- `pnpm test` 37/37 ✓; typecheck web/admin/shared ✓; lint web/admin ✓; all workflow YAML parses; `wrangler types` accepts both edited configs.
+- **Not verified:** a real preview upload. It needs the workers.dev subdomain and runs on the next PR. The admin preview also needs the admin Worker to exist (after A1's first staging deploy).
+
+**Manual steps for you**
+1. Cloudflare dashboard → **Workers & Pages** → find **"Your subdomain"** (account details / settings) → choose a name (e.g. `prepora`). One-time, free.
+2. Merge PR A1 (admin shell), then this PR. On this PR the preview job will show the URL in a PR comment.
+
+## 2026-11-22 — M0-I2: Sentry and PostHog connected (no events yet)
+
+**Goal (plan.md):** Sentry and PostHog projects created and connected (no events yet).
+
+Branch `feature/m0-i2-observability`, **stacked on `feature/m0-i1-ci`** (which is stacked on A1). Merge order: A1 → I1 → I2.
+
+**Code is wired and off until keys exist.** Creating the Sentry/PostHog accounts and projects is a dashboard step for you (see below and `docs/observability.md`).
+
+**Packages** (all older than 24 h): `@sentry/nextjs` 11.16.0 + `@sentry/core` 11.16.0 (web, admin), `posthog-js` 1.453.1 (web). `pnpm-workspace.yaml`: `core-js: false` (posthog-js dependency; its postinstall only prints a donation message).
+
+**Shared contract (`packages/shared`)**
+- `src/analytics.ts`: the PostHog event contract from Implementation Plan §7. 22 events with typed properties, plus `AnalyticsPerson` for identify. A runtime list is type-checked against the interface. Exported as `@prepora/shared/analytics`.
+- `src/observability.ts`: `appEnvironment(hostname)` (localhost → development, `*.workers.dev` → preview, `staging.`/`admin-staging.` → staging, else production), `releaseName()` → `prepora-<app>@<version>+<sha7>`, and Sentry privacy defaults (`dataCollection`: no automatic user info, cookies, bodies or query strings; tracing 0).
+- Tests: `analytics.test.ts`, `observability.test.ts` (+13 tests).
+
+**Sentry (web + admin)**
+- Browser: `src/instrumentation-client.ts` (`@sentry/nextjs`), disabled without `NEXT_PUBLIC_SENTRY_DSN` and on localhost; captures router transitions.
+- Server: new Worker entry `worker.mjs` = `withSentry` (`@sentry/nextjs/cloudflare`) around `.open-next/worker.js` (re-exports OpenNext's Durable Objects); `wrangler.jsonc` `main` points to it. DSN/release come from Worker vars `SENTRY_DSN` / `SENTRY_RELEASE`.
+- `src/instrumentation.ts` `onRequestError` and the `error.tsx` / `global-error.tsx` pages use **`@sentry/core`'s `captureException`**, not `@sentry/nextjs`. The first version used `@sentry/nextjs` there, as Sentry's docs suggest, and pushed the Worker from 1.34 → **2.61 MB gzipped** (free limit 3 MB). The bundle metafile showed two ~1.4 MB copies of the Node SDK + OpenTelemetry, one from instrumentation and one from the SSR of `error.tsx`. `@sentry/core` reaches the same client through Sentry's global carrier (same version), so nothing is lost on Workers. Locally (`next dev`) server errors aren't sent.
+- `next.config.ts`: `withSentryConfig` (telemetry off; source-map upload disabled until `SENTRY_AUTH_TOKEN` exists) + `NEXT_PUBLIC_SENTRY_RELEASE`.
+- Edge Functions: already done in M0-B3; they only need the `SENTRY_DSN` secret.
+
+**PostHog (web only; the admin doesn't track staff)**
+- Initialised in `instrumentation-client.ts` only when `NEXT_PUBLIC_POSTHOG_KEY` is set and not on localhost. Autocapture, pageviews, pageleave, exceptions and session replay are **off**. `person_profiles: identified_only`, `persistence: memory` (no cookies/localStorage until the cookie notice, plan §7). Registers `environment` and `app_version`.
+- `apps/web/src/lib/analytics`: typed `track()`, `identify()`, `resetAnalytics()`; no-ops when PostHog isn't loaded. No call sites yet: **no events**.
+
+**CI (`web.yml`, `admin.yml`)**
+- Repository variables → build env: `SENTRY_DSN_WEB` / `SENTRY_DSN_ADMIN` → `NEXT_PUBLIC_SENTRY_DSN`; `POSTHOG_KEY`, `POSTHOG_HOST` (web).
+- New "Sentry Worker variables" step before upload/deploy: `--var SENTRY_RELEASE:prepora-<app>@<version>+<sha7>`, plus `--var SENTRY_DSN:…` when set. PR previews also get `--var APP_ENV:preview`. I checked OpenNext's `deploy` source, which passes the args after `--` through to `wrangler deploy`.
+- Docs: new `docs/observability.md` (what runs where, setup steps, how to check); `docs/ci.md` variables; `.env.example` for web and (new) admin.
+
+**Verified**
+- `pnpm test` 50/50 ✓; typecheck shared/web/admin ✓; lint web/admin ✓.
+- Linux Docker (`node:24-bookworm`, frozen install, same as CI): OpenNext build ✓ for both. `wrangler deploy --dry-run --env staging --var SENTRY_DSN:…`: **web 1.52 MB gzipped** (was 1.34), **admin 1.35 MB** (was 1.18).
+- Linux Docker smoke test: built web Worker under `wrangler dev --env staging` with a fake DSN → `/` 200, `/status` 200, `/does-not-exist` 404, no errors in the log. The wrapped entry boots and serves.
+- The local Windows OpenNext build fails with "Access is denied" on pnpm symlinks in `.open-next/server-functions`, a known Windows issue unrelated to this change. Use Docker/CI.
+- **Not verified:** a real event reaching Sentry or PostHog (no projects/keys yet; by design no events are sent), and the CI `--var` steps on a real runner (they run on this PR).
+
+**Manual steps for you** (details in `docs/observability.md`)
+1. Sentry: create projects `prepora-web`, `prepora-admin` (Next.js) and `prepora-functions` (Deno). Add GitHub **variables** `SENTRY_DSN_WEB` and `SENTRY_DSN_ADMIN`. Run `supabase secrets set SENTRY_DSN=<functions DSN> --project-ref <staging ref>` yourself.
+2. PostHog: create the project and pick a region (it's permanent). Add GitHub variables `POSTHOG_KEY` (`phc_…`) and `POSTHOG_HOST` (`https://us.i.posthog.com` or `https://eu.i.posthog.com`). In project settings, also turn off autocapture and replay.
+3. Re-run the Web and Admin workflows on `develop` after adding the variables (keys are baked in at build time).
+
+## 2026-11-22 — M1-C1: profiles table + RLS
+
+**Goal (plan.md):** Migration: `profiles` table (id, full_name, role, plan, country_code, timezone, created_at) + RLS (user reads/updates own row; role can't be self-edited).
+
+Branch `feature/m1-c1-profiles` from `develop` (A1, I1, I2 are merged).
+
+**Migration `supabase/migrations/20261122100148_profiles.sql`**
+- Enums: `app_role` (`user`, `admin`, `content_editor`) and `plan_tier` (`free`, `gold`, `platinum`), values from Implementation Plan §4. Enums give the generated TS types exact unions.
+- `profiles` columns:
+  - `id uuid` PK → `auth.users(id) on delete cascade`.
+  - `full_name` (1–100 characters, not blank).
+  - `role` (default `user`) and `plan` (default `free`), both not null.
+  - `country_code char(2)` (`^[A-Z]{2}$`).
+  - `timezone` (IANA name, checked against `pg_timezone_names` by a trigger, since a CHECK can't query the catalog).
+  - `created_at`, plus **`updated_at`** (not in the step text; the trigger keeps it current).
+- Later columns (`test_type`, `target_band`, `exam_date`, `plan_expires_at`) come with their own milestones.
+- **Security:**
+  - RLS policies: `authenticated` may select and update only where `(select auth.uid()) = id`.
+  - Column privileges: `authenticated` may update **only** `full_name`, `country_code` and `timezone`, so `role` and `plan` (and `id`) can't be changed by the user at all. That's stronger than a policy check: the database refuses with 42501.
+  - Plan stays server-only, as §4 requires (billing Edge Functions use the service role).
+  - No insert/delete grants: rows come from the auth trigger (M1-B2) and go with the user.
+  - `anon` has no access.
+- `role`/`plan` changes by admins go through the service role for now; `is_admin()` policies come in M1-B3.
+
+**Tests `supabase/tests/database/profiles.test.sql` (26 pgTAP)**
+- Structure, defaults, enum values, FK.
+- anon can't read.
+- User A sees only their own row and can't read B's; A can update name/country/timezone; an update aimed at B's row changes nothing.
+- Role, plan and id changes → 42501; insert/delete → 42501; unknown time zone → 22023; lowercase country and blank name → 23514.
+- Values saved correctly, B unchanged, `updated_at` moves, deleting the auth user deletes the profile.
+- Profiles are inserted with `on conflict do nothing`, so the tests keep working once M1-B2's trigger creates them.
+
+**Types**
+- `pnpm db:types` regenerated `packages/shared/src/db.ts` and `supabase/functions/_shared/db.ts` (profiles + enums). `db:types:check` is up to date.
+- `analytics.ts` `Plan` now uses the DB enum `plan_tier` instead of a copied union.
+
+**Verified**
+- Local `supabase db reset` applies all 3 migrations ✓; `supabase test db` 38/38 ✓ (26 profiles + 12 waitlist); `supabase db lint --level error` no errors ✓.
+- **Mutation check:** changed the grant to `grant update on table` (all columns) → "cannot change own role", "cannot change own plan" and "role and plan untouched" failed as expected; reverted → all pass.
+- typecheck shared/web/admin ✓; `pnpm test` 50/50 ✓.
+- **Not verified:** applying to staging. The DB migrations workflow does that when this merges to `develop`.
+
+**Note:** the user says Google OAuth is already enabled on the hosted Supabase project (client ID/secret set). The local `config.toml` and the redirect URLs are M1-B1.
+
+## 2026-11-22 — M1-C2: shared Profile/Role types + auth events
+
+**Goal (plan.md):** Shared types: `Profile`, `Role`; auth event names (`signup_completed`, `login_completed`).
+
+Branch `feature/m1-c2-shared-types` from `develop` (C1 merged).
+
+**`packages/shared/src/types/profile.ts`** (new export `@prepora/shared/types/*`)
+- `Profile` = generated `Tables<"profiles">`. `Role` and `Plan` = the DB enums `app_role` and `plan_tier`. They follow the migration automatically through `pnpm db:types`; no copied unions.
+- `roles`, `plans` (runtime lists from the generated `Constants`); `staffRoles` (`admin`, `content_editor`) with `isStaff()` / `isAdmin()` type guards for the admin middleware (M1-A1).
+- `editableProfileFields` = `full_name`, `country_code`, `timezone`, the same as the DB column grant.
+- `ProfileUpdate` zod schema for the account page (M1-F3):
+  - Trims the name (1–100 characters) and uppercases the country, which must be 2 letters.
+  - Checks the time zone with `Intl.DateTimeFormat` (works in browsers, Node and Workers).
+  - Each field is optional and can be cleared with null.
+  - **`.strict()`, so `role`/`plan`/`id` are rejected.** The DB refuses them anyway (42501).
+
+**`packages/shared/src/analytics.ts`**
+- `AuthMethod = "google" | "email_otp"` (M1-B1's two methods).
+- `signup_completed { method: AuthMethod; country? }` (was `method: string`); new `login_completed { method: AuthMethod }`; `authEvents` list. Total 23 events.
+- `Plan` is now imported from `types/profile`.
+
+**Tests** (+15)
+- `types/profile.test.ts`: enum lists, guards, normalisation, partial/null, rejects role/plan/id, invalid name/country/timezone, schema keys = editable fields.
+- `analytics.test.ts`: auth events present.
+- **`tests/contract.test.ts`**: parses the migrations, finds the single `grant update (…) on table public.profiles to authenticated`, and requires it to equal `editableProfileFields` (and never contain role/plan). A later migration that changes the grant must update both.
+- Mutation check: added `"plan"` to `editableProfileFields` → contract test failed; reverted → passes.
+
+**Verified**
+- `pnpm test` 65/65 ✓ (9 files); typecheck shared/web/admin ✓; lint web ✓.
+- No DB change in this step, so the DB tests are unaffected.
+- Same Python `"\n"` → real newline trap as in I1 while editing the test; fixed with `String.fromCharCode(10)`.
+
+## 2026-11-22 — M1-B1: Supabase Auth (Google OAuth + email OTP), redirect URLs
+
+**Goal (plan.md):** Enable Supabase Auth: Google OAuth + email OTP. Set redirect URLs for local, preview, staging and prod.
+
+Branch `feature/m1-b1-auth-config` from `develop` (C2 merged). The user had already enabled Google on the hosted staging project (client ID/secret set).
+
+**Local (`supabase/config.toml`)**
+- `site_url` = `http://localhost:3000`. Redirect allowlist: `localhost` and `127.0.0.1` on `:3000` (web) and `:3001` (admin), as `/**` globs. The old default `https://127.0.0.1:3000` was wrong (https).
+- Email OTP: `otp_length` 6, `otp_expiry` 3600 → **600** (10 min), `max_frequency` 1s → **60s** (same as hosted; drives the resend button).
+- OTP templates: `confirmation` (new users) and `magic_link` (existing users) → `supabase/templates/otp-code.html` with `{{ .Token }}`. Minimal for now; branded in M1-B4.
+- `[auth.external.google]` enabled with `env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET)` from the gitignored `supabase/.env`. New `supabase/.env.example`. Supabase starts fine without them; email OTP still works.
+
+**Shared contract `packages/shared/src/constants/auth.ts`**
+- `OTP_LENGTH`, `OTP_EXPIRY_SECONDS`, `OTP_RESEND_SECONDS`, `AUTH_CALLBACK_PATH` (`/auth/callback`), and `DEFAULT_NEXT_PATH` (web `/app`, admin `/`).
+- `safeNextPath()`: only same-site relative paths. It rejects `//x`, `/\x`, absolute URLs, `javascript:`, control characters (tab/newline) and > 512 characters, so the callback can't become an open redirect.
+- `authCallbackUrl(origin, next)` and `normaliseOtp()` (allows spaces/dashes, exactly 6 digits).
+- Tests: `constants/auth.test.ts` (20). `tests/contract.test.ts` (+3) checks OTP length/expiry/resend against `config.toml`, that Google is enabled with an env secret, and that both OTP templates contain `{{ .Token }}`.
+
+**Hosted (dashboard; can't be changed from here)**
+- `docs/auth.md` lists the exact values per environment:
+  - staging Site URL and redirect allowlist, including PR preview globs;
+  - OTP settings and the Google authorized redirect URI;
+  - the template change;
+  - production values for launch.
+- Preview globs need the real workers.dev subdomain. Using `*` for it would let anyone with their own workers.dev account become a redirect target, so the doc says not to.
+- `config.toml` `[remotes]` / `supabase config push` were not used: pushing would overwrite other hosted auth settings, and the CLI isn't linked.
+
+**Verified**
+- `supabase stop/start` with the new config ✓ (no Google env vars present).
+- Local GoTrue end to end:
+  - `/settings` → google ✓, email ✓.
+  - `POST /otp` → 200; Mailpit email "Your Prepora sign-in code" with a 6-digit code; `POST /verify` → 200 with session.
+  - Reusing the code → 403; resend within 60 s → 429.
+- Redirect allowlist (local, read from `auth.flow_state.referrer`): `localhost:3000/auth/callback?next=/app` and `localhost:3001/auth/callback` kept; `https://evil.example/steal` and `http://localhost:3000.evil.example/x` → fell back to the site URL.
+- Hosted staging (public `/auth/v1/settings`, publishable key): google ✓, email ✓, signup enabled. The authorize redirect sends `redirect_uri=https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback` to Google. The hosted allowlist and templates are not readable from outside → **not verified**.
+- `pnpm test` 88/88 ✓; typecheck shared ✓. Mutation check: `otp_expiry` → 3600 in config → contract test failed; reverted.
+- Tooling note: in this environment, Bash heredocs turned `\` into `\` (broke a regex and test strings). Fixed with the Edit tool; files with backslashes should be edited that way.
+
+**Manual steps for you** (`docs/auth.md`, "Staging")
+1. Supabase → Authentication → URL Configuration: Site URL `https://staging.prepora.site`, plus the 4 redirect URLs (replace `<subdomain>` with your workers.dev subdomain).
+2. Email provider: OTP length 6, expiration 600 s.
+3. Google Cloud OAuth client: confirm `https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback` is an authorized redirect URI. For local Google sign-in, also add `http://127.0.0.1:54321/auth/v1/callback` and fill `supabase/.env`.
+4. Email Templates: put `supabase/templates/otp-code.html` into **Confirm signup** and **Magic Link**.
+
+## 2026-11-22 — M1-B1 (revised): Google only, email OTP removed
+
+**Request:** "remove OTP sign in i only want is oauth sign in and sign up". Same branch `feature/m1-b1-auth-config` (not merged yet), new commit on top.
+
+**Changes**
+- `supabase/config.toml`:
+  - `[auth.email] enable_signup = false` disables the whole email provider (OTP, magic link, password).
+  - Removed the OTP template blocks and `supabase/templates/otp-code.html`.
+  - OTP length/expiry/frequency back to the CLI defaults (unused now).
+  - `[auth] enable_signup` stays `true`, because Google creates the accounts.
+- `packages/shared/src/constants/auth.ts`: removed `OTP_*` and `normaliseOtp`; added `AUTH_PROVIDER = "google"`. `safeNextPath` / `authCallbackUrl` / `AUTH_CALLBACK_PATH` stay.
+- `analytics.ts`: `AuthMethod = "google"`.
+- `tests/contract.test.ts`, rewritten auth section:
+  - sign-up open;
+  - email provider off and no email templates;
+  - Google enabled with an env secret;
+  - **Google is the only enabled method** (scans every `[auth.external.*]`, `[auth.web3.*]` and `[auth.sms]` table) and anonymous sign-in is off.
+- `docs/auth.md` rewritten for Google only. Staging now needs **Email provider turned off** (it's on today: public settings show `email: true`).
+- **plan.md** (M1 row, B1, B4, F1, I1, exit) and Implementation Plan (architecture box, checklist): email OTP replaced.
+  - B4 (OTP templates + SMTP) marked not needed while there are no auth emails.
+  - I1's Playwright test now uses a user created with the service role, since Google can't be automated.
+
+**Verified**
+- Local Supabase restarted with the new config. `/settings` → google ✓, email ✗.
+  - `POST /otp` for a new and an existing user → 422 "Email logins are disabled".
+  - Password signup → 400 "Email signups are disabled"; password login → 422.
+  - Google authorize → 302 to accounts.google.com.
+  - The service role can still create users (`/admin/users` → 200), for tests and seeds.
+- `pnpm test` 84/84 ✓; typecheck shared ✓.
+- Mutation checks: enabling `[auth.external.apple]` → "no other sign-in method" failed; `[auth.email] enable_signup = true` → "email provider is off" failed; both reverted.
+- **Not verified:** the staging dashboard (Email still on until you switch it off).
+
+## 2026-11-22 — M1-F1: Sign-up and login pages ("Continue with Google")
+
+**Goal (plan.md):** Sign-up and login pages: "Continue with Google" (the only method).
+
+Branch `feature/m1-f1-auth-pages` from `develop` (B1 incl. the Google-only revision merged).
+
+**Pages and route (apps/web)**
+- `(auth)/layout.tsx`: logo bar on mint with the grid texture and the content centred; no site nav; safe-area bottom padding.
+- `/login` ("Welcome *back*") and `/signup` ("Start practising *free*", plus a Terms/Privacy line). Both use `components/auth/auth-panel.tsx`:
+  - the heading;
+  - an error banner (only for our own codes: `cancelled`, `callback`, `config`; anything else in `?error=` is ignored);
+  - the Google button and a link to the other page, which keeps `?next=`.
+  - Signed-in visitors are redirected to `next`.
+- `components/auth/google-button.tsx` (client):
+  - Calls `signInWithOAuth({ provider: AUTH_PROVIDER, redirectTo: authCallbackUrl(origin, next, "/app"), queryParams: { prompt: "select_account" } })`.
+  - Loading state "Opening Google…"; a toast and reset if Google can't be reached.
+  - Google "G" mark in standard colours.
+- **`/auth/callback` route handler:**
+  - `?code=` → `exchangeCodeForSession` (sets cookies) → safe `next`.
+  - `?error=access_denied` → `/login?error=cancelled`; other errors, a missing code or a failed exchange → `/login?error=callback`; Supabase not configured → `config`. `next` is kept on errors.
+- `/app`: placeholder signed-in home ("Welcome, *name*", from Google's `full_name`/`name`, else the email). Signed-out visitors → `/login?next=/app`. M1-F2 moves this guard into proxy.ts for all of `/app/*`.
+- `lib/auth.ts`: pure helpers `callbackStep`, `nextPath`, `loginUrlWithError`, `authErrorMessage` (uses `Object.hasOwn`, so `?error=toString` isn't treated as a known code).
+- `lib/supabase/session.ts`: `getCurrentUser()` (uses `getUser()`, which validates with Supabase; returns null when Supabase isn't configured).
+- `routes.ts`: `authCallback`, `app`. **`waitlistMode` → `false`**, as its comment planned for M1, so the header shows "Log in" + "Start free". While Google's consent screen is in Testing, only test users can actually sign in. The landing hero still has the waitlist form.
+
+**Tests** (+12): `lib/auth.test.ts` (callback outcomes, unsafe next → `/app`, error mapping, unknown codes); `routes.test.ts` (`authCallback` = `AUTH_CALLBACK_PATH`, `app` = `DEFAULT_NEXT_PATH.web`).
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 92/92 ✓.
+- HTTP checks on the running dev server (port 3000, which was already running and points at staging Supabase; a second dev server isn't allowed, and I didn't stop it):
+  - `/login`, `/signup` → 200 with the Google button; `?error=cancelled` shows the message; `?error=<script>` shows nothing.
+  - Cross-links keep `next`.
+  - `/app` signed out → 307 `/login?next=%2Fapp`.
+  - Callback: `access_denied` → `/login?error=cancelled&next=…`; bogus code / no code / `server_error` → `/login?error=callback`; bogus code with `next=//evil.com` → error without the evil next.
+  - Header on `/` now shows "Log in" / "Start free".
+- OAuth request against local Supabase (supabase-js with the button's options): `redirectTo` `http://localhost:3000/auth/callback?next=%2Fapp%2Fwriting`, PKCE `s256`, `prompt=select_account`, 302 to Google; `auth.flow_state.referrer` stored that exact URL (allowlisted, not replaced by the site URL).
+- **Not verified:** a full Google round trip (needs a real Google login), the session cookie after the exchange, and `/app` signed in. Also not checked visually in a browser or on a phone; no OpenNext build in Docker for this step (CI builds it on the PR).
+
+**To test after merge (staging):** with the staging redirect URLs set (docs/auth.md) and your Google account listed as a test user, open https://staging.prepora.site/signup → Continue with Google → you should land on `/app` with your name.
+
+## 2026-11-22 — Diagnosis: Google "Error 401: invalid_client" on staging sign-in
+
+**Symptom (user screenshot):** "Access blocked: Authorization Error. The OAuth client was not found. Error 401: invalid_client".
+
+**Finding:**
+- Staging Supabase sends `client_id=013822775479-q1p8pdm35s4hm7i8a8l8ckc23ljq7qa0.apps.googleusercontent.com`, read from its public `/auth/v1/authorize` redirect.
+- Google says no OAuth client with that ID exists. The cause is the Client ID saved in **Supabase → Authentication → Sign In / Providers → Google**, not the app code or the redirect URIs (a wrong redirect URI gives `redirect_uri_mismatch` instead).
+- The leading `0` is suspicious: Google project numbers don't start with 0, so a stray character was likely pasted. Other possibilities: the client was deleted, or it belongs to another Google Cloud project.
+
+**Fix (user):**
+1. Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs, type **Web application**. Copy its Client ID and secret.
+2. Paste both into the Supabase Google provider and save.
+3. On that client, Authorized redirect URIs must include `https://xvaxqiumdmgdvmbsqcub.supabase.co/auth/v1/callback`.
+
+**Side note:** locally, with no `supabase/.env`, the CLI passes the literal text `env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)` as the client ID, so local Google sign-in fails the same way until that file is filled. Expected, as documented in docs/auth.md.
+
+No code change.
+
+## 2026-11-22 — M1-F1 verified on staging: Google sign-in works end to end
+
+- The user replaced the Supabase Google provider's Client ID and secret with the current Web client (`1013822775479-b5euom…`). Staging's authorize redirect now sends that ID (checked).
+- The user signed in with Google on staging and landed on `/app`: "Welcome, *Atharv Babar*", signed in as their Gmail address (screenshot).
+- This covers the part F1's log left unverified: the Google round trip, the code exchange in `/auth/callback`, the session cookie, and `/app` signed in.
+- Security follow-up for the user: the Google client secret was pasted into the chat. Rotate it in Google Cloud (add a new secret → update Supabase → disable the old one).
+- **Incident (my mistake):** the first push of this branch used `git commit -a`, which also swept in the user's *uncommitted* local edits. Those edits put real Google client values into `supabase/.env.example` (a tracked file; adding it to `supabase/.gitignore` doesn't untrack it). That commit (`84c4a4b`) was pushed to `origin/chore/log-m1-f1-verified`. I reset the branch, re-committed only `log.md` and force-pushed over it. The user's local edits are still in the working tree, uncommitted. **The secret must be rotated regardless:** GitHub can keep the old commit reachable by its SHA. From now on: commit explicit paths only, never `-a`.
+
+## 2026-11-22 — M1-F2: Session middleware, /app/* protected
+
+**Goal (plan.md):** Session handling with `@supabase/ssr`: middleware that refreshes the session and protects `/app/*` routes.
+
+Branch `feature/m1-f2-session-middleware` from `develop` (F1 merged).
+
+**Decision: `src/middleware.ts` (Edge), not Next 16's `proxy.ts`.** `proxy.ts` always runs on Node.js. OpenNext Cloudflare 1.20 detects Node middleware and warns that it is "experimental … not officially maintained … use at your own risk"; Edge middleware is its supported path. Next 16 still runs `middleware.ts` and prints a deprecation notice at build. Revisit when OpenNext supports `proxy.ts` properly.
+
+**Changes (apps/web)**
+- `src/middleware.ts`, following Supabase's SSR guide:
+  - `createServerClient` → `getClaims()`, with nothing in between. That verifies the token and refreshes it when expired.
+  - Refreshed cookies are written to the request (for this render) and the response.
+  - The `Cache-Control: private, no-cache, no-store…` headers that @supabase/ssr passes are applied.
+  - Then `routeDecision`: signed out on `/app/*` → `/login?next=<path+query>`; signed in on `/login`/`/signup` → safe `next` or `/app`.
+  - Redirects carry the refreshed cookies and `private, no-store`, and signed-in responses get `private, no-store`.
+  - Matcher: `/app`, `/app/:path*`, `/login`, `/signup` only. Marketing pages stay static/cacheable; `/auth/callback` sets the session itself.
+- `src/lib/auth-routes.ts`: pure `isProtectedPath` (`/app` and `/app/…`, not `/apple`), `isAuthPage`, `routeDecision`. Tests: `auth-routes.test.ts` (+15).
+- `/login`, `/signup`: removed their own "already signed in" check (middleware does it; saves an Auth call). `/app` keeps `getCurrentUser()` as a second line of defence and to read the name.
+- Comments in `lib/supabase/server.ts` and the `/app` page now say `src/middleware.ts` instead of `proxy.ts`.
+
+**Verified**
+- typecheck web ✓; lint web ✓; `pnpm test` 107/107 ✓.
+- `next build` against local Supabase ✓ (route list shows "ƒ Proxy (Middleware)"). `.next/server/middleware-manifest.json` has an **Edge** middleware with exactly the 4 matchers; `functions-config-manifest` has no Node middleware, so OpenNext uses its supported path.
+- `next start` on :3100 against local Supabase with **real session cookies**. The user was created with the service role, the session minted via admin `generate_link` + `verify` (Google can't be automated), and the cookies encoded by @supabase/ssr itself (`sb-127-auth-token`). Script deleted afterwards.
+  - Signed out: `/app` → 307 `/login`; `/app/writing?task=2` → 307 `/login?next=%2Fapp%2Fwriting%3Ftask%3D2`; `/login` 200; `/` 200, not matched (still `s-maxage` static).
+  - Signed in: `/app` 200 "Welcome"; `/login` → 307 `/app`; `/signup?next=/app/reading` → 307 `/app/reading`; `/login?next=//evil.com` → 307 `/app`. All `private, no-store`.
+  - Expired access token with a valid refresh token: `/app` 200, 1 Set-Cookie with a **new** access token whose expiry is in the future.
+  - Garbage cookie → 307 `/login`. After a global logout, the old refresh token → 307 `/login` and the cookie is cleared.
+- **Not verified:** the OpenNext/Workers build in Docker. Docker Desktop's VM has 3.7 GB RAM, shared with 12 local Supabase containers. Two runs lost the client connection ("unexpected EOF"); one container exited 0 but `--rm` removed its logs before they could be read; the third attempt hit Docker engine 500 errors. The PR's Web workflow runs the same OpenNext build on a clean runner.
+- **Not verified on staging** yet: after merge, sign in → `/app`, open `/login` (should bounce to `/app`), sign out isn't built yet (M1-F3).
+
+## 2026-11-22 — M1-F2 follow-up: Docker/Workers verification done
+
+- First attempts failed in Docker, not in the app. Docker Desktop's VM has 3.7 GB, shared with 12 local Supabase containers; the client lost the connection ("unexpected EOF") and then the engine returned 500 errors.
+- Fix: `docker desktop restart`; `supabase stop` during the build (data kept); container run detached with output to a mounted file.
+- Result (`node:24-bookworm`, frozen install, placeholder public Supabase values):
+  - OpenNext build ✓ (Edge middleware); dry run **1.95 MB gzipped** (was 1.52 MB before F2: the middleware bundles @supabase/ssr + supabase-js; free limit 3 MB).
+  - `wrangler dev --env staging`: `/` 200, `/app` → 307 `/login`, `/app/writing?task=2` → 307 `/login?next=%2Fapp%2Fwriting%3Ftask%3D2`, `/login` 200, `/status` 200.
+- CI also passed for the F2 PR (Web workflow), and the `develop` staging deploy succeeded.
+
+## 2026-11-22 — M1-F3: Logout, account menu, profile page (name)
+
+**Goal (plan.md):** Logout, "account" menu, basic profile page (name).
+
+Branch `feature/m1-f3-account` from `develop` (F2 merged).
+
+**Changes**
+- `packages/ui/src/components/dropdown-menu.tsx`: new dropdown on Base UI `Menu` (Root/Trigger/Content/Item/LinkItem/Label/Separator). Keyboard, focus return and roles come from Base UI. Rounded popup in the design tokens.
+- `apps/web/src/app/(app)/app/layout.tsx`: signed-in shell, a sticky white glass header with the logo and **account menu**. It calls `getAccount()` again (second line of defence after the middleware).
+- `components/account/account-menu.tsx`: avatar button with initials (`aria-label="Account menu for <name>"`); the menu shows name + email, **Profile**, **Log out** (calls the `signOut` server action in a transition: "Logging out…").
+- `/app/profile` + `components/account/profile-form.tsx`:
+  - Name field with `useActionState`: inline field error, form error, a "Name saved" toast, and a Saving… state.
+  - Email shown read-only ("From your Google account").
+  - If the profile row doesn't exist yet (M1-B2's trigger isn't built), a "still being set up" notice is shown and the form is disabled.
+- `lib/account-actions.ts` (`"use server"`):
+  - `signOut()` → `auth.signOut({ scope: "local" })` (this device only), revalidate, redirect `/`.
+  - `updateProfileName()` → `ProfileUpdate` (shared zod, strict) → `getUser()` → `update profiles set full_name` for the caller's row (RLS + column grant from M1-C1).
+  - Zero rows updated → "profile isn't set up yet"; DB error → generic message, logged.
+  - Each action checks the session itself; Server Functions are public endpoints.
+- `lib/supabase/session.ts`: `getCurrentUser` and the new `getAccount` (user + own profile row + display name) are wrapped in React `cache()`, so the layout and page share one Auth call per request.
+- `lib/account.ts`: `displayName()` (profile name → Google name → email → "Account") and `initials()`. Tests: `account.test.ts` (+10).
+- `routes.profile` = `/app/profile`. The `/app` page now uses the layout's header.
+
+**Verified**
+- typecheck web + ui ✓; lint web ✓; `pnpm test` 115/115 ✓; `next build` ✓ (`/app`, `/app/profile` dynamic).
+- `next start` on :3100 against local Supabase. A real session was minted with the service role; server actions were called with **React's own `encodeReply`** (as the browser sends them), using the action IDs from the build manifest.
+  - `/app`: menu button for "Test Student" with initials "TS".
+  - `/app/profile` without a profile row: notice shown, input disabled; the action returns "profile isn't set up yet".
+  - With a row (created with the service role as a stand-in for M1-B2): `"  Asha Rao "` → saved as `Asha Rao`; blank → "Enter your name."; 101 chars → "Use 100 characters or fewer."; extra `role=admin`, `plan=platinum` fields → name saved, **role stays `user`, plan `free`** (checked in the DB).
+  - Menu shows the saved name after revalidation.
+  - Log out → `x-action-redirect: /`, the auth cookie cleared. `/app` with the browser's cookies → 307 `/login`; **replaying the old cookie** → 307 `/login`; the name action after logout doesn't change the DB.
+- Test hiccups (not app bugs):
+  - A `next start` left over from F2's test was still on :3100, so the first run hit the old build. I identified its command line, stopped it, and reran.
+  - My hand-built action body first used the wrong field prefix (`1_` instead of React's `_1_`), so every save looked like "Enter your name". Switched to `encodeReply`.
+- **Not verified:** in a real browser (menu opening, keyboard navigation, toast, mobile layout) or on staging. The staging profile page will show "still being set up" until **M1-B2** (sign-up trigger) creates profile rows.
+
+## 2026-11-22 — M1-A1: Admin login + role guard (admin, content_editor)
+
+**Goal (plan.md):** Admin login (same Supabase Auth) + middleware that allows only `role in (admin, content_editor)`.
+
+Branch `feature/m1-a1-admin-auth` from `develop` (F3 merged; F4 is on its own branch).
+
+**Changes (apps/admin)**
+- Deps: `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.119.2, `server-only`. These are the same versions as web; the lockfile only adds links, no new downloads.
+- `lib/supabase/{env,client,server}.ts`: same pattern as web; same Supabase project and public keys.
+- **`src/middleware.ts`** (Edge, for the same OpenNext reason as web):
+  - `getClaims()` (refreshes the session), then the user's **own** `profiles.role` via RLS.
+  - Matches every path except static files. Every response is `private, no-store`; redirects keep refreshed cookies.
+  - **Fail closed:** no profile row, a lookup error or an unknown role = no access.
+- **`lib/access.ts`** (pure, tested), `accessDecision`:
+  - signed out → `/login?next=…` (`/forbidden` → `/login`);
+  - signed in but not staff → `/forbidden` (also from `/login`);
+  - staff on `/login` or `/forbidden` → safe `next` or `/dashboard`;
+  - `/auth/callback` always passes.
+- `/auth/callback` (code exchange → `next`); `/login` with a real "Continue with Google" button (`components/google-button.tsx`) and known error codes only.
+- **`/forbidden`**: "No admin access", signed in as `<email>`, "Sign out and switch account".
+- `(admin)/layout.tsx`: a **second check** (`getViewer()` = `getUser()` + own role; redirects to `/login` or `/forbidden`) before rendering. The sidebar and mobile menu show name, email, a role badge (Admin / Content editor) and **Sign out** (`components/account-block.tsx`, `sign-out-button.tsx`, `lib/actions.ts` → `signOut({ scope: "local" })` → `/login`).
+- `.env.example` (Supabase URL/key added); `admin.yml` passes the existing `NEXT_PUBLIC_SUPABASE_*` repository variables to the build.
+
+**Verified**
+- typecheck admin ✓; lint admin ✓; `pnpm test` 123/123 ✓ (`access.test.ts` +13; F4's tests aren't on develop yet).
+- Admin `next dev` on :3101 against local Supabase, with **real sessions** for 4 users (service-role created; profile rows inserted with the role as a stand-in for M1-B2/B3) plus anonymous. Paths: `/`, `/dashboard`, `/users?q=a`, `/login`, `/login?next=/users`, `/forbidden`.
+  - anonymous: everything → `/login` (`/users?q=a` keeps `next`); `/login` 200; `/forbidden` → `/login`.
+  - `user` role **and** no profile row: everything → `/forbidden`, including `/login`; `/forbidden` 200 with the "No admin access" page.
+  - `content_editor` and `admin`: `/dashboard` and `/users` 200 with the admin shell; `/login` → `/dashboard`; `/login?next=/users` → `/users`; `/forbidden` → `/dashboard`.
+  - A `user` PATCHing their own `role=admin` through the REST API → **403 / 42501** (M1-C1 column grant); still `/forbidden` afterwards.
+  - Demoting an admin to `user` with the service role → the next request goes to `/forbidden` (the role is read per request).
+- **Not verified:**
+  - The OpenNext build in Docker (machine memory is tight; CI builds it on the PR).
+  - A real Google sign-in on admin-staging.
+  - Clicking Sign out in a browser.
+- **To use on staging:** someone needs a profile row with role `admin`. Rows are created by M1-B2's trigger (not built yet), and M1-B3 seeds the first admin. Until then, `admin-staging.prepora.site` shows "No admin access" for everyone, which is the intended fail-closed behaviour.
+
+## 2026-11-22 — M1-I1: Playwright end-to-end tests + RLS through the API
+
+**Goal (plan.md):** Playwright: signed-in user (created with the service role on local Supabase, since Google can't be automated) → lands on `/app`; signed-out → redirected to login. RLS test: user A can't read user B's profile.
+
+Branch `feature/m1-i1-e2e` from `develop` (F4 and A1 merged).
+
+**Setup**
+- `@playwright/test` **1.65.1** (9 days old; passes the age rule) in apps/web, Chromium only. Scripts `e2e`, `e2e:ui`. Playwright output folders are gitignored.
+- `apps/web/playwright.config.ts`:
+  - builds the app and serves it on **:3200** (no clash with `next dev` on :3000) with the **local** Supabase URL/key;
+  - projects **mobile** (Pixel 7) and **desktop** (Chrome);
+  - 2 workers and a 10 s expect timeout (see below); CI: 1 retry, html + github reporters.
+- `apps/web/e2e/support/local-supabase.ts`:
+  - Keys from `supabase status -o json`, read once in the main process and passed to workers via `E2E_SUPABASE_*`, with one retry. **Refuses any non-local Supabase URL.** No keys in the repo.
+  - `createTestUser(name, role)`: admin `createUser`, upsert the profile row (stand-in for M1-B2), `generateLink` + `verifyOtp` (a real session even though the email provider is off for real users), cookies encoded by `@supabase/ssr` itself, plus a client signed in as that user.
+  - `deleteTestUser` (the profile cascades).
+
+**Tests (12 runs = 8 browser tests × 2 projects + 4 API tests once)**
+- `e2e/auth.spec.ts`:
+  - signed out: `/app` → `/login` (heading + Google button); `/app/profile` → `/login?next=%2Fapp%2Fprofile`;
+  - signed in: lands on `/app` with "Welcome, Asha Rao" and the account menu; `/login` → `/app`;
+  - log out from the account menu → `/`, then `/app` → `/login`.
+- `e2e/rls.spec.ts` (PostgREST with real user sessions, desktop only): A can't read B (empty); A sees exactly one profile (their own); A updating B changes nothing (B unchanged); A setting their own `role=admin` → **42501**.
+
+**CI:** new `.github/workflows/e2e.yml`.
+- `supabase start -x` everything except db/auth/rest/kong.
+- `playwright install --with-deps chromium`, then `pnpm --filter @prepora/web e2e`.
+- On failure, uploads the report and traces. No secrets. `docs/ci.md` updated.
+
+**Verified (locally, Windows)**
+- First full run: 11/12. One mobile worker's `supabase status` call failed while Supabase was running, from parallel CLI calls. Fixed by resolving once and passing env vars.
+- Next run: 8/12. The 4 signed-in tests timed out under load (this machine has ~1 GB free RAM); they pass alone. Fixed with 2 workers and a 10 s expect timeout.
+- Then **12/12 three times** (1.3–1.5 min), the last time against a **CI-like slim Supabase** (only `supabase_db`, `auth`, `rest`, `kong` running).
+- **Mutation check:** made `isProtectedPath` return false.
+  - The deep-link test failed (no `?next=`).
+  - `/app` still landed on `/login` because the `/app` layout's own `getAccount()` check redirected: the second line of defence works.
+  - Reverted (no diff).
+- typecheck web ✓; lint web ✓; `pnpm test` 132/132 ✓; workflow YAML parses; the `-x` container names match `supabase start --help` for CLI 2.116.0.
+- **Not verified:** the workflow on a GitHub runner (first run is on this PR).
+- Local Supabase is left running in the slim mode (4 containers, less RAM). `supabase stop && supabase start` brings back Studio/Mailpit/etc.
+
+## 2026-11-22 — M2-C1: Onboarding fields, country_regions, waitlist final shape
+
+**Goal (plan.md):** Migration: add `test_type`, `target_band`, `exam_date` to `profiles`; create `country_regions` (country_code, region, launch_wave, is_enabled); move `waitlist` to its final shape.
+
+Branch `feature/m2-c1-onboarding-schema` from `develop` (M1-I1 merged).
+
+**Migration `20261122155735_onboarding_countries_waitlist.sql`**
+- **profiles:**
+  - New enum `ielts_test_type` (`academic`, `general`) for `test_type`.
+  - `target_band numeric(2,1)`: 1.0–9.0, **half steps only** (`target_band*2` must be whole).
+  - `exam_date date`: 2020-01-01 to 2100-12-31; null = not booked, since the onboarding step is skippable.
+  - **Column grant** extended: the user may now also update `test_type`, `target_band`, `exam_date` (onboarding, M2-F2). `role`/`plan` are still server-only.
+- **country_regions:**
+  - New enum `market_region` (`IN`, `SA`, `SEA`, `EA`, `ANZ`; same values as `prices.region` in §4).
+  - Columns: `country_code char(2)` PK (`^[A-Z]{2}$`), `region` not null, `launch_wave smallint` 1–9 (null = not scheduled), `is_enabled` default **false**, `updated_at` (trigger `touch_updated_at()`).
+  - Partial index on enabled countries.
+  - RLS: **anyone (anon + authenticated) can read** (the gate runs before sign-in; non-personal data); **no writes through the API**. The service role seeds it (M2-B1); admin write policies come with `is_admin()` (M1-B3, not built yet).
+  - Countries not listed = not enabled, so non-APAC visitors simply get the waitlist.
+- **waitlist "final shape".** The plan doesn't spell it out; this is my interpretation for M2-A2 (admin list/export) and the beta invites:
+  - `invited_by` (admin who invited, FK auth.users, set null on delete), with a check that `invited_by` requires `invited_at`;
+  - `user_id` (the account the entry became; FK, set null; unique when set);
+  - partial index on not-yet-invited entries per country.
+  - Still written only via `join_waitlist()` (unchanged) or the service role; still unreadable through the API.
+  - **No FK** from `waitlist.country_code` to `country_regions`, because people from countries outside the list must still be able to join.
+
+**Shared contract**
+- `editableProfileFields` += `test_type`, `target_band`, `exam_date`.
+- New `TestType`, `testTypes`, `TARGET_BAND_MIN/MAX`.
+- `ProfileUpdate` gains `test_type` (enum), `target_band` (1–9, `multipleOf(0.5)`), `exam_date` (`z.iso.date`, same bounds as the DB).
+- **Contract test:** now takes the **union of all** `grant update (...) on table public.profiles to authenticated` across migrations (sorted) and fails if any column-level revoke on profiles ever appears.
+- DB types regenerated in both copies (`country_regions`, the two enums, new profile columns).
+
+**Verified**
+- `supabase db reset` applies all 4 migrations ✓.
+- `supabase test db` **68/68** ✓. New `onboarding_countries.test.sql` (30):
+  - columns and types;
+  - a user can set and clear the onboarding fields;
+  - 7.3 / 9.5 / 0.5 / 1999 date / unknown test type are rejected;
+  - role/plan still 42501;
+  - anon reads country_regions; anon/authenticated can't insert or enable (42501);
+  - lowercase code rejected; waitlist new columns; `invited_by` without `invited_at` rejected.
+  - M1-C1's `profiles.test.sql` column list updated for the 3 new columns.
+- `supabase db lint --level error`: no errors.
+- `pnpm test` **141/141** ✓ (+9 `ProfileUpdate` onboarding cases); typecheck shared/web/admin ✓.
+- Mutation check: removed `exam_date` from the migration grant → contract test failed; reverted.
+- **Not verified:** applying to staging (the DB migrations workflow does it after merge).
+- Note: staging profiles created by hand (the admin SQL from earlier) just get null onboarding fields.
+
+## 2026-11-22 — M2-C2: Onboarding Zod schema + onboarding/waitlist events
+
+**Goal (plan.md):** Zod schemas for onboarding input; event names `onboarding_completed`, `waitlist_joined`.
+
+Branch `feature/m2-c2-onboarding-contract` from `develop` (M2-C1 merged).
+
+**`packages/shared/src/api/onboarding.ts`** (import `@prepora/shared/api/onboarding`)
+- `onboardingInput(today)` is a **schema factory** taking "today" (YYYY-MM-DD in the student's time zone), so "not in the past" is enforceable and tests are deterministic. `.strict()`, so `role` etc. are rejected.
+  - `test_type`: `academic | general` (required).
+  - `target_band`: **4.0–9.0** in half steps (required). The DB allows 1.0–9.0; onboarding offers the realistic goal range.
+  - `exam_date`: ISO date **≥ today** and **≤ today + 2 years**, or **null** (skipped). The field must be present: `null` explicitly means "skipped".
+- `onboardingBands` (4, 4.5, … 9) for the picker; `onboardingSteps` (`test_type`, `target_band`, `exam_date`); `needsOnboarding(profile)` (true until test type and band are set; for the redirect in M2-F2).
+- `addYears` clamps Feb 29 → Feb 28.
+
+**`packages/shared/src/analytics.ts`**
+- `onboarding_completed` tightened: `{ test_type: TestType; target_band: number; exam_date: string | null; days_to_exam: number | null }`. Was `test_type: string`, `exam_date?`; `days_to_exam` is added so funnels don't need date maths.
+- `waitlist_joined` documented: `{ country?: ISO-2 from CF-IPCountry; source: utm_source | "hero" | "final_cta" | "gate" }`. The new `"gate"` source is for the country gate's waitlist (M2-F1).
+- `onboardingEvents` list. Total events unchanged (23); both already existed from §7.
+
+**Tests** (+18):
+- `api/onboarding.test.ts`: complete answer; skip with null; today allowed; 11 rejections (missing/unknown test type, band 3.5/7.25/9.5, yesterday, more than 2 years, wrong date format, missing `exam_date`, extra `role`); exactly 2 years OK; Feb-29 clamp.
+- **Every valid onboarding answer also passes `ProfileUpdate`**, so it fits the DB rules (no contract drift).
+- `analytics.test.ts`: events present; type-level checks for `test_type` and `exam_date`.
+
+**Verified:** `pnpm test` 159/159 ✓; typecheck shared ✓, web ✓. No app code uses these yet (M2-F2 and the gate do); no DB change.
+
+## 2026-11-22 — CI fix: Supabase "address already in use" on port 54322
+
+**Symptom:** E2E on the M2-C2 PR failed in "Start local Supabase": `failed to bind host port 0.0.0.0:54322/tcp: address already in use`. The same workflow had passed on `develop` 20 minutes earlier.
+
+**Cause:** Supabase's fixed host ports (54320–54329 in `supabase/config.toml`) lie inside Linux's default **ephemeral port range** (32768–60999). An outgoing connection on the runner (Docker pulling images) can be handed one of those ports just before Postgres binds it. It's random, so it's intermittent; a plain re-run would usually pass and then fail again some other day.
+
+**Fix (on the M2-C2 branch, so this PR tests it):**
+- `e2e.yml` and `db-migrations.yml` (`validate` job): a first step `sudo sysctl -w net.ipv4.ip_local_port_range="60000 65535"` moves ephemeral ports above all Supabase ports.
+- One retry around `supabase start` / `supabase db start` (`stop --no-backup` in between), with a `::warning::` when it happens.
+- Other jobs don't start a local Supabase (checked with grep).
+
+**Verified:** both workflow files parse; the retry lines pass `bash -n`. **Not verified yet:** the next CI run on this PR.
+- **Verified on CI (commit `85a742d`):** E2E ✓. The runner applied `net.ipv4.ip_local_port_range = 60000 65535`; Supabase started first time, without the retry; **Playwright 12 passed (38.7 s)**. DB migrations ✓.
+
+## 2026-11-22 — M2-B1: Seed country_regions (APAC), enable Wave 1
+
+**Goal (plan.md):** Seed `country_regions` with all APAC countries; enable Wave 1 (IN, NP, BD, LK).
+
+Branch `feature/m2-b1-seed-countries` from `develop` (M2-C2 merged). Also carries the log-only commit `568dd65` (CI port-fix verification), which landed after C2's merge.
+
+**Migration `20261122163802_seed_country_regions.sql`.** A migration rather than `seed.sql`, because seed files run only locally and staging/production need the data.
+- **40 countries**, waves from Implementation Plan §8.2:
+  - **Wave 1, enabled:** IN (region IN), NP, BD, LK (SA).
+  - **Wave 2, disabled:** PH, VN, ID, MY, TH (SEA), PK (SA).
+  - **Wave 3, disabled:** AU, NZ (ANZ), SG (SEA), HK, JP, KR, TW (EA).
+  - **Listed, no wave, disabled:** BT, MV, AF (SA); MM, KH, LA, BN, TL (SEA); MO, MN, **CN** (EA); FJ, PG, WS, TO, VU, SB, KI, FM, MH, NR, PW, TV (ANZ, the Pacific).
+- My choices (the plan only says "all APAC"):
+  - Mainland China is listed but unscheduled (§8.2: out of scope).
+  - North Korea isn't listed.
+  - Pacific island states go in ANZ.
+  - Afghanistan is South Asia.
+  - Non-APAC countries aren't listed, which means "not enabled" (waitlist).
+- `on conflict (country_code) do nothing`: re-running never overwrites admin changes (M2-A2 toggles `is_enabled`).
+
+**Tests**
+- New `country_regions_seed.test.sql` (14): 40 rows; enabled set = exactly IN/NP/BD/LK; wave 1/2/3 sets match §8.2; no later-wave country enabled; regions spot-checked; CN unscheduled and disabled; KP and US/GB/AE absent; anon sees the 4 enabled.
+- `onboarding_countries.test.sql` (M2-C1) inserted IN/PH, which now collide with the seed. It uses the unassigned codes ZZ/ZY instead (the same checks).
+
+**Verified**
+- `supabase db reset` (5 migrations) ✓; `supabase test db` **82/82** ✓; `db lint` no errors; `db:types:check` up to date (data-only change).
+- **Re-run check:** set IN `is_enabled=false`, re-applied the migration SQL → `INSERT 0 0`, still 40 rows, **IN still false**; then restored.
+- **Not verified:** staging (the DB migrations workflow applies it on merge to `develop`).
+
+## 2026-11-22 — M2-B2: get_launch_status(country) → enabled | waitlist
+
+**Goal (plan.md):** Edge Function / RPC `get-launch-status(country)` → `enabled` or `waitlist`.
+
+Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
+
+**Decision: Postgres RPC, not an Edge Function.** The web middleware (M2-F1) calls it on page loads, so it should be one fast query with the public key rather than an Edge Function cold start. `country_regions` is already public and read-only (M2-C1), so no extra rights are needed.
+
+**Migration `20261122164632_launch_status.sql`**
+- Enum `launch_status` (`enabled`, `waitlist`) so generated types are an exact union.
+- `public.get_launch_status(p_country text) returns launch_status`:
+  - `language sql stable parallel safe`, **SECURITY INVOKER**, empty `search_path`;
+  - trims and uppercases the input;
+  - `enabled` only if the country is listed **and** `is_enabled`; everything else is `waitlist` (not listed, disabled, unscheduled CN, `XX`, Tor `T1`, null, empty, non-ISO input).
+- Execute granted to `anon`, `authenticated` only (revoked from public).
+
+**Shared `packages/shared/src/api/launch-status.ts`**
+- `LaunchStatus` (from the DB enum), `LAUNCH_STATUS_RPC`.
+- `LAUNCH_STATUS_FALLBACK = "waitlist"`: if the lookup fails, never let an unknown visitor sign up.
+- `countryFromHeader()`: same cleanup as the SQL; XX/T1/invalid → null. For the RPC argument, `profiles.country_code` (M2-B3) and analytics.
+- `isLaunchStatus()`.
+
+**Tests**
+- `launch_status.test.sql` (17 pgTAP): signature/return type/enum; anon execute; SECURITY INVOKER; IN/NP enabled; `' bd '` normalised; PH, CN, US, XX, T1, null, "India" → waitlist; enabling PH → enabled at once; disabling IN → waitlist.
+- `api/launch-status.test.ts` (+14): header cleanup, enum match, fallback.
+
+**Verified**
+- `supabase db reset` (6 migrations) ✓; `supabase test db` **99/99** ✓; `db lint` no errors; types regenerated (`get_launch_status`, `launch_status`), `--check` ✓; `pnpm test` 173/173 ✓; typecheck shared ✓.
+- **Real REST calls with the publishable key** (as the middleware will make them): IN, LK → `"enabled"`; PH, US, XX, empty → `"waitlist"`; both `POST /rest/v1/rpc/get_launch_status` and `GET …?p_country=` (GET works because the function is `stable`, which makes it cacheable).
+- Local note: the local API gateway also answered without an `apikey` header; hosted Supabase requires it. Not relied on.
+- **Not verified:** staging (applied by the migrations workflow on merge).
+
+## 2026-11-22 — M2-B3: Store country_code on profile at sign-up
+
+**What:** the Google OAuth callback (`apps/web/src/app/auth/callback/route.ts`) now saves the visitor's country on their profile right after the code exchange, before redirecting.
+
+**How**
+- `apps/web/src/lib/signup-country.ts`:
+  - `requestCountry(headers, cf)`: Cloudflare's `CF-IPCountry` header, falling back to `request.cf.country` (via `getCloudflareContext()`, in case the zone's IP Geolocation header is off). Cleaned with the shared `countryFromHeader()` (M2-B2), so `XX`, Tor `T1` and junk → null.
+  - `recordSignupCountry(supabase, userId, country)`: `update profiles set country_code = … where id = user and country_code is null`, with the **user's own session** (RLS + the M1-C1 column grant; no new migration, no service role). First sign-in sets it; later sign-ins from elsewhere, or after the person edits it, leave it alone. Unknown country → no query.
+- The callback awaits it inside a try/catch: a failure is logged and never blocks sign-in.
+- Because it runs before the redirect, `signup_completed` (M1-F4, which reads `profiles.country_code`) now carries `country`.
+
+**Depends on M1-B2 (not built yet):** the update only fills an existing profile row. Until the sign-up trigger creates rows, new Google users have no profile and nothing is saved (it returns "unchanged", no error).
+
+**Note:** `country_code` stays user-editable (M1-C1 grant). Fine for analytics; pricing confirms the country by billing address at checkout (plan §5), so it doesn't rely on this.
+
+**Tests**
+- `signup-country.test.ts` (+8): header, cf fallback, header preferred, XX/T1/invalid → null, no query when unknown.
+- `e2e/rls.spec.ts` (+1, real local Supabase API with real user sessions): first call saves `IN`; a second with `NP` → unchanged; writing user B's row → unchanged; B's country stays null.
+
+**Verified**
+- `pnpm test` 181/181 ✓; web typecheck and lint ✓.
+- RLS e2e spec against local Supabase: 5/5 ✓ (run with a temporary API-only Playwright config, without the Next build, which runs out of memory on this machine; CI runs the full e2e suite).
+- **Not verified:** a real Google sign-in reaching the callback with `CF-IPCountry` (needs staging, and M1-B2 for the row to exist); the OpenNext Worker build with `getCloudflareContext` in the route (CI builds it).
+
+## 2026-11-23 — M2-F2: Onboarding flow (3 steps)
+
+**What:** new users opening `/app` are sent to `/app/onboarding`: **Academic or General Training → target band (4.0–9.0, half steps) → exam date (skippable)**, then land on the home page.
+
+**How**
+- `src/components/onboarding/onboarding-flow.tsx` (client): one step at a time, answers kept in state and saved once at the end. Native radio groups and a date input (keyboard / screen reader support from the browser), progress bar, Back keeps answers, per-step errors from the shared contract (`onboardingInput`, M2-C2). Date picker limited to the student's today … +2 years. "Skip, I haven't booked yet" saves `exam_date = null`. Mobile: full-width stacked buttons.
+- `src/lib/onboarding-actions.ts` (`completeOnboarding`): checks the session, validates again on the server with "today" in the **browser's time zone** (so a date that's today for the student isn't rejected by a UTC server), saves `test_type`, `target_band`, `exam_date` and `timezone` (plan §11 lists time zone under onboarding) through the user's own session (RLS + M2-C1 column grant).
+- `src/lib/onboarding.ts`: pure helpers (time zone check, local date, picker range, days between, band format). `addYears` is now exported from `@prepora/shared/api/onboarding` so browser and server use the same max date.
+- `/app` redirects to onboarding when `needsOnboarding(profile)`; `/app/onboarding` redirects home once done.
+- **Only when the profile row exists.** Until M1-B2 (sign-up trigger) creates rows, real Google users have none; sending them to a form they can't save would trap them, so they keep seeing the home page.
+- Analytics: `onboarding_completed` (test_type, target_band, exam_date, days_to_exam) after a successful save; the signed-in layout now also sends test_type / target_band / exam_date as PostHog person properties.
+
+**Tests**
+- `onboarding.test.ts` (+11): time zones, local date across zones, range (incl. Feb 29), days between, band format.
+- `e2e/onboarding.spec.ts` (+2): new user → `/app` redirects to onboarding → empty step shows an error → General → 6.5 → Skip → home, DB has the answers + a time zone, onboarding then redirects home; second test with Back keeping the band and a real date saved.
+- `e2e/support/local-supabase.ts`: `createTestUser(name, role, profile)` + `ONBOARDED`; the signed-in auth tests use onboarded users (they expect the home page).
+
+**Verified**
+- `pnpm test` 192/192 ✓; web + shared typecheck and lint ✓.
+- Full Playwright suite against `next dev` + local Supabase (temporary config without the build, which runs out of memory here): **17 passed**, 5 skipped (RLS desktop-only).
+- Screenshots of all 3 steps on mobile (Pixel 7) and desktop checked by eye.
+- **Not verified:** staging with a real Google account (needs M1-B2 for the profile row); the CI build.
+
+**Merge note:** branched from `develop` before M2-F1 (PR not merged yet); both append to `log.md`, so the second merge needs a trivial conflict fix there (keep both entries).

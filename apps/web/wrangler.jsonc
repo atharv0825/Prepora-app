@@ -7,7 +7,7 @@
 //   pnpm --filter @prepora/web run deploy -- --env production   → prepora-web          (no domain until launch)
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  "main": "worker.mjs", // wraps .open-next/worker.js with Sentry (M0-I2)
   "name": "prepora-web-staging",
   "compatibility_date": "2026-11-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -39,6 +39,8 @@
   "env": {
     "staging": {
       "name": "prepora-web-staging",
+      // Per-PR preview versions (M0-I1): pr-<n>-<name>.<subdomain>.workers.dev
+      "preview_urls": true,
       "routes": [{ "pattern": "staging.prepora.site", "custom_domain": true }],
       "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "prepora-web-staging" }],
       "vars": { "APP_ENV": "staging" }

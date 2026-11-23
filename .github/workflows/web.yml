@@ -30,6 +30,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Sentry/PostHog (M0-I2), repository VARIABLES (public values, not secrets). Unset = off.
+  #   SENTRY_DSN_WEB  → browser SDK (inlined at build) and Worker SDK (--var SENTRY_DSN at deploy)
+  #   POSTHOG_KEY, POSTHOG_HOST → browser PostHog (inlined at build)
+  NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_WEB }}
+  NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+  NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
   NEXT_TELEMETRY_DISABLED: 1
   # Public Supabase settings, inlined into the build (M0-F3). Set as repository VARIABLES
   # (Settings → Secrets and variables → Actions → Variables), not secrets: both are public.
@@ -75,6 +81,82 @@ jobs:
           include-hidden-files: true
           retention-days: 3
 
+  # Preview per PR (M0-I1): uploads this PR's build as a new *version* of the staging Worker with
+  # the alias pr-<number>. Staging traffic is untouched; the version gets its own URL:
+  #   https://pr-<number>-prepora-web-staging.<account-subdomain>.workers.dev
+  # Needs a workers.dev subdomain on the Cloudflare account (one-time) and preview_urls in
+  # wrangler.jsonc (env.staging). Skipped for PRs from forks (no secrets).
+  preview:
+    name: Preview (Cloudflare)
+    needs: check-and-build
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-open-next
+          path: apps/web/.open-next
+      - uses: ./.github/actions/cloudflare-preflight
+        with:
+          api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          zone-name: prepora.site
+      # Worker variables for Sentry (M0-I2): release matches the browser build
+      # (prepora-<app>@<version>+<sha7>, next.config.ts); the DSN only when the variable is set.
+      - name: Sentry Worker variables
+        id: sentry
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          args="--var SENTRY_RELEASE:prepora-web@${version}+${GITHUB_SHA::7}"
+          if [ -n "${NEXT_PUBLIC_SENTRY_DSN}" ]; then args="$args --var SENTRY_DSN:${NEXT_PUBLIC_SENTRY_DSN}"; else echo "::notice::SENTRY_DSN_WEB not set: server errors are not reported."; fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+      - name: Upload preview version
+        id: upload
+        run: |
+          set -o pipefail
+          alias="pr-${PR_NUMBER}"
+          if ! pnpm --filter @prepora/web exec opennextjs-cloudflare upload --env staging -- --preview-alias "$alias" --tag "$alias" --var APP_ENV:preview ${{ steps.sentry.outputs.args }} 2>&1 | tee upload.log; then
+            if grep -qiE "workers\.dev subdomain|subdomain" upload.log; then
+              echo "::error::Preview URLs need a workers.dev subdomain on the Cloudflare account. One-time setup: Cloudflare dashboard → Workers & Pages → (Account details / Settings) → 'Your subdomain' → choose a name. Then re-run this job."
+            fi
+            exit 1
+          fi
+          url=$(grep -oE "https://${alias}-[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev" upload.log | head -1 || true)
+          if [ -z "$url" ]; then echo "::warning::Upload succeeded but no preview URL was printed."; fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Web preview: ${url:-not available}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment preview URL on the PR
+        if: steps.upload.outputs.url != ''
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.upload.outputs.url }}
+        with:
+          script: |
+            const marker = "<!-- prepora-preview:web -->";
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = [marker, `**Web preview:** ${process.env.PREVIEW_URL}`, "", `Commit ${sha} · staging data · updates on every push to this PR.`].join(String.fromCharCode(10));
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
   deploy-staging:
     name: Deploy to Cloudflare (staging)
     needs: check-and-build
@@ -103,4 +185,13 @@ jobs:
           api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           zone-name: prepora.site
-      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging
+      # Worker variables for Sentry (M0-I2): release matches the browser build
+      # (prepora-<app>@<version>+<sha7>, next.config.ts); the DSN only when the variable is set.
+      - name: Sentry Worker variables
+        id: sentry
+        run: |
+          version=$(node -p "require('./apps/web/package.json').version")
+          args="--var SENTRY_RELEASE:prepora-web@${version}+${GITHUB_SHA::7}"
+          if [ -n "${NEXT_PUBLIC_SENTRY_DSN}" ]; then args="$args --var SENTRY_DSN:${NEXT_PUBLIC_SENTRY_DSN}"; else echo "::notice::SENTRY_DSN_WEB not set: server errors are not reported."; fi
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+      - run: pnpm --filter @prepora/web exec opennextjs-cloudflare deploy --env staging -- ${{ steps.sentry.outputs.args }}

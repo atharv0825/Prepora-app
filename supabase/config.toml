@@ -155,11 +155,18 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# URLs auth may redirect to after sign-in (globs allowed: * = one host label / path segment,
+# ** = anything). LOCAL only: web on :3000, admin on :3001. Staging/preview/production are set in
+# each hosted project's dashboard (docs/auth.md).
+additional_redirect_urls = [
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3000/**",
+  "http://localhost:3001/**",
+  "http://127.0.0.1:3001/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -216,8 +223,10 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = true
+# Email sign-in is OFF: Prepora signs people in and up with Google only (M1-B1, user decision
+# 2026-11-22). false disables the email provider entirely (no OTP, no magic link, no password).
+# Hosted: Authentication -> Sign In / Providers -> Email -> off.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -318,6 +327,19 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+# Google OAuth (M1-B1). Local credentials come from supabase/.env (gitignored, see
+# supabase/.env.example); the Google client must list http://127.0.0.1:54321/auth/v1/callback.
+# Google is the only sign-in method, so without them nobody can sign in locally through the UI
+# (tests create users with the service role instead).
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
+email_optional = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""

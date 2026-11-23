@@ -1491,3 +1491,29 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - `pnpm test` 181/181 ✓; web typecheck and lint ✓.
 - RLS e2e spec against local Supabase: 5/5 ✓ (run with a temporary API-only Playwright config, without the Next build, which runs out of memory on this machine; CI runs the full e2e suite).
 - **Not verified:** a real Google sign-in reaching the callback with `CF-IPCountry` (needs staging, and M1-B2 for the row to exist); the OpenNext Worker build with `getCloudflareContext` in the route (CI builds it).
+
+## 2026-11-23 — M2-F1: Country gate on sign-up (CF-IPCountry → waitlist)
+
+**What:** signed-out visitors opening `/signup` from a country that isn't launched yet are redirected to a new `/waitlist` page instead of seeing "Continue with Google".
+
+**How**
+- `apps/web/src/lib/country-gate.ts` (pure, Edge-safe):
+  - `gateInput(headers, cf)`: a `CF-IPCountry` header, when present, decides (`XX`/Tor → unknown); without it, `request.cf.country`; with neither (`next start`, e2e without a faked header) the gate is **skipped**, because Cloudflare always sends a country. `next dev` has Wrangler's cached `request.cf`, so the gate runs there with your real country.
+  - Unknown countries, RPC errors and odd answers → `waitlist` (`LAUNCH_STATUS_FALLBACK`): never open by mistake.
+- `src/middleware.ts`: after the session check, signed out on `/signup` → `get_launch_status` (M2-B2) through the middleware's existing Supabase client (public RPC) → `307 /waitlist` when not enabled. Gated responses are `Cache-Control: private, no-store` (they depend on the country).
+- `src/app/(auth)/waitlist/page.tsx`: "Not in your country yet" + the existing waitlist form (`source = signup_gate`) + "Already have an account? Log in".
+- `/login` is **not** gated: existing users may be travelling.
+
+**Known gap (soft gate):** login and sign-up are the same Google flow, so someone from a waitlisted country can still create an account through `/login`. Closing that needs a server-side check at account creation (e.g. a Supabase "before user created" auth hook calling `get_launch_status`). Not part of this step.
+
+**Not done here:** the `waitlist_joined` analytics event (defined in M2-C2) still isn't sent by the form.
+
+**Tests**
+- `country-gate.test.ts` (+8): skip off Cloudflare, header, cf fallback, header beats cf, XX/T1 → checked as unknown, only `/signup` gated, RPC fallback, redirect target.
+- `e2e/country-gate.spec.ts` (+4, faked header): VN → `/waitlist` with the form and no Google button; XX → `/waitlist`; IN → `/signup` with Google; VN on `/login` stays on login.
+
+**Verified**
+- `pnpm test` 189/189 ✓; web typecheck and lint ✓.
+- curl against `next dev` + local Supabase: VN, XX → `307 /waitlist` (`private, no-store`); IN, no header → 200.
+- Full Playwright suite against `next dev` on :3200 + local Supabase (temporary config without the build step, which runs out of memory here): **21 passed**, 5 skipped (RLS runs desktop-only), including the 8 new country-gate runs.
+- **Not verified:** staging (real `CF-IPCountry` from a non-enabled country, e.g. via VPN); the OpenNext Worker build with `getCloudflareContext` in the middleware (CI builds it).

@@ -47,6 +47,12 @@ describe("frontend ↔ Edge Function contract", () => {
     expect(edge.length).toBeGreaterThan(5);
   });
 
+  it("action keys (M3-B6) match supabase/functions/_shared/credits.ts", () => {
+    const block = read("supabase/functions/_shared/credits.ts").match(/export const ACTION_KEYS = \[([^\]]+)\]/)?.[1] ?? "";
+    const edge = [...block.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
+    expect(edge).toEqual([...actionKeys]);
+  });
+
   it("credit error statuses (M3-C3) match the errors.* helpers", () => {
     const edge = read("supabase/functions/_shared/errors.ts");
     for (const code of creditErrorCodes) {

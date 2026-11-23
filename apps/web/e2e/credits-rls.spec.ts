@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-import { AllowanceResult, RefundResult, SpendResult } from "@prepora/shared/api/credits";
+import { AllowanceResult, CreditBalance, RefundResult, SpendResult } from "@prepora/shared/api/credits";
 import type { Database } from "@prepora/shared/db";
 import { adminClient, createTestUser, deleteTestUser, localSupabase, type TestUser } from "./support/local-supabase";
 
@@ -43,6 +43,20 @@ test.describe("credits", () => {
     ]);
     const ledger = await a.client.from("credit_ledger").select("user_id").eq("user_id", b.id);
     expect(ledger.data).toEqual([]);
+  });
+
+  test("get_my_credits (M3-B5) returns the user's own CreditBalance", async () => {
+    const { data, error } = await a.client.rpc("get_my_credits");
+    expect(error).toBeNull();
+    const balance = CreditBalance.parse(data); // real Postgres JSON against the shared contract
+    expect(balance).toMatchObject({ plan: "free", balance: 18, spent_today: 0, daily_cap: 8 });
+    expect(balance.buckets.map((b) => [b.source, b.remaining])).toEqual([["monthly", 8], ["welcome", 10]]);
+    expect(balance.buckets[0]!.expires_at).not.toBeNull();
+    expect(balance.allowances.map((x) => x.type)).toEqual(["reading_tests", "listening_tests", "practice_sessions", "mock_tests"]);
+
+    const { url, publishableKey } = localSupabase();
+    const anon = createClient<Database>(url, publishableKey, { auth: { persistSession: false } });
+    expect((await anon.rpc("get_my_credits")).error).not.toBeNull();
   });
 
   test("a user can't give themselves credits, spend, refund or read AI costs", async () => {

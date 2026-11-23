@@ -4,6 +4,7 @@ import {
   Coins,
   FileClock,
   Gauge,
+  Globe,
   Headphones,
   type LucideIcon,
   Mic,
@@ -24,6 +25,8 @@ export type AdminModule = {
   milestone: string;
   summary: string;
   features: string[];
+  /** True once the module has its own page; the placeholder route ([section]) skips it. */
+  built?: boolean;
 };
 
 export type NavGroup = { title: string; items: AdminModule[] };
@@ -120,6 +123,7 @@ export const navGroups: NavGroup[] = [
         label: "Users",
         icon: Users,
         milestone: "M2",
+        built: true, // M2-A1: list, search, filters, profile view
         summary: "Search users, view progress, change plans for support cases.",
         features: [
           "Search by email or name, filter by country and plan",
@@ -132,6 +136,7 @@ export const navGroups: NavGroup[] = [
         label: "Waitlist",
         icon: ClipboardList,
         milestone: "M2",
+        built: true, // M2-A2: list by country and status, CSV export
         summary: "Beta waitlist by country, CSV export and invites.",
         features: [
           "Sign-ups by country and source",
@@ -145,16 +150,28 @@ export const navGroups: NavGroup[] = [
     title: "Business",
     items: [
       {
+        slug: "countries",
+        label: "Countries",
+        icon: Globe,
+        milestone: "M2",
+        built: true, // M2-A2: launch waves, one switch per country
+        summary: "Launch waves: switch sign-up on or off per country.",
+        features: [
+          "Countries grouped by launch wave",
+          "Enable or disable sign-up per country",
+          "People waiting per country",
+        ],
+      },
+      {
         slug: "plans",
         label: "Plans & pricing",
         icon: ScrollText,
         milestone: "M3",
-        summary: "Credits, allowances and caps per plan; regional prices; launch waves.",
+        summary: "Credits, allowances and caps per plan; regional prices.",
         features: [
           "Monthly credits, allowances and daily caps per plan",
           "Credit cost per action",
           "Regional prices, exam packs, top-ups",
-          "Enable or disable countries (launch waves)",
         ],
       },
       {
@@ -196,6 +213,9 @@ export const navGroups: NavGroup[] = [
 
 /** All modules except the dashboard (it has its own page). */
 export const sectionModules = navGroups.flatMap((g) => g.items).filter((m) => m.slug !== "dashboard");
+
+/** Modules still shown as "what you'll do here" placeholders. */
+export const placeholderModules = sectionModules.filter((m) => !m.built);
 
 export function findModule(slug: string): AdminModule | undefined {
   return navGroups.flatMap((g) => g.items).find((m) => m.slug === slug);

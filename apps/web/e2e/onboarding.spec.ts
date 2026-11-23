@@ -45,7 +45,7 @@ test.describe("onboarding", () => {
     await page.getByRole("button", { name: /skip/i }).click();
 
     await expect(page).toHaveURL(/\/app$/);
-    await expect(page.getByRole("heading", { name: /welcome, ravi kumar/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /, ravi$/i })).toBeVisible();
     expect(await profile()).toMatchObject({ test_type: "general", target_band: 6.5, exam_date: null });
     expect((await profile())?.timezone).toBeTruthy();
 

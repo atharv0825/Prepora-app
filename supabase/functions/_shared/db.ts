@@ -116,10 +116,58 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_user: {
+        Args: { p_id: string }
+        Returns: {
+          auth_provider: string
+          country_code: string
+          created_at: string
+          email: string
+          exam_date: string
+          full_name: string
+          id: string
+          last_sign_in_at: string
+          plan: Database["public"]["Enums"]["plan_tier"]
+          role: Database["public"]["Enums"]["app_role"]
+          target_band: number
+          test_type: Database["public"]["Enums"]["ielts_test_type"]
+          timezone: string
+          updated_at: string
+        }[]
+      }
+      admin_list_users: {
+        Args: {
+          p_country?: string
+          p_limit?: number
+          p_offset?: number
+          p_plan?: Database["public"]["Enums"]["plan_tier"]
+          p_search?: string
+        }
+        Returns: {
+          country_code: string
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          last_sign_in_at: string
+          plan: Database["public"]["Enums"]["plan_tier"]
+          role: Database["public"]["Enums"]["app_role"]
+          total_count: number
+        }[]
+      }
+      admin_waitlist_by_country: {
+        Args: never
+        Returns: {
+          country_code: string
+          invited: number
+          waiting: number
+        }[]
+      }
       get_launch_status: {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      is_admin: { Args: never; Returns: boolean }
       join_waitlist: {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined

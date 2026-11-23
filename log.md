@@ -1492,6 +1492,32 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - RLS e2e spec against local Supabase: 5/5 ✓ (run with a temporary API-only Playwright config, without the Next build, which runs out of memory on this machine; CI runs the full e2e suite).
 - **Not verified:** a real Google sign-in reaching the callback with `CF-IPCountry` (needs staging, and M1-B2 for the row to exist); the OpenNext Worker build with `getCloudflareContext` in the route (CI builds it).
 
+## 2026-11-23 — M2-F1: Country gate on sign-up (CF-IPCountry → waitlist)
+
+**What:** signed-out visitors opening `/signup` from a country that isn't launched yet are redirected to a new `/waitlist` page instead of seeing "Continue with Google".
+
+**How**
+- `apps/web/src/lib/country-gate.ts` (pure, Edge-safe):
+  - `gateInput(headers, cf)`: a `CF-IPCountry` header, when present, decides (`XX`/Tor → unknown); without it, `request.cf.country`; with neither (`next start`, e2e without a faked header) the gate is **skipped**, because Cloudflare always sends a country. `next dev` has Wrangler's cached `request.cf`, so the gate runs there with your real country.
+  - Unknown countries, RPC errors and odd answers → `waitlist` (`LAUNCH_STATUS_FALLBACK`): never open by mistake.
+- `src/middleware.ts`: after the session check, signed out on `/signup` → `get_launch_status` (M2-B2) through the middleware's existing Supabase client (public RPC) → `307 /waitlist` when not enabled. Gated responses are `Cache-Control: private, no-store` (they depend on the country).
+- `src/app/(auth)/waitlist/page.tsx`: "Not in your country yet" + the existing waitlist form (`source = signup_gate`) + "Already have an account? Log in".
+- `/login` is **not** gated: existing users may be travelling.
+
+**Known gap (soft gate):** login and sign-up are the same Google flow, so someone from a waitlisted country can still create an account through `/login`. Closing that needs a server-side check at account creation (e.g. a Supabase "before user created" auth hook calling `get_launch_status`). Not part of this step.
+
+**Not done here:** the `waitlist_joined` analytics event (defined in M2-C2) still isn't sent by the form.
+
+**Tests**
+- `country-gate.test.ts` (+8): skip off Cloudflare, header, cf fallback, header beats cf, XX/T1 → checked as unknown, only `/signup` gated, RPC fallback, redirect target.
+- `e2e/country-gate.spec.ts` (+4, faked header): VN → `/waitlist` with the form and no Google button; XX → `/waitlist`; IN → `/signup` with Google; VN on `/login` stays on login.
+
+**Verified**
+- `pnpm test` 189/189 ✓; web typecheck and lint ✓.
+- curl against `next dev` + local Supabase: VN, XX → `307 /waitlist` (`private, no-store`); IN, no header → 200.
+- Full Playwright suite against `next dev` on :3200 + local Supabase (temporary config without the build step, which runs out of memory here): **21 passed**, 5 skipped (RLS runs desktop-only), including the 8 new country-gate runs.
+- **Not verified:** staging (real `CF-IPCountry` from a non-enabled country, e.g. via VPN); the OpenNext Worker build with `getCloudflareContext` in the middleware (CI builds it).
+
 ## 2026-11-23 — M2-F2: Onboarding flow (3 steps)
 
 **What:** new users opening `/app` are sent to `/app/onboarding`: **Academic or General Training → target band (4.0–9.0, half steps) → exam date (skippable)**, then land on the home page.
@@ -1516,3 +1542,86 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - **Not verified:** staging with a real Google account (needs M1-B2 for the profile row); the CI build.
 
 **Merge note:** branched from `develop` before M2-F1 (PR not merged yet); both append to `log.md`, so the second merge needs a trivial conflict fix there (keep both entries).
+
+## 2026-11-23 — M2-F3: Home dashboard
+
+**What:** `/app` is now the home dashboard (UI design §home screen): a large time-of-day greeting, a **goal card** (target band, test type, exam countdown), an **AI credits** placeholder, and a 2×2 grid of the four **module tiles** (Reading, Listening, Writing, Speaking), all "Coming soon".
+
+**How**
+- `src/lib/dashboard.ts` (pure, tested):
+  - `dashboardModules`: the four modules in exam order with `status: "soon"`. Later milestones flip one to `"available"` with an `href` (Reading M4, Listening M5, Writing M6, Speaking M7) and the tile becomes a link.
+  - `recommendedModule()`: the green "recommended next" tile from the UI design; the first available module, so none while all are coming soon.
+  - `greeting(hourIn(tz))`: morning / afternoon / evening in the student's saved time zone (from onboarding); "Welcome back" without one. `firstName()` for the greeting.
+  - `examCountdown(exam_date, today)`: days to go / exam day / passed / not booked, with "today" in the student's time zone.
+- `src/components/dashboard/dashboard-cards.tsx`: server components (no client JS). Tiles use `secondary` (light green) and `primary` for the recommended one; coming-soon tiles are plain `div`s with `aria-disabled`, not links. Sections are labelled regions.
+- Credits card: "Coming soon" + the plan name (Free/Gold/Platinum from `profiles.plan`). No balance shown until M3 builds the credits engine.
+- Onboarding redirect from M2-F2 kept; no profile row (M1-B2 not live) → the dashboard still renders with empty values.
+
+**Branching:** stacked on `feature/m2-f2-onboarding` (needs its fields and helpers), with `develop` (M2-F1) merged in; the `log.md` conflict was resolved there by keeping both entries. Merge the M2-F2 PR first; this PR then shows only the M2-F3 changes.
+
+**Tests**
+- `dashboard.test.ts` (+15): modules + recommendation, greeting by hour and time zone, first name, countdown (1 day, 61 days, today, past, none), labels.
+- `e2e/dashboard.spec.ts` (+2): onboarded student (General, 6.5, exam in 30 days, UTC) sees the greeting, "30 days to go", Free plan credits placeholder and four coming-soon tiles with no links; without a date/time zone → "Not booked yet" and "Welcome back".
+- Existing e2e greeting checks updated (`Welcome, Asha Rao` → `…, Asha`); `createTestUser` can now set `timezone`.
+
+**Verified**
+- `pnpm test` 215/215 ✓; web typecheck and lint ✓.
+- Full Playwright suite against `next dev` + local Supabase: **31 passed**, 5 skipped (RLS desktop-only). Your own `next dev` was running on :3000 and Next allows one dev server per folder, so it ran from a temporary git worktree on :3200 (removed afterwards).
+- Screenshots on mobile and desktop checked by eye.
+- **Not verified:** staging (needs M1-B2 for real users' profile rows); the CI build.
+
+## 2026-11-23 — M2-A1: Admin users list
+
+**What:** the admin panel's **Users** page (`/users`): search by email or name, filter by country and plan, 25 per page, newest first; each row opens a read-only **profile** (`/users/[id]`).
+
+**How**
+- Migration `20261123151050_admin_users.sql`:
+  - `public.is_admin()`: the RLS helper planned for **M1-B3**, created here because this step needs it (M1-B3 is now only "seed one admin"). `SECURITY DEFINER`, reads the caller's own role.
+  - `admin_list_users(p_search, p_country, p_plan, p_limit, p_offset)` and `admin_get_user(p_id)`: `SECURITY DEFINER` RPCs that raise `42501` unless `is_admin()`. They join `auth.users` for email, last sign-in and provider, which the API can't expose otherwise. Search is case-insensitive "contains" on email or name with `%`/`_` matched literally; country normalised; page size capped at 100; `total_count` for paging.
+  - The admin app keeps the public key only: no service-role key.
+  - EXECUTE revoked from `public` **and `anon`**: Supabase's default privileges grant new functions to anon directly (caught by the pgTAP privilege test).
+- **Admins only** (not content editors): students' personal data. Editors opening Users see an "Admins only" notice; the database refuses them anyway.
+- `@prepora/shared/api/admin-users`: lenient URL query parsing (invalid values dropped, since lists are shareable links), RPC args, query-string builder, row types (generated RPC types mark every column non-null; nullable ones are widened).
+- Admin app: server-rendered pages; the filter is a plain GET form (works without JS, results are links). Country names via `Intl.DisplayNames`, dates in UTC. Nav modules get a `built` flag so the `[section]` placeholder route skips Users; the dashboard shows "Live" for it.
+- Profile page: account (joined, last sign-in, provider, id), location, IELTS goal; progress says it arrives with M4–M7. Plan changes and suspension are later milestones (plan §6).
+
+**Tests**
+- pgTAP `admin_users.test.sql` (+27): privileges (anon has none), student and content editor refused, admin search by email/name, literal `%`/`_`, country/plan filters, combined filters, limit/offset/cap, detail row.
+- `admin-users.test.ts` (shared, +7) and `apps/admin/src/lib/users.test.ts` (+6) + nav test (+1).
+- `apps/web/e2e/admin-users.spec.ts` (+3, real PostgREST with real sessions): admin search + detail; student and editor get `42501`; anon refused.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **126/126** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` 229/229 ✓; admin, web and shared typecheck + lint ✓.
+- API e2e (admin-users + RLS) 8/8 ✓ against local Supabase.
+- The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop with a test admin: list, search "asha" → profile, `?plan=gold&country=NP` filter, content editor → "Admins only". Screenshots checked. On phones the table scrolls sideways (kept at 720 px so columns stay readable).
+- **Not verified:** staging (needs an admin account: M1-B3's seed, or set `role = 'admin'` on your profile in the dashboard; and M1-B2 so real users have profile rows to list); the CI build.
+
+## 2026-11-23 — M2-A2: Country waves page + waitlist with CSV export
+
+**What:** two admin pages. **Countries** (`/countries`, new nav item under Business): countries grouped by launch wave, one switch per country to open or close sign-up, with how many people are waiting there. **Waitlist** (`/waitlist`): filter by country (incl. "unknown") and status (still waiting / invited / everyone), 50 per page, and **Export CSV** with the same filters (`/waitlist/export`).
+
+**How**
+- Migration `20261123154120_admin_countries_waitlist.sql` (uses `is_admin()` from M2-A1):
+  - `country_regions`: `grant update (is_enabled)` + policy "admins can update". Only the switch; regions and waves stay migration-only. A non-admin's update matches no rows.
+  - `waitlist`: `grant select` + policy "admins can read". Still no writes through the API (`join_waitlist()` only).
+  - `admin_waitlist_by_country()`: waiting/invited counts per country, `SECURITY INVOKER` (reads through the policy, so non-admins get nothing); EXECUTE revoked from anon.
+- Toggle: `setCountryEnabled` Server Function (validates input, writes with the admin's session, "only admins" when RLS updated nothing) + a `role="switch"` button with an optimistic flip and toasts. The country gate (M2-F1) reads `is_enabled` on every `/signup`, so it takes effect at once.
+- CSV (`@prepora/shared/api/admin-waitlist`): RFC 4180 quoting, CRLF, UTF-8 BOM for Excel, and **formula-injection protection**: cells starting with `= + - @` (tab, CR) get a leading `'`, since emails and sources come from the public form. The route checks the session and `is_admin()` (401/403), fetches in 1,000-row batches (max 50,000), sends `Cache-Control: private, no-store` and a filename like `prepora-waitlist-VN-waiting-2026-11-23.csv`.
+- Admins only on both pages (content editors see the "Admins only" notice; export → 403).
+- Nav: Countries added (built), Waitlist marked built; "Enable or disable countries" removed from the Plans placeholder.
+- An M2-C1 pgTAP assertion changed: a non-admin's `is_enabled` update used to fail with 42501 (no grant); it now updates no rows (column grant + admin-only policy).
+
+**Branching:** stacked on `feature/m2-a1-users-list` (PR #36) for `is_admin()` and the admin-only pieces.
+
+**Tests**
+- pgTAP `admin_countries_waitlist.test.sql` (+18): column/table privileges (only `is_enabled` updatable, anon nothing), student and editor can't toggle or read, admin reads all, counts per country, enabling opens `get_launch_status` and disabling closes it, waves not updatable, no direct inserts.
+- `admin-waitlist.test.ts` (shared, +15): query parsing, query strings, CSV quoting, formula neutralising, BOM/CRLF, filename. `countries.test.ts` (admin, +5): wave grouping, sorting, counts, region labels.
+- `apps/web/e2e/admin-countries-waitlist.spec.ts` (+2, real PostgREST + sessions): admin toggles the Philippines (not Vietnam, which country-gate.spec relies on in parallel) and the gate follows; student can't; only the admin reads entries and counts.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **144/144** ✓; `db lint` clean; `db:types:check` ✓.
+- `pnpm test` 249/249 ✓; admin, web and shared typecheck + lint ✓.
+- API e2e (admin countries/waitlist, admin users, RLS) 10/10 ✓ against local Supabase.
+- The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop: Vietnam switched on with **one click** → DB and `get_launch_status('VN')` = enabled, off again → waitlist; waitlist filtered to Vietnam; CSV download checked (headers, BOM, rows, `=…` email exported as `'=…`); content editor → "Admins only" and export 403. Screenshots checked.
+- **Not verified:** staging (needs an admin account, M1-B3 or set your role in the dashboard); the CI build.

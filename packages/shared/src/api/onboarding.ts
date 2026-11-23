@@ -18,7 +18,8 @@ export const EXAM_DATE_MAX_YEARS_AHEAD = 2;
 export const onboardingSteps = ["test_type", "target_band", "exam_date"] as const;
 export type OnboardingStep = (typeof onboardingSteps)[number];
 
-function addYears(isoDate: string, years: number): string {
+/** YYYY-MM-DD plus whole years (used for the latest allowed exam date). */
+export function addYears(isoDate: string, years: number): string {
   const [y, m, d] = isoDate.split("-").map(Number) as [number, number, number];
   // Feb 29 + 2 years → Feb 28 (clamp), not Mar 1.
   const last = new Date(Date.UTC(y + years, m, 0)).getUTCDate();

@@ -72,8 +72,18 @@ export type TestUser = {
   cookies: { name: string; value: string }[];
 };
 
-/** Creates a user + profile row and signs them in. Delete with deleteTestUser(). */
-export async function createTestUser(fullName: string, role: "user" | "admin" | "content_editor" = "user"): Promise<TestUser> {
+/** Profile answers of someone who finished onboarding (M2-F2), so /app shows the home page. */
+export const ONBOARDED = { test_type: "academic", target_band: 7 } as const;
+
+/**
+ * Creates a user + profile row and signs them in. Delete with deleteTestUser().
+ * `profile` adds columns to the row, e.g. ONBOARDED; without it the user still needs onboarding.
+ */
+export async function createTestUser(
+  fullName: string,
+  role: "user" | "admin" | "content_editor" = "user",
+  profile: Partial<Pick<Database["public"]["Tables"]["profiles"]["Insert"], "test_type" | "target_band" | "exam_date">> = {},
+): Promise<TestUser> {
   const admin = adminClient();
   const { url, publishableKey } = localSupabase();
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
@@ -89,7 +99,7 @@ export async function createTestUser(fullName: string, role: "user" | "admin" | 
   // Stand-in for M1-B2's sign-up trigger: make sure the profile row exists.
   const { error: profileError } = await admin
     .from("profiles")
-    .upsert({ id, full_name: fullName, role }, { onConflict: "id" });
+    .upsert({ id, full_name: fullName, role, ...profile }, { onConflict: "id" });
   if (profileError) throw profileError;
 
   const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "magiclink", email });

@@ -1625,3 +1625,19 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - API e2e (admin countries/waitlist, admin users, RLS) 10/10 ✓ against local Supabase.
 - The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop: Vietnam switched on with **one click** → DB and `get_launch_status('VN')` = enabled, off again → waitlist; waitlist filtered to Vietnam; CSV download checked (headers, BOM, rows, `=…` email exported as `'=…`); content editor → "Admins only" and export 403. Screenshots checked.
 - **Not verified:** staging (needs an admin account, M1-B3 or set your role in the dashboard); the CI build.
+## 2026-11-23 — M2-I1: Playwright journey (sign up → onboarding → home, country gate)
+
+**What:** `apps/web/e2e/journey.spec.ts`, the M2 milestone as one visitor takes it, on mobile (Pixel 7) and desktop, against local Supabase:
+- **India (Wave 1):** landing → header "Start free" → `/signup` with "Continue with Google" (gate open) → signed in as a brand-new user → `/app` sends them to onboarding → Academic → 7.5 → exam date in 45 days → home shows "Good …, Kavya", target 7.5, Academic, **45 days to go**, credits placeholder, 4 module tiles → `/signup` now sends them to `/app`.
+- **Vietnam (Wave 2):** landing → "Start free" → `/waitlist` (no Google button) → joins with the form → "You're on the list." → the row is stored with `country_code = VN` (from the header, through the server action) and `source = signup_gate`. This is the first test that submits the waitlist form from the gate page.
+
+**How:** the country comes from a faked `CF-IPCountry` header (`page.setExtraHTTPHeaders`), which the middleware, the pages and the waitlist action all read, as on Cloudflare. Google's consent screen can't be automated, so the sign-in is a real Supabase session for a new user with an empty profile (`createTestUser`, as in the other specs); everything after it is the real app. The India journey is marked `test.slow()` (7 pages + a save in one test).
+
+**Coverage note:** the other M2 pieces keep their focused specs (country-gate, onboarding, dashboard, RLS, admin RPCs). Not covered end to end: the real Google OAuth round trip and the callback's country save (M2-B3); those have unit tests and need staging + M1-B2.
+
+**Verified**
+- Journey spec: 4/4 ✓ (both tests × mobile + desktop) against `next dev` + local Supabase. Your `next dev` was running on :3000, so the app was served from a temporary worktree on :3200 (removed afterwards).
+- Full suite: **36 passed, 8 skipped** (API specs run desktop-only). On the first full run, the existing onboarding spec (mobile) failed once at 33 s, just past the 30 s default, while the dev server was compiling pages for two workers; it passed alone and in the full re-run. CI uses a production build, where these take seconds.
+- The journey's first run timed out at "Start free" → `/signup` for the same reason (first dev compile); it passed after warm-up.
+- Web typecheck and lint ✓. No app code changed.
+- **Not verified:** the CI run of this spec (production build).

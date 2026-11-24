@@ -2014,3 +2014,56 @@ Done together on one branch (given together), stacked on `feature/m4-c1-reading-
 - `pnpm test` 368/368 ✓; shared, web and admin typecheck ✓; web lint ✓.
 - `reading-rls.spec.ts` 4/4 ✓ against local Supabase.
 - **Not verified:** staging (the samples are added there when the migration runs on merge).
+
+## 2026-11-25 — M4-B1…B3: get_reading_test, grade-test Edge Function, grading unit tests
+
+Done together on one branch from `develop` (everything up to M4-C3 is merged).
+
+**M4-B1 `get_reading_test(id)`** (migration `20261125090000_reading_rpcs.sql`)
+- Returns `{ test, passages, questions }` without answers. Passages and questions are in order; each question has id, passage, number, type, prompt and options.
+- **SECURITY INVOKER** on purpose: it reads with the student's rights, so RLS (published, or staff) and the M4-C1 column privileges apply. Neither this function nor any later edit of it *can* return `answer` or `explanation`; naming them would fail with 42501.
+- Errors use PostgREST's status codes: **404** for not found or unpublished, **403** when the plan is too low (the message names the plan).
+  - Staff are let through, so the builder's preview (M4-A1) can open drafts and tests above their own plan.
+- Shared contract `@prepora/shared/api/reading-test` (`ReadingTestPayload`, strict: a question that carries `answer` or `explanation` fails to parse).
+
+**M4-B2 `grade-test` Edge Function** (`POST`, signed in; contract in `api/grade-test.ts`, M4-C2)
+1. The test must be published (404), and the student's plan must reach `min_plan` (403 `forbidden`, details `{ min_plan }`).
+2. Loads the answer key with the service role and grades every question (`_shared/reading.ts`); raw score → band, with short tests scaled to 40.
+3. `record_test_attempt` (new SQL function, service role only) **uses one Reading allowance and saves the attempt in one transaction**.
+   - Over the allowance → **402 `allowance_exceeded`** with `{ type, used, limit }`, and nothing is saved.
+   - A failed save never leaves a counted test without an attempt.
+4. Returns the attempt id, raw score, total, band, allowance after the test, and per-question results (correct, given, correct answer, also accepted, note `over_word_limit`/`unanswered`, explanation).
+- The request is strict: score fields can't be sent in, and question numbers must be 1–40. Only answers to existing questions are stored.
+- **Marking rules** (`supabase/functions/_shared/reading.ts`, pure TypeScript with no imports):
+  - MCQ: exactly the answer's letters, any order. "Choose TWO" is one mark, all or nothing.
+  - TFNG/YNNG: the value must match, and "not given"/"NG" is accepted. A Yes/No answer to a True/False question is wrong, as in the real test.
+  - Matching and word banks: the label, any case.
+  - Typed gaps: over the word limit is wrong (noted). Otherwise the answer is compared with the accepted ones ignoring case, spacing, surrounding punctuation and quote style, but not spelling.
+  - A missing or empty answer is wrong (noted). A malformed key is never marked correct.
+
+**M4-B3 unit tests** (`tests/reading-grading.test.ts`, +23, running on **the exact module the Edge Function uses**)
+- All 11 types with right, wrong and edge answers: MCQ order, duplicates and extra letters; TFNG variants and the "yes" trap; label case; spelling, case and punctuation; the word limit, including AND/OR A NUMBER; word banks; alternatives; unanswered and wrongly shaped answers; malformed keys.
+- `gradeTest`: Academic and General bands at several scores, scaling of a 14-question test, question order, unknown question numbers, no questions.
+- **Parity:** the Edge band tables and typed-answer rules equal `packages/shared/src/ielts` for every score 0–40 at every test length 1–40, and for the sample strings.
+
+**Tests elsewhere**
+- pgTAP `reading_rpcs.test.sql` (+18):
+  - privileges, and the function confirmed as invoker;
+  - a Free student gets the Academic sample (3 passages in order, 20 questions in order) with no answer or explanation keys or key fields;
+  - Gold → PT403, a draft or unknown id → PT404, staff preview drafts and Gold;
+  - `record_test_attempt` counts 1 of 2, refuses the 3rd, and only 2 attempts are saved.
+- Shared `reading-test.test.ts` (+2).
+- e2e `grade-test.spec.ts` (+5; real PostgREST and the local edge runtime, on the seeded samples):
+  - the raw `get_reading_test` network body contains no answer fields or explanation text; Gold → 403, unknown → 404;
+  - all correct → 20/20, band 9, explanations returned, the attempt saved and readable by the student, allowance 1 of 2;
+  - General sample with a case/punctuation variant (right), a misspelling, an over-limit answer, "yes" for True/False and an unanswered question (wrong) → 10/14, band 5.5 from the General table;
+  - the third test → 402 and nothing saved;
+  - Gold → 403 with `min_plan`, unknown → 404, no session → 401, score fields or question 41 → 400, and none of these used the allowance.
+- Like `credits-edge.spec.ts`, it needs the Edge Functions: skipped locally without them, fails in CI (where `supabase start` runs the edge runtime since M3-I1).
+
+**Verified**
+- `supabase db reset` + `supabase test db` **416/416** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` **393/393** ✓; shared, web and admin typecheck ✓; web lint ✓.
+- Deno 2: `deno check --frozen` for every function and `_shared` ✓; `deno test _shared/` 9/9 ✓.
+- API e2e (grade-test, reading-rls, credits-edge API) **11/11** ✓ against local Supabase + `supabase functions serve`.
+- **Not verified:** CI and staging (the function deploys to staging on merge).

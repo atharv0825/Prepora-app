@@ -640,6 +640,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["launch_status"]
       }
       get_my_credits: { Args: never; Returns: Json }
+      get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {
         Args: {
           p_amount: number
@@ -667,6 +668,18 @@ export type Database = {
       plan_rank: {
         Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
         Returns: number
+      }
+      record_test_attempt: {
+        Args: {
+          p_answers: Json
+          p_band: number
+          p_module: Database["public"]["Enums"]["test_module"]
+          p_raw_score: number
+          p_test_id: string
+          p_time_taken_sec?: number
+          p_user_id: string
+        }
+        Returns: Json
       }
       refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
       run_credit_maintenance: { Args: never; Returns: Json }

@@ -302,6 +302,169 @@ export type Database = {
         }
         Relationships: []
       }
+      reading_passages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          order_no: number
+          test_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          order_no: number
+          test_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          order_no?: number
+          test_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_passages_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "reading_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_questions: {
+        Row: {
+          answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json
+          passage_id: string
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["reading_question_type"]
+          test_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          passage_id: string
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["reading_question_type"]
+          test_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          passage_id?: string
+          prompt?: string
+          q_no?: number
+          q_type?: Database["public"]["Enums"]["reading_question_type"]
+          test_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_questions_passage_id_test_id_fkey"
+            columns: ["passage_id", "test_id"]
+            isOneToOne: false
+            referencedRelation: "reading_passages"
+            referencedColumns: ["id", "test_id"]
+          },
+        ]
+      }
+      reading_tests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          min_plan: Database["public"]["Enums"]["plan_tier"]
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          test_type: Database["public"]["Enums"]["ielts_test_type"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          test_type: Database["public"]["Enums"]["ielts_test_type"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          test_type?: Database["public"]["Enums"]["ielts_test_type"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      test_attempts: {
+        Row: {
+          answers: Json
+          band: number
+          created_at: string
+          id: string
+          module: Database["public"]["Enums"]["test_module"]
+          raw_score: number
+          test_id: string
+          time_taken_sec: number | null
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          band: number
+          created_at?: string
+          id?: string
+          module: Database["public"]["Enums"]["test_module"]
+          raw_score: number
+          test_id: string
+          time_taken_sec?: number | null
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          band?: number
+          created_at?: string
+          id?: string
+          module?: Database["public"]["Enums"]["test_module"]
+          raw_score?: number
+          test_id?: string
+          time_taken_sec?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       usage_allowance: {
         Row: {
           listening_tests_used: number
@@ -488,7 +651,12 @@ export type Database = {
       }
       grant_free_monthly_credits: { Args: never; Returns: number }
       grant_signup_credits: { Args: { p_user_id: string }; Returns: undefined }
+      has_plan: {
+        Args: { p_min_plan: Database["public"]["Enums"]["plan_tier"] }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_staff: { Args: never; Returns: boolean }
       join_waitlist: {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
@@ -496,6 +664,10 @@ export type Database = {
       jsonb_changes: { Args: { p_after: Json; p_before: Json }; Returns: Json }
       lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
       plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
+      plan_rank: {
+        Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
+        Returns: number
+      }
       refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
       run_credit_maintenance: { Args: never; Returns: Json }
       spend_credits: {
@@ -519,6 +691,8 @@ export type Database = {
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"
+      content_source: "admin" | "ai"
+      content_status: "draft" | "review" | "published" | "archived"
       credit_ledger_reason:
         | "grant"
         | "spend"
@@ -530,6 +704,19 @@ export type Database = {
       launch_status: "enabled" | "waitlist"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
       plan_tier: "free" | "gold" | "platinum"
+      reading_question_type:
+        | "mcq"
+        | "tfng"
+        | "ynng"
+        | "matching_headings"
+        | "matching_information"
+        | "matching_features"
+        | "sentence_completion"
+        | "summary_completion"
+        | "note_table_completion"
+        | "flowchart_completion"
+        | "short_answer"
+      test_module: "reading" | "listening"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -658,6 +845,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
+      content_source: ["admin", "ai"],
+      content_status: ["draft", "review", "published", "archived"],
       credit_ledger_reason: [
         "grant",
         "spend",
@@ -670,6 +859,20 @@ export const Constants = {
       launch_status: ["enabled", "waitlist"],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
       plan_tier: ["free", "gold", "platinum"],
+      reading_question_type: [
+        "mcq",
+        "tfng",
+        "ynng",
+        "matching_headings",
+        "matching_information",
+        "matching_features",
+        "sentence_completion",
+        "summary_completion",
+        "note_table_completion",
+        "flowchart_completion",
+        "short_answer",
+      ],
+      test_module: ["reading", "listening"],
     },
   },
 } as const

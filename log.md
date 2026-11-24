@@ -1905,3 +1905,56 @@ Stacked on `feature/m3-a1-a2-admin-credits` (not merged yet), so `log.md` doesn'
 - `deno check --frozen` (Deno 2) passes for `credits-test` and `_shared`; web typecheck and lint pass.
 - `credits-edge.spec.ts` **4/4** passed against local Supabase + `supabase functions serve` + the app on `next dev` :3200 (temporary worktree); the 2 API tests are skipped on mobile by design.
 - **Not verified:** the CI run with the edge runtime enabled; staging (the function deploys there on merge, and APP_ENV=staging keeps it on); the rest of the e2e suite wasn't re-run, since no existing code changed.
+
+## 2026-11-24 — M4-C1: Reading schema (tests, passages, questions, attempts) + RLS
+
+Stacked on `feature/m3-i1-credits-e2e` (not merged yet), so `log.md` doesn't conflict.
+
+**What:** migration `20261124160000_reading_schema.sql` adds `reading_tests`, `reading_passages`, `reading_questions` and `test_attempts`, with RLS. The answer key is never readable by users.
+
+**How**
+- **Shared enums** for every content module: `content_status` (draft, review, published, archived) and `content_source` (admin, ai). Also `reading_question_type` (the 11 types, §2.3) and `test_module` (reading, listening).
+- **Helpers:**
+  - `is_staff()`: admin or content editor;
+  - `plan_rank()`;
+  - `has_plan(min_plan)`: the caller's plan, with no profile counted as Free.
+- **`reading_tests`:** type, title, source, status, `min_plan`, `created_by`, `published_at`.
+  - Publishing is checked by a trigger: it needs **exactly 3 passages and questions numbered 1..N with no gaps**, and it sets `published_at`.
+  - Published tests can't be deleted (archive them instead); drafts can.
+- **`reading_passages`:** `order_no` 1–3, unique per test. The body is rich text up to 30k characters; format and sanitising come with M4-A1.
+- **`reading_questions`:**
+  - `test_id` is stored, with a composite foreign key `(passage_id, test_id)`, so question numbers 1–40 are **unique across the whole test** and a question can't join another test's passage;
+  - `options` (object or array) and `answer` (jsonb) take their per-type shapes in M4-C2;
+  - `explanation` is optional.
+- **`test_attempts`:**
+  - module, test_id (no foreign key, so history survives a deleted test), answers by question number, `raw_score` 0–40, band 0–9 in half steps only, time taken;
+  - only the service role writes it (grade-test, M4-B2), and users read their own.
+
+**RLS**
+- **Test list:** published tests are readable by anyone, signed out too. Gold tests stay listed, so they can be shown locked with an upgrade prompt.
+- **Passages and questions:** signed-in users only, for published tests **within their plan**. Drafts and archived tests are invisible.
+- **Answer key:** column privileges give `authenticated` SELECT on every question column **except `answer` and `explanation`** (the explanation gives the answer away). So `select=*`, `select=answer` and even filtering on `answer` all fail with 42501. This holds for any row policy and for staff too.
+  - Staff write answers directly. They'll read them through a SECURITY DEFINER RPC that comes with the builder (M4-A1).
+- **Writes:** staff (admin, content editor) insert, update and delete content. Students can't write content or attempts.
+
+**Tests**
+- pgTAP `reading_schema.test.sql` (+49):
+  - column and table privileges;
+  - the 11 types;
+  - the editor builds tests: a 4th passage, duplicate question numbers, cross-test passages and question 41 are refused;
+  - publishing: an empty test is refused, a gap is refused, then it publishes and `published_at` is set;
+  - delete rules;
+  - a Free student: published list incl. Gold; Free content readable; answer, explanation and `*` give 42501; Gold content gives 0 rows; can't write tests, questions or attempts;
+  - a Gold student reads Gold content; archiving hides it again;
+  - anon sees the list only;
+  - attempt constraints (half bands, 40 max), and users read only their own.
+- e2e `reading-rls.spec.ts` (+3, real PostgREST):
+  - a Free student gets prompt and options but 42501 for `*`, `answer`, `explanation` and filtering on `answer`;
+  - Gold and draft content stay hidden;
+  - anon sees the list only.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **386/386** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- API e2e (reading-rls, rls, credits-rls) 13/13 ✓ against local Supabase.
+- `pnpm test` 320/320 ✓; web, admin and shared typecheck ✓; web lint ✓.
+- **Not verified:** staging (the DB migrations workflow applies it on merge).

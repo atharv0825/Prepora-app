@@ -1774,3 +1774,99 @@ Done together on one branch (the three steps were given together).
 - **Not verified:** a real Edge Function using `withCredits` deployed (M3-I1 adds a dummy one); staging.
 
 **Branching:** stacked on `feature/m3-b1-b4-credits-engine` (PR not merged yet) with `develop` merged in.
+
+## 2026-11-24 — M3-F1…F3: Credits UI (header chip, Credits & usage, useCredits, cost confirm, credit dialogs)
+
+Done together on one branch (the three steps were given together), from `develop` (M3-B5…B7 merged).
+
+**M3-F1 balance chip + "Credits & usage"**
+- Header chip (`components/credits/credit-chip.tsx`): balance with a coin icon, red outline at 0, links to `/app/credits`. Also "Credits & usage" in the account menu.
+- `/app/credits`: balance with today's use vs the daily cap (meter), credits by bucket with expiry ("Never expires", "Expires in 5 days", "Expires on 3 Jan 2027", in the student's time zone), monthly allowance meters ("Not in your plan" for limit 0), and history from `credit_ledger` (newest 100 entries, RLS). A spend that took credits from several buckets, and its refund, show as one row each (grouped by `reservation_id`); labels come from `credit_costs`.
+- Home credits card (M2-F3 placeholder) now shows the balance, what's left today and a link to the page.
+- Server: `getMyCredits()` / `getCreditCosts()` in `lib/supabase/session.ts`, cached per request (layout, home and the page share one `get_my_credits` call). Output is parsed with the shared `CreditBalance` schema; on any error the UI shows no balance rather than a wrong one.
+
+**M3-F2 `useCredits()` + `<CostConfirm>`**
+- `CreditsProvider` (in the `/app` layout, seeded by the server render) and `useCredits()`: `credits`, `costs`, `costOf`, `check` (client-side hint, same order as `spend_credits`: balance, then daily cap), `refresh` (also on tab focus, at most every 30 s), `showCreditError`, and `run(call)` for AI calls: opens the credit dialog on a refusal and refreshes the balance afterwards.
+- `<CostConfirm actionKey confirmLabel onConfirm trigger>`: "This costs N credits" with the balance before/after and a note that failures are refunded. If the balance already can't cover it, the dialog says why and offers top-up / plans instead of Confirm. 0-credit actions run straight away. The cost is read from `credit_costs` (admin-tunable).
+
+**M3-F3 credit error dialogs**
+- `CreditErrorDialog` for `insufficient_credits` (Top up + See plans), `daily_cap_reached`, `allowance_exceeded`, `feature_not_in_plan` (See plans), with details from the API when present ("This costs 4 credits. You have 1.", "You've used 2 of 2 reading tests this month."). Malformed details are ignored.
+- Upgrade / top-up go to a placeholder `/app/plans` (`routes.upgrade`, `routes.topUp` → `#top-up`): the three plans' numbers from the `plans` table, "Your plan" marked, top-ups "coming soon". M9-F1/F3 replace it.
+- No AI action exists until M6, so the confirm and the dialogs are shown with sample data on `/design` ("Credit dialogs"), which is where the e2e tests drive them.
+
+**Fixed along the way:** `DropdownMenuLinkItem` (packages/ui) now closes the menu on click. Base UI's default is not to, and since the `/app` layout stays mounted across client navigation, the open menu stayed up and blocked the next page. That affected the existing "Profile" item too (M1-F3); it just wasn't tested past the click.
+
+**Tests**
+- Unit `lib/credits.test.ts` (+22): expiry text incl. time zones, meters, `checkCost` order and edges, credit error parsing/views/actions for every code, history grouping and fallbacks.
+- e2e `credits-ui.spec.ts` (new, mobile + desktop): 18 credits in chip, home card and page for a new user; after service-role spend/refund/refused OCR/spend/allowance use, the page shows 14, 4 of 8 today, the monthly bucket used first, reading 1 of 2 and the grouped history in order; account menu → Credits & usage → See plans → placeholder; on `/design`: confirm (balance after, runs on confirm), not enough credits, over the daily limit, and all four error dialogs with their links.
+- `dashboard.spec.ts` and `journey.spec.ts` expected the old "Coming soon" credits placeholder; they now expect 18 credits (and the chip in the journey).
+
+**Verified**
+- `pnpm test` **298/298** ✓; typecheck and lint clean in all packages.
+- Full web e2e against local Supabase (app on `next dev` :3200 from a temporary worktree, since local `next build` runs out of memory): **63 passed, 21 skipped** (API-only specs run on desktop only) after updating the journey spec; the credits/dashboard/journey specs re-run after the last fix: 22/22 ✓.
+- Looked at screenshots of home, Credits & usage and the confirm dialog (desktop and mobile); fixed a lowercased month in the expiry note.
+- **Not verified:** a real AI call through `run()` / `withCredits` (M3-I1 adds a dummy Edge Function), the focus refresh in a browser, staging.
+
+## 2026-11-24 — M3-A1 + M3-A2: Plans & credits editor, user credits (grant, refund) with audit_log
+
+Done together on one branch (given together), stacked on `feature/m3-f1-f3-credits-ui` (M3-F1…F3, not merged yet) so `log.md` doesn't conflict and the student history can label admin grants.
+
+**M3-A1 Plans & credits editor** (admin `/plans`, nav "Plans & pricing" now live)
+- One form per plan: monthly and welcome credits, daily cap, the four monthly allowances, and the four feature flags. The whole `limits` object is saved (`plan_limits_valid` checks it again). Notes say what applies at once (cap, allowances, flags) and what applies at the next grant (credit amounts).
+- Credit cost per action: credits (0–1000) per row, with the budget (1 credit ≈ $0.01) against `est_cost_usd` while typing and a warning when the price is below the estimated cost. Only the price is editable: actions are added and retired by migrations, and `spend_credits` raises on an inactive action, so an on/off switch would break features instead of hiding them.
+- "Recent changes" from `audit_log` (who, what, before → after).
+
+**M3-A2 User credits** (on `/users/[id]`) and a Credits overview (`/credits`, nav "Credits" now live)
+- Balance, today's spend vs cap, buckets with expiry, this month's allowances. These are the same numbers the student sees: `get_my_credits` and the new `admin_user_credits` share `credits_summary()`.
+- Ledger (newest 200), with a spend across buckets and its refund merged by reservation, as on the student page. Each spend has **Refund** (or a "Refunded" badge).
+- **Grant credits** dialog: 1–1000 credits, expiring in 30/90/365 days or never, a required note (3–500 characters). It's added as an `admin` bucket and spent like any other.
+- **Refund** dialog: refunds one spend through `refund_credits`, back into the buckets it came from (the dialog warns that an expired bucket's share stays unusable). It's idempotent, and only refunds a spend belonging to the user on the page.
+- "Admin changes" on the user page; `/credits` lists the latest grants and refunds across users, with links.
+- Student side: an admin grant shows as "Credits from Prepora support" in their history (it would have read "From Prepora support added").
+
+**Database** (`20261124101500_admin_credits.sql`)
+- `audit_log` (admin_id, action `entity.verb`, entity, entity_id text, details jsonb, at). It has RLS, no grants and no policies: it is written only by the admin functions, in the same transaction as the change, and read through `admin_audit_entries()`. `admin_id` is set to null if the admin's account is deleted (shown as "A deleted admin").
+- Admin-only `SECURITY DEFINER` RPCs that raise `42501` unless `is_admin()`:
+  - `admin_update_plan` audits only the changed keys and writes nothing when nothing changed;
+  - `admin_update_credit_cost`;
+  - `admin_user_credits` and `admin_user_ledger` (the ledger also returns each row's bucket source and whether a spend was refunded);
+  - `admin_grant_credits` and `admin_refund_credits`, which audit the note and the balance after;
+  - `admin_audit_entries` (adds the admin's name and email).
+- Internal helpers have no execute for clients: `write_audit`, `jsonb_changes`, `admin_note`, `credits_summary`. `get_my_credits` was redefined to call `credits_summary`; its output is unchanged and its tests still pass.
+- Admins only, not content editors. Editors see "Admins only" with a reason that fits each page.
+
+**Admin app**
+- Server Functions (`lib/credit-actions.ts`) validate input with the shared schemas (`@prepora/shared/api/admin-credits`) and call the RPCs with the admin's session (public key only). Database errors are turned into plain messages.
+- Forms submit from `onSubmit` inside a transition, because React resets a form after an `action=` submit, which would wipe the input when the server refuses it. Field errors appear under each field and toasts confirm the save.
+
+**Tests**
+- pgTAP `admin_credits.test.sql` (+52):
+  - privileges: audit_log is closed to clients and the internal helpers can't be called;
+  - students and editors are refused everything;
+  - plan edits: only changed keys are audited, an unchanged save writes nothing, and invalid limits (missing, negative or unknown keys) are refused;
+  - cost edits and their bounds;
+  - the admin and the student see the same CreditBalance;
+  - grant validation, the admin bucket and its expiry, the trimmed note;
+  - refunds: the "refunded" flag, a repeat does nothing, another user's spend is refused, one audit row per real change.
+- Unit: `admin-credits.test.ts` (shared: form parsing, grant and refund inputs); admin `credits.test.ts` (cost note and below-cost check, ledger grouping, audit text); nav test; web history label.
+- e2e `admin-credits.spec.ts` (+3, real PostgREST and sessions, run serially because plans and costs are shared):
+  - the admin edits Gold's practice sessions and the AI Writing prompt's cost, then restores them; both are audited;
+  - grant + refund: the student's `get_my_credits` matches the admin's view, the ledger and the audit trail are right;
+  - students and editors are refused and can't read `audit_log`.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **337/337** ✓; `db lint` clean; types regenerated.
+- `pnpm test` 320/320 ✓; admin and web typecheck + lint ✓.
+- API e2e (admin-credits, admin-users, credits-rls, credits-concurrency) 17/17 ✓.
+- Student e2e (credits-ui, dashboard, journey) 22/22 ✓.
+- The real admin app (`next dev` :3300 + local Supabase), driven by an ad-hoc Playwright script on mobile and desktop:
+  - Gold practice sessions 30 → 31 saved, with the toast and the audit line;
+  - prompt cost 1 → 2 saved;
+  - the below-cost warning shows at 3 credits for Writing Task 2;
+  - grant with a 2-character note → field error, input kept; then a grant of 20 → balance 34;
+  - refund of the Writing spend → 38, "Refunded", audit with the notes;
+  - `/credits` lists both;
+  - the student's `/app/credits` shows "Credits from Prepora support +20";
+  - an editor gets "Admins only".
+  - Screenshots checked.
+- **Not verified:** staging (needs an admin account: M1-B3, or set your own role); the CI build.

@@ -46,9 +46,16 @@ function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
 }
 
 /** A menu item that is a link (renders <a>; pass `render={<Link …/>}` for Next links). */
-function DropdownMenuLinkItem({ className, ...props }: MenuPrimitive.LinkItem.Props) {
+// Closes on click by default (Base UI's default is false): with client-side navigation the
+// layout, and so the open menu, stays mounted on the next page and blocks it.
+function DropdownMenuLinkItem({ className, closeOnClick = true, ...props }: MenuPrimitive.LinkItem.Props) {
   return (
-    <MenuPrimitive.LinkItem data-slot="dropdown-menu-link-item" className={cn(itemClass, className)} {...props} />
+    <MenuPrimitive.LinkItem
+      data-slot="dropdown-menu-link-item"
+      className={cn(itemClass, className)}
+      closeOnClick={closeOnClick}
+      {...props}
+    />
   )
 }
 

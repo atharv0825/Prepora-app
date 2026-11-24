@@ -6,6 +6,7 @@ import type { AdminUserDetail } from "@prepora/shared/api/admin-users";
 import { Badge } from "@prepora/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@prepora/ui/components/card";
 import { AdminOnly } from "@/components/admin-only";
+import { UserCredits } from "@/components/user-credits";
 import { getViewer } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { bandLabel, countryName, formatDate, formatDateTime, isUuid, testTypeLabel, titleCase } from "@/lib/users";
@@ -14,6 +15,7 @@ export const metadata: Metadata = { title: "User", robots: { index: false } };
 
 // M2-A1: one user's profile (read-only). Progress, plan changes and suspension come with later
 // milestones (plan §6). Data from admin_get_user (admins only, checked in the database).
+// M3-A2: their credits below: balance, ledger, grant and refund (components/user-credits.tsx).
 export default async function UserPage({ params }: PageProps<"/users/[id]">) {
   const viewer = await getViewer();
   if (viewer?.role !== "admin") return <AdminOnly />;
@@ -76,6 +78,8 @@ export default async function UserPage({ params }: PageProps<"/users/[id]">) {
           rows={[["Practice history", "Arrives with the practice modules (M4–M7)."]]}
         />
       </div>
+
+      <UserCredits userId={user.id} userName={user.full_name || user.email || "this user"} />
     </div>
   );
 }

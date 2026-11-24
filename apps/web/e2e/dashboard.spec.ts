@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { ONBOARDED, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M2-F3: the home dashboard for an onboarded student: greeting, goal card with the exam
-// countdown, credits placeholder and the four module tiles (all "coming soon" for now).
+// countdown, credits card and the four module tiles (all "coming soon" for now).
 
 function inDays(days: number): string {
   const d = new Date();
@@ -35,7 +35,7 @@ test.describe("home dashboard", () => {
     await expect(goal).toContainText("30 days to go");
 
     const credits = page.getByRole("region", { name: "AI credits" });
-    await expect(credits).toContainText("Coming soon");
+    await expect(credits).toContainText("18 credits"); // sign-up grant (M3-B4), shown since M3-F1
     await expect(credits).toContainText("Free plan");
 
     const modules = page.getByRole("region", { name: "Practise" }).getByRole("listitem");

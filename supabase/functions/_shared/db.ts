@@ -68,6 +68,36 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          at: string
+          details: Json
+          entity: string
+          entity_id: string | null
+          id: number
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          entity: string
+          entity_id?: string | null
+          id?: never
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          entity?: string
+          entity_id?: string | null
+          id?: never
+        }
+        Relationships: []
+      }
       country_regions: {
         Row: {
           country_code: string
@@ -340,6 +370,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_audit_entries: {
+        Args: { p_entities: string[]; p_entity_id?: string; p_limit?: number }
+        Returns: {
+          action: string
+          admin_email: string
+          admin_name: string
+          at: string
+          details: Json
+          entity: string
+          entity_id: string
+          id: number
+        }[]
+      }
       admin_get_user: {
         Args: { p_id: string }
         Returns: {
@@ -358,6 +401,15 @@ export type Database = {
           timezone: string
           updated_at: string
         }[]
+      }
+      admin_grant_credits: {
+        Args: {
+          p_amount: number
+          p_expires_in_days: number
+          p_note: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       admin_list_users: {
         Args: {
@@ -379,6 +431,33 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_note: { Args: { p_note: string }; Returns: string }
+      admin_refund_credits: {
+        Args: { p_note: string; p_reservation_id: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_update_credit_cost: {
+        Args: { p_action_key: string; p_credits: number }
+        Returns: Json
+      }
+      admin_update_plan: {
+        Args: { p_id: Database["public"]["Enums"]["plan_tier"]; p_limits: Json }
+        Returns: Json
+      }
+      admin_user_credits: { Args: { p_user_id: string }; Returns: Json }
+      admin_user_ledger: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          action_key: string
+          bucket_source: Database["public"]["Enums"]["credit_source"]
+          created_at: string
+          delta: number
+          id: number
+          reason: Database["public"]["Enums"]["credit_ledger_reason"]
+          refunded: boolean
+          reservation_id: string
+        }[]
+      }
       admin_waitlist_by_country: {
         Args: never
         Returns: {
@@ -391,6 +470,7 @@ export type Database = {
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }
       credits_spent_today: { Args: { p_user_id: string }; Returns: number }
+      credits_summary: { Args: { p_user_id: string }; Returns: Json }
       expire_credit_buckets: { Args: never; Returns: number }
       get_launch_status: {
         Args: { p_country: string }
@@ -413,6 +493,7 @@ export type Database = {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
       }
+      jsonb_changes: { Args: { p_after: Json; p_before: Json }; Returns: Json }
       lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
       plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
       refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
@@ -426,6 +507,15 @@ export type Database = {
         Returns: Json
       }
       user_plan_limits: { Args: { p_user_id: string }; Returns: Json }
+      write_audit: {
+        Args: {
+          p_action: string
+          p_details: Json
+          p_entity: string
+          p_entity_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"

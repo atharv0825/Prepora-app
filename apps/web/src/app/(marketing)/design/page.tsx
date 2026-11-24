@@ -13,6 +13,7 @@ import {
 import { Input } from "@prepora/ui/components/input";
 import { Label } from "@prepora/ui/components/label";
 import { Textarea } from "@prepora/ui/components/textarea";
+import { CreditsDemo } from "./credits-demos";
 import { DialogDemo, ToastDemo } from "./interactive-demos";
 
 // M0-F2: living reference for the design system. Not linked from the site; not indexed.
@@ -278,6 +279,10 @@ export default function DesignSystemPage() {
           </div>
           <ToastDemo />
         </div>
+      </Section>
+
+      <Section title="Credit dialogs">
+        <CreditsDemo />
       </Section>
     </div>
   );

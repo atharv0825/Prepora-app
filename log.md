@@ -2067,3 +2067,70 @@ Done together on one branch from `develop` (everything up to M4-C3 is merged).
 - Deno 2: `deno check --frozen` for every function and `_shared` ✓; `deno test _shared/` 9/9 ✓.
 - API e2e (grade-test, reading-rls, credits-edge API) **11/11** ✓ against local Supabase + `supabase functions serve`.
 - **Not verified:** CI and staging (the function deploys to staging on merge).
+
+## 2026-11-25 — M5-F1…F3: Listening audio player, answer sheet with map/diagram labelling, results with transcripts
+
+**Scope note.** The Listening backend doesn't exist yet: no tables (M5-C1), no R2 audio (M5-B1), no labelling-image storage (M5-B3), no Listening grading (M5-B2). The screens are built against a written contract and exercised on a **built-in sample test** at `/app/listening/sample`. That page isn't linked anywhere and returns 404 in production. Wiring the screens to the real `get_listening_test` and `grade-test` is a swap of the data source once M5-C1 and B2 land.
+
+**Contract (the part of M5-C2 the player needs)**
+- `packages/shared/src/ielts/listening.ts`:
+  - question types: the 11 Reading types plus `map_labelling` and `diagram_labelling`;
+  - Zod for both labelling shapes. Map: an image with lettered places A, B, C… in order, and the answer is one of the letters. Diagram: the question's marker on the image, then a typed answer with a word limit or a word-bank letter. Marker positions are percentages of the image size;
+  - 4 sections × 10 questions (`sectionOfQuestion`);
+  - the Listening band table (one table for Academic and General), with short tests scaled to 40 as for Reading.
+- `packages/shared/src/api/listening-test.ts`:
+  - `ListeningTestPayload`: the sections carry `audio_url`; there are no answers, explanations or transcripts;
+  - `ListeningGradeRequest`, which must include `mode`;
+  - `ListeningGradeResponse`: the Reading result shape plus `mode` and per-section `transcripts`.
+
+**M5-F1 audio player** (`components/listening/audio-player.tsx`; rules in `lib/listening/player.ts`)
+- **Exam mode:**
+  - each part plays once, in order;
+  - no pause, seek, replay or choosing a part;
+  - native controls are off;
+  - position jumps from outside the page are put back, including a jump made before the audio has loaded;
+  - an outside pause resumes playback;
+  - the next part starts on its own after a 3-second gap;
+  - after the last part, a 2-minute check timer runs and then submits.
+- **Practice mode:** play/pause, a position slider, ±10 s, replay, and any part.
+- **Preloading:**
+  - the next part is fetched into memory (a blob URL) when the network is slow (Network Information API: 2g or 3g, downlink under 1.5 Mbps, or rtt over 400 ms);
+  - it is also fetched when the speed is unknown (Safari, Firefox) or once playback has stalled;
+  - on a known-fast network only metadata is loaded ahead;
+  - one `<audio>` element is reused, so iOS keeps allowing playback when a part starts by itself.
+
+**M5-F2 answer sheet**
+- Components: `answer-sheet.tsx`, `question-field.tsx` and `labelling.tsx`.
+- Layout:
+  - four part tabs, each showing how many are answered;
+  - a navigator for all 40 questions that jumps across parts;
+  - the sheet follows the part being played.
+- Inputs:
+  - every type has a control: MCQ with one or several letters, choices, matching, word banks, and typed gaps;
+  - typed gaps show the word-limit instruction and warn when the answer is over it.
+- Labelling:
+  - questions on the same image are laid out together;
+  - map: tap a lettered place to answer the current question, which then moves on;
+  - diagram: a numbered marker jumps to its answer box.
+- Answers are saved in the browser per test and mode, and cleared after grading.
+
+**M5-F3 results** (`listening-results.tsx`)
+- Band, score, mode, and the score per part.
+- Every question with the student's answer, the correct one, other accepted spellings, the over-limit note and the explanation.
+- Each part's transcript, shown for the first time here.
+
+**Sample test** (`lib/listening/sample*.ts`)
+- 40 questions across all four parts, including a map (Q11–15) and a diagram (Q31–35). Every key is validated by the shared Zod.
+- The page receives only the public payload. Keys and transcripts stay on the server: the grading Server Action uses the exact marking module that `grade-test` runs (`supabase/functions/_shared/reading.ts`), with labelling marked as its equivalent type until M5-B2. It saves nothing and uses no allowance.
+- Audio is a generated WAV of tones, served with Range support. `?sec=` sets the part length.
+
+**Verified**
+- `pnpm test` **437/437** ✓ (+44: shared listening contract 24, player rules 9, sheet, results and sample 11).
+- Typecheck ✓ (shared, web); web lint ✓.
+- Playwright `listening-player.spec.ts`: **10/10** ✓ (5 tests × mobile and desktop), against `next dev` on :3200 from a temporary worktree and local Supabase. It covers:
+  - practice controls;
+  - exam play-once, auto-advance, the seek and pause guards and the check time;
+  - slow-network preloading of part 2 while part 1 plays, and metadata only on a fast network;
+  - the full sheet with map and diagram labelling, the word-limit warning, the draft surviving a reload, results 7/40 → band 3, and the transcript appearing only after submission.
+- Screenshots on mobile and desktop checked by eye. Map answer chips were reduced to letters after that review.
+- **Not verified:** real recordings and R2 (M5-B1); Safari or iOS (WebKit isn't run; that's M5-I1); CI.

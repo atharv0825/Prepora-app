@@ -109,7 +109,7 @@ select isnt((select published_at from public.reading_tests where id = '4e100000-
   'published_at is set');
 
 select throws_ok($$ select answer from public.reading_questions $$, '42501', null, 'even staff can''t select answers directly');
-select is((select count(*)::int from public.reading_tests), 3, 'staff see drafts too');
+select is((select count(*)::int from public.reading_tests where id::text like '4e1%'), 3, 'staff see drafts too');
 
 select is(pg_temp.affected($$delete from public.reading_tests where id = '4e100000-0000-0000-0000-000000000001'$$),
   0, 'a published test can''t be deleted');
@@ -118,7 +118,7 @@ select is(pg_temp.affected($$delete from public.reading_tests where id = '4e1000
 
 -- ── A Free student ──
 select pg_temp.sign_in('4e000000-0000-0000-0000-000000000002');
-select is((select array_agg(title order by title) from public.reading_tests),
+select is((select array_agg(title order by title) from public.reading_tests where id::text like '4e1%'),
   array['Academic Test 1', 'General Test (Gold)'], 'the list shows published tests, Gold included (to upsell)');
 select is((select count(*)::int from public.reading_passages where test_id = '4e100000-0000-0000-0000-000000000001'), 3,
   'passages of a Free test');
@@ -162,7 +162,7 @@ select is((select count(*)::int from public.reading_passages where test_id = '4e
 -- ── Signed out ──
 reset role;
 set local role anon;
-select is((select count(*)::int from public.reading_tests), 1, 'anon sees the published list');
+select is((select count(*)::int from public.reading_tests where id::text like '4e1%'), 1, 'anon sees the published list');
 select throws_ok($$ select id from public.reading_questions $$, '42501', null, 'anon can''t read questions');
 
 -- ── test_attempts (written by the service role) ──

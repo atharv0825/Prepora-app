@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import type { Database } from "@prepora/shared/db";
+import { parseReadingQuestion, readingQuestionTypes } from "@prepora/shared/ielts/reading";
 import { adminClient, createTestUser, deleteTestUser, localSupabase, type TestUser } from "./support/local-supabase";
 
 // M4-C1: the Reading tables through the real API (PostgREST) with real sessions. The answer key
@@ -85,5 +86,30 @@ test.describe("reading content RLS", () => {
     const list = await anon.from("reading_tests").select("title").in("id", ids);
     expect(list.data?.map((t) => t.title).sort()).toEqual(["E2E Free test", "E2E Gold test"]);
     expect((await anon.from("reading_passages").select("id").eq("test_id", freeTest)).error).not.toBeNull();
+  });
+
+  test("M4-C3: the seeded sample tests match the shared question contract", async () => {
+    const samples = { "5eed0000-0000-4000-8000-00000000000a": 20, "5eed0000-0000-4000-8000-00000000000b": 14 };
+    const { data, error } = await adminClient()
+      .from("reading_questions")
+      .select("test_id, q_no, q_type, prompt, options, answer")
+      .in("test_id", Object.keys(samples))
+      .order("q_no");
+    expect(error).toBeNull();
+    for (const [testId, count] of Object.entries(samples)) {
+      expect(data?.filter((q) => q.test_id === testId)).toHaveLength(count);
+    }
+    for (const q of data ?? []) {
+      const parsed = parseReadingQuestion(q);
+      expect(parsed.success, `${q.test_id} Q${q.q_no} (${q.q_type}): ${parsed.error?.message}`).toBe(true);
+    }
+    const academicTypes = new Set(data?.filter((q) => q.test_id.endsWith("a")).map((q) => q.q_type));
+    expect([...academicTypes].sort()).toEqual([...readingQuestionTypes].sort());
+
+    // A student sees the samples in the list, with their questions but no answers.
+    const list = await student.client.from("reading_tests").select("title").in("id", Object.keys(samples)).order("title");
+    expect(list.data?.map((t) => t.title)).toEqual(["Sample Academic Test", "Sample General Training Test"]);
+    const answers = await student.client.from("reading_questions").select("answer").in("test_id", Object.keys(samples));
+    expect(answers.error?.code).toBe("42501");
   });
 });

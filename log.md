@@ -1958,3 +1958,59 @@ Stacked on `feature/m3-i1-credits-e2e` (not merged yet), so `log.md` doesn't con
 - API e2e (reading-rls, rls, credits-rls) 13/13 ✓ against local Supabase.
 - `pnpm test` 320/320 ✓; web, admin and shared typecheck ✓; web lint ✓.
 - **Not verified:** staging (the DB migrations workflow applies it on merge).
+
+## 2026-11-24 — M4-C2 + M4-C3: Reading question contract, grade-test contract, band tables; sample tests
+
+Done together on one branch (given together), stacked on `feature/m4-c1-reading-schema` (not merged yet).
+
+**M4-C2: contract in `packages/shared`**
+- `ielts/reading.ts`: Zod schemas for **each of the 11 question types**, giving the prompt, `options` (what students see) and `answer` (the key):
+
+  | Type | `options` | `answer` |
+  |---|---|---|
+  | MCQ | `choices` (2–8) and `select` (1–3, "Choose TWO letters") | `labels` (letters A, B, …) |
+  | TFNG / YNNG | none | `value` (true/false/not_given, yes/no/not_given) |
+  | Matching headings | `headings` | a roman-numeral `label` (i, ii, …) |
+  | Matching information | `paragraphs` (the passage's paragraph letters) | `label` |
+  | Matching features | `features` | a letter `label` |
+  | Sentence and note/table completion, short answer | `max_words` (1–5) and `number_allowed` ("AND/OR A NUMBER") | `accept` (accepted spellings) |
+  | Summary and flow-chart completion | either the same typed-gap options, or a `word_bank` | `accept`, or a letter `label` |
+
+  - Completion prompts must contain exactly one `___` gap.
+  - Every schema checks that the answer fits its options: the letter exists, the right number of MCQ letters, accepted answers within the word limit.
+  - `parseReadingQuestion()` reports errors for the question's own type only.
+- `PublicReadingQuestion`, the shape students receive (no answer), and `answerLabels()`: what a student can pick for each type.
+- **Typed-answer rules:** `normalizeText` ignores case, surrounding spaces and punctuation, and curly vs straight quotes, but not spelling. `countWords` counts a hyphenated word as one and numbers separately. `withinWordLimit`: over the limit is wrong.
+- `ReadingResponse`: what the player sends per question (letters for MCQ, a value or label, or typed text).
+- `ielts/bands.ts`: **Academic and General Reading** raw→band tables (the commonly published conversions, 40 questions).
+  - The tables stop at 2.5; I extended them down to 0 so every score has a band.
+  - `readingBand(type, raw, total)` scales short tests to 40, rounding down so a short test never flatters (10/14 → 28/40).
+  - The app presents bands as estimates, since IELTS adjusts boundaries per test.
+- `api/grade-test.ts`:
+  - **Request:** module, test_id, answers by question number "1"–"40", `time_taken_sec`. Strict: no score fields accepted.
+  - **Response:** attempt id, raw score, total, half-step band, the Reading allowance after the test, and per-question results (correct, given, correct answer, other accepted answers, a note for over-limit/unanswered, explanation).
+  - **Error codes:** 400, 401, 403 (plan), 404, 402 `allowance_exceeded`.
+  - grade-test itself comes in M4-B2, with a copy of these checked by the contract test.
+
+**M4-C3: sample tests** (migration `20261124170000_seed_reading_samples.sql`)
+- **Sample Academic Test:** 3 passages (city beekeeping, moving bridges, sleep and memory) and **20 questions covering all 11 types**.
+- **Sample General Training Test:** a leisure-centre notice, a staff parking policy and a short history of the bicycle; 14 questions.
+- Both are free and published (they pass the publish trigger), and every question has an explanation. The texts are original, written for Prepora.
+- Both are shorter than 40 questions, so bands are scaled (above).
+- Passage bodies are plain text, paragraphs separated by blank lines, with lettered paragraphs for matching questions; the builder's rich-text format (M4-A1) can convert them.
+- `on conflict do nothing`, so later edits by editors are never overwritten.
+- `reading_schema.test.sql` (M4-C1) counted every published test; it now only counts its own tests, since the samples are published too.
+
+**Tests**
+- Unit (+48):
+  - `bands.test.ts`: table rows, Academic vs General, every score 0–40 maps to a band that never drops as the score rises, scaling;
+  - `reading.test.ts`: a valid example for every type, defaults, 19 invalid cases, labels, normalising, word counts and limits;
+  - `grade-test.test.ts`: request and response shapes.
+- pgTAP `reading_seed.test.sql` (+12): both published and free; 3 passages each; questions 1–20 and 1–14; all 11 types; question numbers follow passage order; every question explained; a Free student reads them but not the answers.
+- e2e `reading-rls.spec.ts` (+1): **all 34 seeded questions parse with the shared contract** (read with the service role), and a student sees both samples without answers.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **398/398** ✓; `db lint` clean; `db:types:check` ✓ (no schema change).
+- `pnpm test` 368/368 ✓; shared, web and admin typecheck ✓; web lint ✓.
+- `reading-rls.spec.ts` 4/4 ✓ against local Supabase.
+- **Not verified:** staging (the samples are added there when the migration runs on merge).

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { ONBOARDED, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M2-F3: the home dashboard for an onboarded student: greeting, goal card with the exam
-// countdown, credits card and the four module tiles (all "coming soon" for now).
+// countdown, credits card and the four module tiles (Reading open since M4-F1, the rest "coming soon").
 
 function inDays(days: number): string {
   const d = new Date();
@@ -40,7 +40,10 @@ test.describe("home dashboard", () => {
 
     const modules = page.getByRole("region", { name: "Practise" }).getByRole("listitem");
     await expect(modules).toHaveCount(4);
-    for (const name of ["Reading", "Listening", "Writing", "Speaking"]) {
+    // Reading is open since M4-F1; the others are still coming soon.
+    const reading = modules.filter({ has: page.getByRole("heading", { name: "Reading" }) });
+    await expect(reading.getByRole("link")).toHaveAttribute("href", "/app/reading");
+    for (const name of ["Listening", "Writing", "Speaking"]) {
       const tile = modules.filter({ has: page.getByRole("heading", { name }) });
       await expect(tile).toContainText("Coming soon");
       await expect(tile.getByRole("link")).toHaveCount(0);

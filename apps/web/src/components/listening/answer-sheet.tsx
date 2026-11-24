@@ -6,7 +6,7 @@ import type { PublicListeningQuestion } from "@prepora/shared/api/listening-test
 import { LISTENING_SECTIONS, sectionOfQuestion } from "@prepora/shared/ielts/listening";
 import { type Answers, answeredCount, isAnswered, questionsBySection, sheetBlocks } from "@/lib/listening/answers";
 import { LabellingBlock } from "./labelling";
-import { QuestionField } from "./question-field";
+import { QuestionField } from "@/components/questions/question-field";
 
 /**
  * M5-F2: the 40-question answer sheet. Four parts (tabs, with how many are answered), a

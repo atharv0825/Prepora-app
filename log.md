@@ -2134,3 +2134,65 @@ Done together on one branch from `develop` (everything up to M4-C3 is merged).
   - the full sheet with map and diagram labelling, the word-limit warning, the draft surviving a reload, results 7/40 → band 3, and the transcript appearing only after submission.
 - Screenshots on mobile and desktop checked by eye. Map answer chips were reduced to letters after that review.
 - **Not verified:** real recordings and R2 (M5-B1); Safari or iOS (WebKit isn't run; that's M5-I1); CI.
+
+## 2026-11-25 — M4-F1…F4: Reading test list, player, question components, results and attempt history
+
+**M4-F1 test list** (`/app/reading`)
+- Published tests, filtered by Academic, General Training or All (`?type=`). The student's own test type is the default.
+- This month's Reading allowance as a meter, with a "See plans" link once it's used up.
+- Tests above the student's plan are shown locked with "Unlock with Gold". Opening one directly shows an upgrade card, and an unknown id is a 404.
+- Each card shows how often the student has taken the test and their best band.
+- The home dashboard's Reading tile now opens this page and is the recommended module. Listening, Writing and Speaking stay "coming soon" until they're linked up.
+
+**M4-F2 player** (`/app/reading/[testId]`, `components/reading/reading-player.tsx`)
+- **Layout:** split view on desktop, with the passage and questions scrolling separately. Passage/Questions tabs on mobile. Passage 1–3 tabs with answered counts, and a navigator for every question that jumps to its passage and question.
+- **Timer:** 60 minutes from the start time, so it keeps running across reloads. It turns amber at 10 minutes and red at 5, announced to screen readers. At 0 the answers are sent once, without a confirm dialog.
+- **Highlighting:** select text, then press Highlight (or Ctrl/⌘+H); tap a highlight to clear it. Highlights are stored as character offsets per passage.
+- **Autosave:** answers, highlights and the start time are saved on the device on every change. They're restored with "Continued where you left off", and cleared after marking.
+- **Submit:**
+  - unanswered questions → a confirm dialog;
+  - `grade-test` goes through `useCredits().run`, so the monthly-limit dialog appears on 402 and the answers stay saved;
+  - success → the results page.
+
+**M4-F3 question components** (`components/questions/`, shared with Listening)
+- `QuestionField` handles all 11 types:
+  - MCQ, including "Choose TWO" with a cap;
+  - TFNG and YNNG;
+  - matching headings, information and features;
+  - word banks;
+  - typed gaps, with the word limit and an over-limit warning.
+- Lists of 9 or more options use a dropdown.
+- `QuestionGroupView` lays out "Questions 1–5", the IELTS instruction for the type, and the shared list once (headings, options, words).
+- The Listening components now import from here; their behaviour is unchanged.
+
+**M4-F4 results** (`/app/reading/attempts/[attemptId]`)
+- Band, score, date and time taken, with a note when a short test is scaled to 40.
+- Every question, by passage, with its prompt, the student's answer, the correct answer, other accepted answers, the over-limit note and the explanation.
+- The student's attempts at this test, plus "Take this test again".
+- The list page shows all of the student's attempts (history). Only the owner can open an attempt (RLS); anyone else gets a 404.
+- **Backend change this needed:**
+  - migration `20261125120000_test_attempt_results.sql` adds `test_attempts.results` (jsonb array);
+  - `record_test_attempt` gains `p_results` (it was dropped and recreated; still service role only);
+  - `grade-test` saves the results it returns.
+  - Without this, past attempts couldn't show correct answers: students can never read the answer key.
+  - Attempts saved before this have no results, and the page says so.
+- Known limitation: for word-bank and heading questions, the correct answer is shown as its label (for example "B" or "iii"), not the word.
+
+**Verified**
+- `pnpm test` **452/452** ✓ (+15 Reading and question-group tests, plus the dashboard test updated).
+- pgTAP **419/419** ✓ (+3: results saved, must be a list, owner-only).
+- `db lint` clean; `db:types:check` ✓; `deno check` for every function ✓.
+- Typecheck ✓ (shared, web, admin); web lint ✓.
+- Playwright, against local Supabase, `supabase functions serve` and `next dev` on :3200 from a temporary worktree:
+  - `reading-ui.spec.ts` (new): **10/10** on mobile and desktop. It covers:
+    - the filter, the allowance, the locked Gold test, the upgrade card and the 404;
+    - the full Academic sample answered through the UI across all 11 types → 20/20, band 9;
+    - split view and mobile tabs; a highlight and answers surviving a reload;
+    - results with explanations, history, and the allowance going to 1 of 2;
+    - wrong, over-limit and unanswered answers with the confirm dialog;
+    - automatic submission at 0;
+    - the third test of the month → the monthly-limit dialog, with answers kept.
+  - `grade-test.spec.ts` 5/5, now also checking the saved results; `dashboard`, `listening-player` and `journey` pass.
+  - Run in parallel, 5 mobile tests timed out on the dev server (including the untouched M2 journey). All passed when rerun one at a time.
+- Screenshots checked by eye on mobile and desktop.
+- **Not verified:** CI, staging, and Safari/iOS text selection for highlighting.

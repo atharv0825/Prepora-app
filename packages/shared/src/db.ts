@@ -437,6 +437,7 @@ export type Database = {
           id: string
           module: Database["public"]["Enums"]["test_module"]
           raw_score: number
+          results: Json | null
           test_id: string
           time_taken_sec: number | null
           user_id: string
@@ -448,6 +449,7 @@ export type Database = {
           id?: string
           module: Database["public"]["Enums"]["test_module"]
           raw_score: number
+          results?: Json | null
           test_id: string
           time_taken_sec?: number | null
           user_id: string
@@ -459,6 +461,7 @@ export type Database = {
           id?: string
           module?: Database["public"]["Enums"]["test_module"]
           raw_score?: number
+          results?: Json | null
           test_id?: string
           time_taken_sec?: number | null
           user_id?: string
@@ -675,6 +678,7 @@ export type Database = {
           p_band: number
           p_module: Database["public"]["Enums"]["test_module"]
           p_raw_score: number
+          p_results?: Json
           p_test_id: string
           p_time_taken_sec?: number
           p_user_id: string

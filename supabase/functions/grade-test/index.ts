@@ -2,14 +2,16 @@
 //
 //   1. The test must be published (404) and in the student's plan (403, details: { min_plan }).
 //   2. Grade every question against the key (_shared/reading.ts), raw score → band.
-//   3. record_test_attempt: uses one Reading allowance and saves the attempt in one transaction
-//      (402 allowance_exceeded, nothing saved, when the month's tests are used up).
+//   3. record_test_attempt: uses one Reading allowance and saves the attempt, with its results
+//      for reviewing later, in one transaction (402 allowance_exceeded, nothing saved, when the
+//      month's tests are used up).
 //   4. Return the results with the correct answers and explanations: the first time the
 //      student sees them.
 // Reads the answer key with the service role; nothing from the client is trusted but the answers.
 
 import { z } from "../_shared/deps.ts";
 import { errors, HttpError } from "../_shared/errors.ts";
+import type { Json } from "../_shared/db.ts";
 import { createHandler } from "../_shared/handler.ts";
 import { type GradableQuestion, gradeTest, type QuestionResult, type TestType } from "../_shared/reading.ts";
 
@@ -83,6 +85,8 @@ Deno.serve(
         p_raw_score: graded.raw_score,
         p_band: graded.band,
         p_time_taken_sec: input.time_taken_sec,
+        // Kept with the attempt so the student can review it later (M4-F4).
+        p_results: graded.results as unknown as Json,
       });
       if (saveError) throw new Error(`record_test_attempt: ${saveError.code} ${saveError.message}`);
 

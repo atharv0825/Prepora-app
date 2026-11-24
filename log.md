@@ -1774,3 +1774,35 @@ Done together on one branch (the three steps were given together).
 - **Not verified:** a real Edge Function using `withCredits` deployed (M3-I1 adds a dummy one); staging.
 
 **Branching:** stacked on `feature/m3-b1-b4-credits-engine` (PR not merged yet) with `develop` merged in.
+
+## 2026-11-24 — M3-F1…F3: Credits UI (header chip, Credits & usage, useCredits, cost confirm, credit dialogs)
+
+Done together on one branch (the three steps were given together), from `develop` (M3-B5…B7 merged).
+
+**M3-F1 balance chip + "Credits & usage"**
+- Header chip (`components/credits/credit-chip.tsx`): balance with a coin icon, red outline at 0, links to `/app/credits`. Also "Credits & usage" in the account menu.
+- `/app/credits`: balance with today's use vs the daily cap (meter), credits by bucket with expiry ("Never expires", "Expires in 5 days", "Expires on 3 Jan 2027", in the student's time zone), monthly allowance meters ("Not in your plan" for limit 0), and history from `credit_ledger` (newest 100 entries, RLS). A spend that took credits from several buckets, and its refund, show as one row each (grouped by `reservation_id`); labels come from `credit_costs`.
+- Home credits card (M2-F3 placeholder) now shows the balance, what's left today and a link to the page.
+- Server: `getMyCredits()` / `getCreditCosts()` in `lib/supabase/session.ts`, cached per request (layout, home and the page share one `get_my_credits` call). Output is parsed with the shared `CreditBalance` schema; on any error the UI shows no balance rather than a wrong one.
+
+**M3-F2 `useCredits()` + `<CostConfirm>`**
+- `CreditsProvider` (in the `/app` layout, seeded by the server render) and `useCredits()`: `credits`, `costs`, `costOf`, `check` (client-side hint, same order as `spend_credits`: balance, then daily cap), `refresh` (also on tab focus, at most every 30 s), `showCreditError`, and `run(call)` for AI calls: opens the credit dialog on a refusal and refreshes the balance afterwards.
+- `<CostConfirm actionKey confirmLabel onConfirm trigger>`: "This costs N credits" with the balance before/after and a note that failures are refunded. If the balance already can't cover it, the dialog says why and offers top-up / plans instead of Confirm. 0-credit actions run straight away. The cost is read from `credit_costs` (admin-tunable).
+
+**M3-F3 credit error dialogs**
+- `CreditErrorDialog` for `insufficient_credits` (Top up + See plans), `daily_cap_reached`, `allowance_exceeded`, `feature_not_in_plan` (See plans), with details from the API when present ("This costs 4 credits. You have 1.", "You've used 2 of 2 reading tests this month."). Malformed details are ignored.
+- Upgrade / top-up go to a placeholder `/app/plans` (`routes.upgrade`, `routes.topUp` → `#top-up`): the three plans' numbers from the `plans` table, "Your plan" marked, top-ups "coming soon". M9-F1/F3 replace it.
+- No AI action exists until M6, so the confirm and the dialogs are shown with sample data on `/design` ("Credit dialogs"), which is where the e2e tests drive them.
+
+**Fixed along the way:** `DropdownMenuLinkItem` (packages/ui) now closes the menu on click. Base UI's default is not to, and since the `/app` layout stays mounted across client navigation, the open menu stayed up and blocked the next page. That affected the existing "Profile" item too (M1-F3); it just wasn't tested past the click.
+
+**Tests**
+- Unit `lib/credits.test.ts` (+22): expiry text incl. time zones, meters, `checkCost` order and edges, credit error parsing/views/actions for every code, history grouping and fallbacks.
+- e2e `credits-ui.spec.ts` (new, mobile + desktop): 18 credits in chip, home card and page for a new user; after service-role spend/refund/refused OCR/spend/allowance use, the page shows 14, 4 of 8 today, the monthly bucket used first, reading 1 of 2 and the grouped history in order; account menu → Credits & usage → See plans → placeholder; on `/design`: confirm (balance after, runs on confirm), not enough credits, over the daily limit, and all four error dialogs with their links.
+- `dashboard.spec.ts` and `journey.spec.ts` expected the old "Coming soon" credits placeholder; they now expect 18 credits (and the chip in the journey).
+
+**Verified**
+- `pnpm test` **298/298** ✓; typecheck and lint clean in all packages.
+- Full web e2e against local Supabase (app on `next dev` :3200 from a temporary worktree, since local `next build` runs out of memory): **63 passed, 21 skipped** (API-only specs run on desktop only) after updating the journey spec; the credits/dashboard/journey specs re-run after the last fix: 22/22 ✓.
+- Looked at screenshots of home, Credits & usage and the confirm dialog (desktop and mobile); fixed a lowercased month in the expiry note.
+- **Not verified:** a real AI call through `run()` / `withCredits` (M3-I1 adds a dummy Edge Function), the focus refresh in a browser, staging.

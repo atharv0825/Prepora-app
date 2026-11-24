@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, CalendarDays, Coins, Headphones, Mic, PenLine, type LucideIcon } from "lucide-react";
+import { type CreditBalance, spendableToday } from "@prepora/shared/api/credits";
 import { Badge } from "@prepora/ui/components/badge";
 import { cn } from "@prepora/ui/lib/utils";
 import type { DashboardModule, ExamCountdown, ModuleKey } from "@/lib/dashboard";
+import { routes } from "@/lib/routes";
 
 // Home dashboard cards (M2-F3, UI design: greeting, target band + exam countdown card, 2×2
-// module tiles with the recommended one in green). Server components: no client JS.
+// module tiles with the recommended one in green), credits card (M3-F1). Server components: no
+// client JS.
 
 const cardClass = "flex flex-col gap-4 rounded-3xl border border-border bg-card p-6";
 
@@ -60,8 +63,8 @@ function Countdown({ countdown }: { countdown: ExamCountdown }) {
   }
 }
 
-export function CreditsCard({ plan }: { plan: string }) {
-  // Placeholder until the credits engine (M3): no balance exists yet, so none is shown.
+/** Balance, what's left today and a link to "Credits & usage" (M3-F1). */
+export function CreditsCard({ plan, credits }: { plan: string; credits: CreditBalance | null }) {
   return (
     <section aria-labelledby="credits-heading" className={cardClass}>
       <div className="flex items-center justify-between gap-3">
@@ -74,13 +77,23 @@ export function CreditsCard({ plan }: { plan: string }) {
         <span className="grid size-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground">
           <Coins className="size-5" aria-hidden />
         </span>
-        <div className="flex flex-col gap-1">
-          <p className="font-medium">Coming soon</p>
-          <p className="text-sm text-muted-foreground">
-            Credits pay for AI scoring of Writing and Speaking. Your balance will show here.
-          </p>
-        </div>
+        {credits ? (
+          <div className="flex flex-col gap-1">
+            <p>
+              <span className="text-h2 tabular-nums">{credits.balance}</span>{" "}
+              <span className="text-muted-foreground">{credits.balance === 1 ? "credit" : "credits"}</span>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {spendableToday(credits)} left to use today. Credits pay for AI scoring of Writing and Speaking.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Your balance couldn&apos;t be loaded just now.</p>
+        )}
       </div>
+      <Link href={routes.credits} className="flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline">
+        Credits &amp; usage <ArrowRight className="size-4" aria-hidden />
+      </Link>
     </section>
   );
 }

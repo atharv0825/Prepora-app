@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { LogOut, UserRound } from "lucide-react";
+import { Coins, LogOut, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +17,7 @@ import { resetUser } from "@/lib/analytics";
 import { signOut } from "@/lib/account-actions";
 import { routes } from "@/lib/routes";
 
-/** Avatar button → menu with the person's name/email, Profile and Log out (M1-F3). */
+/** Avatar button → menu with the person's name/email, Profile, Credits & usage (M3-F1) and Log out (M1-F3). */
 export function AccountMenu({ name, email }: { name: string; email: string | null }) {
   const [pending, startTransition] = useTransition();
 
@@ -37,6 +37,9 @@ export function AccountMenu({ name, email }: { name: string; email: string | nul
         <DropdownMenuSeparator />
         <DropdownMenuLinkItem render={<Link href={routes.profile} />}>
           <UserRound aria-hidden /> Profile
+        </DropdownMenuLinkItem>
+        <DropdownMenuLinkItem render={<Link href={routes.credits} />}>
+          <Coins aria-hidden /> Credits &amp; usage
         </DropdownMenuLinkItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

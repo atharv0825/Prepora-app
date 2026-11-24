@@ -52,11 +52,12 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
-      # Only what the tests use: Postgres, Auth (GoTrue), PostgREST and the Kong gateway.
+      # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, the Kong gateway and the
+      # edge runtime, which serves supabase/functions (credits-edge.spec.ts, M3-I1).
       # Skipping the rest saves minutes and avoids image pulls we don't need.
       - name: Start local Supabase
         run: |
-          args="-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+          args="-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor"
           # One retry for transient Docker errors on the runner.
           supabase start $args || { echo "::warning::supabase start failed; retrying once"; supabase stop --no-backup || true; supabase start $args; }
 

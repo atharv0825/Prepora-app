@@ -1,6 +1,6 @@
 -- M4-B1 get_reading_test, M4-B2 record_test_attempt. Run: supabase test db
 begin;
-select plan(18);
+select plan(21);
 
 insert into auth.users (id, email) values
   ('4b000000-0000-0000-0000-000000000001', 'free@prepora.test'),
@@ -22,7 +22,7 @@ from public.reading_passages where test_id = '4b100000-0000-0000-0000-0000000000
 update public.reading_tests set status = 'published' where id = '4b100000-0000-0000-0000-000000000001';
 
 select function_privs_are('public', 'get_reading_test', array['uuid'], 'anon', array[]::text[], 'anon can''t call get_reading_test');
-select function_privs_are('public', 'record_test_attempt', array['uuid', 'test_module', 'uuid', 'jsonb', 'integer', 'numeric', 'integer'],
+select function_privs_are('public', 'record_test_attempt', array['uuid', 'test_module', 'uuid', 'jsonb', 'integer', 'numeric', 'integer', 'jsonb'],
   'authenticated', array[]::text[], 'users can''t record their own attempts');
 select is((select prosecdef from pg_proc where proname = 'get_reading_test'), false,
   'get_reading_test runs with the caller''s rights (column grants apply)');
@@ -70,6 +70,26 @@ select is(public.record_test_attempt('4b000000-0000-0000-0000-000000000001', 're
 select is((select array_agg(raw_score order by created_at, raw_score) from public.test_attempts
            where user_id = '4b000000-0000-0000-0000-000000000001'), array[5, 12]::smallint[],
   'only the two allowed attempts were saved');
+
+-- M4-F4: the results are kept with the attempt, and only its owner reads them.
+insert into auth.users (id, email) values ('4b000000-0000-0000-0000-000000000003', 'gold@prepora.test');
+insert into public.profiles (id, role, plan) values ('4b000000-0000-0000-0000-000000000003', 'user', 'gold')
+on conflict (id) do update set plan = excluded.plan;
+create temp table r as select public.record_test_attempt('4b000000-0000-0000-0000-000000000003', 'reading',
+  '5eed0000-0000-4000-8000-00000000000a', '{"1": "true"}', 1, 9, 60,
+  '[{"q_no": 1, "correct": true, "correct_answer": "true", "explanation": "Para A."}]') as j;
+grant select on r to authenticated;
+select throws_ok($$ select public.record_test_attempt('4b000000-0000-0000-0000-000000000003', 'reading',
+  '5eed0000-0000-4000-8000-00000000000a', '{}', 0, 0, null, '{"not": "a list"}') $$, '23514', null,
+  'results must be a list');
+set local role authenticated;
+select pg_temp.sign_in('4b000000-0000-0000-0000-000000000003');
+select is((select results -> 0 ->> 'explanation' from public.test_attempts where id = (select (j ->> 'attempt_id')::uuid from r)),
+  'Para A.', 'the owner reads the saved results');
+select pg_temp.sign_in('4b000000-0000-0000-0000-000000000001');
+select is((select count(*)::int from public.test_attempts where id = (select (j ->> 'attempt_id')::uuid from r)), 0,
+  'another student can''t');
+reset role;
 
 select * from finish();
 rollback;

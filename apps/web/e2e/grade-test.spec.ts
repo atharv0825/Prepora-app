@@ -117,6 +117,9 @@ test.describe("get_reading_test + grade-test (API)", () => {
 
     const { data: attempt } = await adminClient().from("test_attempts").select("user_id, module, raw_score, band, time_taken_sec").eq("id", body.attempt_id).single();
     expect(attempt).toEqual({ user_id: student.id, module: "reading", raw_score: 20, band: 9, time_taken_sec: 1500 });
+    // M4-F4: the results are kept with the attempt for reviewing later.
+    const { data: saved } = await student.client.from("test_attempts").select("results").eq("id", body.attempt_id).single();
+    expect(saved!.results).toEqual(body.results);
     // The student reads their own attempt (RLS).
     expect((await student.client.from("test_attempts").select("band")).data).toEqual([{ band: 9 }]);
   });

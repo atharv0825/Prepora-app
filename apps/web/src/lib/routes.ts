@@ -26,11 +26,16 @@ export const routes = {
   // M3-F3: where the upgrade / top-up buttons go. A placeholder page until billing (M9-F3).
   upgrade: "/app/plans",
   topUp: "/app/plans#top-up",
+  reading: "/app/reading", // M4-F1: test list (+ ?type=academic|general|all)
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)
   status: "/status",
 } as const;
+
+/** Reading pages with an id: the player (M4-F2) and one attempt's results (M4-F4). */
+export const readingTestPath = (testId: string) => `/app/reading/${testId}`;
+export const readingAttemptPath = (attemptId: string) => `/app/reading/attempts/${attemptId}`;
 
 export const mainNav = [
   { label: "Home", href: routes.home },

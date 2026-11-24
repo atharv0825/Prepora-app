@@ -2,24 +2,39 @@
 
 import { cn } from "cn";
 import { Input } from "@prepora/ui/components/input";
-import type { PublicListeningQuestion } from "@prepora/shared/api/listening-test";
 import { answerLabels, type ReadingQuestionType } from "@prepora/shared/ielts/reading";
-import { isTyped, limitText, overWordLimit } from "@/lib/listening/answers";
+import { isTyped, limitText, overWordLimit, type PlayerQuestion } from "@/lib/questions";
+
+// One question's answer control, for every Reading type (M4-F3) and Listening type (M5-F2):
+//   * MCQ: the choices with their letters; "Choose TWO" uses checkboxes, capped at two.
+//   * TFNG / YNNG: True / False / Not given (Yes / No / Not given).
+//   * Matching (headings, information, features), word banks and map letters: the labels. When
+//     the group shows the list above (`compact`), only the labels; long lists use a dropdown.
+//   * Typed gaps (completion types, short answer, typed diagram labels): a text box in the gap,
+//     with the word limit, and a warning once the answer is over it.
 
 type Value = string | string[] | undefined;
-type Props = { question: PublicListeningQuestion; value: Value; onChange: (value: string | string[]) => void };
+type Props = {
+  question: PlayerQuestion;
+  value: Value;
+  onChange: (value: string | string[]) => void;
+  /** The group's list (headings, features, word bank) is shown above: show labels only. */
+  compact?: boolean;
+};
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const CHOICE_TEXT: Record<string, string> = { true: "True", false: "False", not_given: "Not given", yes: "Yes", no: "No" };
+/** More labels than this: a dropdown instead of buttons. */
+const DROPDOWN_FROM = 9;
 
-/** The words/places/features each label stands for, for showing next to the letter. */
-function choiceTexts(q: PublicListeningQuestion): string[] {
+/** What each label stands for (choice, heading, feature, word), in label order. */
+function choiceTexts(q: PlayerQuestion): string[] {
   const o = q.options;
-  if (q.q_type === "map_labelling") return [];
+  if (q.q_type === "map_labelling" || q.q_type === "matching_information") return [];
   return strings(o.choices ?? o.features ?? o.headings ?? o.word_bank);
 }
 
-function labelsFor(q: PublicListeningQuestion): string[] {
+function labelsFor(q: PlayerQuestion): string[] {
   if (q.q_type === "map_labelling") {
     return Array.isArray(q.options.locations) ? (q.options.locations as { label: string }[]).map((l) => l.label) : [];
   }
@@ -27,14 +42,22 @@ function labelsFor(q: PublicListeningQuestion): string[] {
   return answerLabels({ q_type: q.q_type as ReadingQuestionType, options: q.options });
 }
 
-/** One question's answer control (every type but the labelling layout, which wraps this). */
-export function QuestionField({ question: q, value, onChange }: Props) {
+/** How a bare label reads to a screen reader. */
+function labelName(q: PlayerQuestion, label: string): string {
+  if (q.q_type === "map_labelling") return `Place ${label}`;
+  if (q.q_type === "matching_information") return `Paragraph ${label}`;
+  if (q.q_type === "matching_headings") return `Heading ${label}`;
+  return label;
+}
+
+export function QuestionField({ question: q, value, onChange, compact = false }: Props) {
   if (isTyped(q)) return <TypedGap question={q} value={value} onChange={onChange} />;
 
   const labels = labelsFor(q);
-  const texts = choiceTexts(q);
+  const texts = compact ? [] : choiceTexts(q);
   const select = q.q_type === "mcq" && typeof q.options.select === "number" ? q.options.select : 1;
   const chosen = Array.isArray(value) ? value : value ? [value] : [];
+  const bare = texts.length === 0 && !labels.some((l) => CHOICE_TEXT[l]);
 
   function pick(label: string) {
     if (select === 1) return onChange(q.q_type === "mcq" ? [label] : label);
@@ -42,24 +65,54 @@ export function QuestionField({ question: q, value, onChange }: Props) {
     onChange([...next].sort());
   }
 
+  const legend = (
+    <span>
+      {q.prompt}
+      {select > 1 && <span className="ml-1 text-sm text-muted-foreground">(choose {select})</span>}
+    </span>
+  );
+
+  if (labels.length >= DROPDOWN_FROM && select === 1) {
+    const id = `q${q.q_no}`;
+    return (
+      <div className="flex flex-col gap-2" data-q={q.q_no}>
+        <label htmlFor={id} className="flex gap-2">
+          <QNo n={q.q_no} />
+          {legend}
+        </label>
+        <select
+          id={id}
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-11 max-w-full rounded-2xl border border-black/15 bg-white px-3 text-sm sm:w-auto"
+        >
+          <option value="">Choose…</option>
+          {labels.map((label, i) => (
+            <option key={label} value={label}>
+              {texts[i] ? `${label}  ${texts[i]}` : labelName(q, label)}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
     <fieldset className="flex flex-col gap-2" data-q={q.q_no}>
       <legend className="mb-2 flex gap-2">
         <QNo n={q.q_no} />
-        <span>
-          {q.prompt}
-          {select > 1 && <span className="ml-1 text-sm text-muted-foreground">(choose {select})</span>}
-        </span>
+        {legend}
       </legend>
-      <div className={cn("flex gap-2", texts.length ? "flex-col" : "flex-wrap")} role={q.q_type === "map_labelling" ? "radiogroup" : undefined}>
+      <div className={cn("flex gap-2", bare ? "flex-wrap" : "flex-col")}>
         {labels.map((label, i) => {
           const on = chosen.includes(label);
+          const text = texts[i] ?? CHOICE_TEXT[label];
           return (
             <label
               key={label}
               className={cn(
-                "flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition-colors",
-                q.q_type === "map_labelling"
+                "flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2 text-sm transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/40",
+                bare
                   ? "min-w-11 justify-center border-transparent px-1.5"
                   : on
                     ? "border-primary bg-primary/10"
@@ -83,8 +136,7 @@ export function QuestionField({ question: q, value, onChange }: Props) {
               >
                 {CHOICE_TEXT[label] ? label[0]!.toUpperCase() : label}
               </span>
-              {/* Map letters stand alone: the places are on the map. */}
-              {texts[i] || CHOICE_TEXT[label] ? <span>{texts[i] ?? CHOICE_TEXT[label]}</span> : <span className="sr-only">Place {label}</span>}
+              {text ? <span>{text}</span> : <span className="sr-only">{labelName(q, label)}</span>}
             </label>
           );
         })}
@@ -93,11 +145,11 @@ export function QuestionField({ question: q, value, onChange }: Props) {
   );
 }
 
-function TypedGap({ question: q, value, onChange }: Props) {
+function TypedGap({ question: q, value, onChange }: Omit<Props, "compact">) {
   const text = typeof value === "string" ? value : "";
   const limit = limitText(q.options);
   const over = overWordLimit(q, text);
-  const [before, after] = q.prompt.includes("___") ? q.prompt.split(/_{3,}/, 2) : [q.prompt, null];
+  const [before, after] = /_{3,}/.test(q.prompt) ? q.prompt.split(/_{3,}/, 2) : [q.prompt, null];
   const id = `q${q.q_no}`;
 
   return (

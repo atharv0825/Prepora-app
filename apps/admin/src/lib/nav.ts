@@ -167,6 +167,7 @@ export const navGroups: NavGroup[] = [
         label: "Plans & pricing",
         icon: ScrollText,
         milestone: "M3",
+        built: true, // M3-A1: limits per plan, credit cost per action (prices come with M9)
         summary: "Credits, allowances and caps per plan; regional prices.",
         features: [
           "Monthly credits, allowances and daily caps per plan",
@@ -179,11 +180,12 @@ export const navGroups: NavGroup[] = [
         label: "Credits",
         icon: Coins,
         milestone: "M3",
+        built: true, // M3-A2: recent grants and refunds; per-user tools on the user page
         summary: "User balances and ledger; grants and refunds; real AI cost per credit.",
         features: [
           "Balance and full ledger per user",
           "Grant or refund credits (support)",
-          "Real AI cost per credit from ai_usage",
+          "Real AI cost per credit from ai_usage (M11)",
         ],
       },
     ],

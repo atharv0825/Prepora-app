@@ -1870,3 +1870,38 @@ Done together on one branch (given together), stacked on `feature/m3-f1-f3-credi
   - an editor gets "Admins only".
   - Screenshots checked.
 - **Not verified:** staging (needs an admin account: M1-B3, or set your own role); the CI build.
+
+## 2026-11-24 — M3-I1: Credits end to end through a dummy Edge Function
+
+Stacked on `feature/m3-a1-a2-admin-credits` (not merged yet), so `log.md` doesn't conflict.
+
+**What:** a dummy AI action proves the credits path works end to end before the first real AI feature (M6). The path: confirm → Edge Function → `withCredits` (spend, then refund on failure) → ledger → the header chip and "Credits & usage".
+
+**How**
+- Edge Function `credits-test` (`POST`, signed in, body `{ fail?: boolean }`):
+  - runs `withCredits(ctx, "writing_t2", …)`, so it spends Writing Task 2's 4 credits;
+  - the "AI call" does nothing and logs `ai_usage` with model `dummy-test`, which cost reports can leave out;
+  - `fail: true` throws `AiCallError`, so `withCredits` refunds and logs a failed `ai_usage` row, and the function answers `500 internal` with "The AI call failed. Your credits were refunded.";
+  - credit refusals pass through unchanged (e.g. `429 daily_cap_reached` with details);
+  - it answers **404 when `APP_ENV=production`**, so it can never take real users' credits. Locally and on staging it works.
+- Web `/app/credits-test` (signed in, not linked anywhere, 404 on the production host): "Run test" and "Run failing test", each behind `<CostConfirm>` and run through `useCredits().run(invokeFunction(…))`. This is the exact pattern AI features will use. Toasts confirm the spend or the refund.
+- CI `e2e.yml`: `supabase start` no longer skips `edge-runtime`, so the local functions are served during browser tests. Locally, run `supabase functions serve` next to `supabase start`.
+
+**Tests:** e2e `credits-edge.spec.ts`
+- **API (desktop only):**
+  - the spend makes the balance 14;
+  - the failing call → 500, balance still 14, and the refund belongs to the failed reservation, not the first one;
+  - `ai_usage` rows: `dummy-test` succeeded with 4 credits and failed with 0;
+  - the refunded spend doesn't count toward the cap: one more spend is allowed, then `429 daily_cap_reached` with details, balance 10;
+  - no session → 401; bad input → 400 `validation_failed` with nothing spent.
+- **App (mobile + desktop):**
+  - chip 18 → Run test → toast, chip **14**;
+  - Run failing test → refund toast, chip stays **14**;
+  - Run test → chip **10**; the confirm then shows "Daily limit reached";
+  - Credits & usage history lists spend, refund, spend, spend and the two grants, with the meter at 8 of 8.
+- If the functions aren't running, the spec skips locally and fails in CI.
+
+**Verified**
+- `deno check --frozen` (Deno 2) passes for `credits-test` and `_shared`; web typecheck and lint pass.
+- `credits-edge.spec.ts` **4/4** passed against local Supabase + `supabase functions serve` + the app on `next dev` :3200 (temporary worktree); the 2 API tests are skipped on mobile by design.
+- **Not verified:** the CI run with the edge runtime enabled; staging (the function deploys there on merge, and APP_ENV=staging keeps it on); the rest of the e2e suite wasn't re-run, since no existing code changed.

@@ -43,9 +43,15 @@ jobs:
       # --frozen: fail instead of resolving new versions if deno.lock is out of date. Deno 2 also
       # refuses packages published < 24 h ago, so pin versions that are a few days old, then
       # refresh the lock with `deno check` (Deno 2) in supabase/functions and commit deno.lock.
+      # _shared/*.ts too: shared helpers (e.g. withCredits, M3-B6) are checked even before a
+      # function imports them.
       - name: deno check
         working-directory: supabase/functions
-        run: deno check --frozen $(ls */index.ts | grep -v _shared/)
+        run: deno check --frozen $(ls */index.ts | grep -v _shared/) _shared/*.ts
+      # Unit tests next to the code (*_test.ts), no network or env needed.
+      - name: deno test
+        working-directory: supabase/functions
+        run: deno test --frozen _shared/
 
   deploy-staging:
     name: Deploy functions to staging

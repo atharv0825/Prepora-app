@@ -1625,3 +1625,184 @@ Branch `feature/m2-b2-launch-status` from `develop` (M2-B1 merged).
 - API e2e (admin countries/waitlist, admin users, RLS) 10/10 ✓ against local Supabase.
 - The real admin app (`next dev` :3300 + local Supabase), driven by Playwright on mobile and desktop: Vietnam switched on with **one click** → DB and `get_launch_status('VN')` = enabled, off again → waitlist; waitlist filtered to Vietnam; CSV download checked (headers, BOM, rows, `=…` email exported as `'=…`); content editor → "Admins only" and export 403. Screenshots checked.
 - **Not verified:** staging (needs an admin account, M1-B3 or set your role in the dashboard); the CI build.
+## 2026-11-23 — M2-I1: Playwright journey (sign up → onboarding → home, country gate)
+
+**What:** `apps/web/e2e/journey.spec.ts`, the M2 milestone as one visitor takes it, on mobile (Pixel 7) and desktop, against local Supabase:
+- **India (Wave 1):** landing → header "Start free" → `/signup` with "Continue with Google" (gate open) → signed in as a brand-new user → `/app` sends them to onboarding → Academic → 7.5 → exam date in 45 days → home shows "Good …, Kavya", target 7.5, Academic, **45 days to go**, credits placeholder, 4 module tiles → `/signup` now sends them to `/app`.
+- **Vietnam (Wave 2):** landing → "Start free" → `/waitlist` (no Google button) → joins with the form → "You're on the list." → the row is stored with `country_code = VN` (from the header, through the server action) and `source = signup_gate`. This is the first test that submits the waitlist form from the gate page.
+
+**How:** the country comes from a faked `CF-IPCountry` header (`page.setExtraHTTPHeaders`), which the middleware, the pages and the waitlist action all read, as on Cloudflare. Google's consent screen can't be automated, so the sign-in is a real Supabase session for a new user with an empty profile (`createTestUser`, as in the other specs); everything after it is the real app. The India journey is marked `test.slow()` (7 pages + a save in one test).
+
+**Coverage note:** the other M2 pieces keep their focused specs (country-gate, onboarding, dashboard, RLS, admin RPCs). Not covered end to end: the real Google OAuth round trip and the callback's country save (M2-B3); those have unit tests and need staging + M1-B2.
+
+**Verified**
+- Journey spec: 4/4 ✓ (both tests × mobile + desktop) against `next dev` + local Supabase. Your `next dev` was running on :3000, so the app was served from a temporary worktree on :3200 (removed afterwards).
+- Full suite: **36 passed, 8 skipped** (API specs run desktop-only). On the first full run, the existing onboarding spec (mobile) failed once at 33 s, just past the 30 s default, while the dev server was compiling pages for two workers; it passed alone and in the full re-run. CI uses a production build, where these take seconds.
+- The journey's first run timed out at "Start free" → `/signup` for the same reason (first dev compile); it passed after warm-up.
+- Web typecheck and lint ✓. No app code changed.
+- **Not verified:** the CI run of this spec (production build).
+
+## 2026-11-23 — M3-C1 + M3-C2: Plans & credits schema, seeded plans and credit costs
+
+Done together on one branch, as asked.
+
+**M3-C1: schema** (`20261123165854_credits_schema.sql`, plan §4/§5.5)
+- `plans` (id = `plan_tier`, name, `limits jsonb`, is_active). `limits` is checked by `plan_limits_valid()`: all 11 keys present, counts are whole numbers ≥ 0, flags are booleans, unknown keys rejected (so the M3-A1 editor can't save broken limits).
+- `credit_costs` (action_key, label, credits, **required_feature** `ocr`/`ai_gen`/`premium_voice` or null, model, est_cost_usd, is_active). `required_feature` gives M3-B1's "checks plan feature flags" its data.
+- `credit_buckets` (source enum `monthly/welcome/exam_pack/topup/admin`, granted, remaining with `0 ≤ remaining ≤ granted`, expires_at null = never). Partial index for "spendable, soonest expiry first".
+- `credit_ledger`: append-only; reason enum `grant/spend/refund/expire/admin_adjust` with a **sign check** (grant/refund > 0, spend/expire < 0, admin_adjust ≠ 0); `action_key` FK; `ref_id`; **`reservation_id`** to group one spend across several buckets and its refund (M3-B1/B2). Index for the daily cap (today's spends).
+- `usage_allowance` (user_id + period_start PK, four counters ≥ 0).
+- `ai_usage` (tokens, audio seconds, real cost, credits charged, success, latency, reservation_id); user set to null on account deletion so cost history stays complete.
+- **Access:** plans and credit_costs readable by everyone (also signed out, for pricing); buckets, ledger and allowance: users read their own; ai_usage: no client access; **no client writes anywhere** (service role and the M3-B functions only).
+- Not in this step: `prices`, `subscriptions`, `payment_events`, `profiles.plan_expires_at` (M9).
+
+**M3-C2: seed** (`20261123165857_seed_plans_credit_costs.sql`, `on conflict do nothing` so re-running never overwrites admin tuning)
+- Free 8 credits + 10 welcome, daily cap 8; allowances 2/2/5, no mock tests; no OCR, generation or natural voice; summary feedback.
+- Gold 100, cap 40; 15/15/30, 2 mocks; OCR, detailed feedback.
+- Platinum 220, cap 60; 30/30/60, 4 mocks; OCR, generation, natural voice, detailed feedback.
+- 10 actions (§2.5): speaking P1 5 / P2 4 / P3 6, writing T1 4 / T2 4, OCR 1, natural voice 4, generated cue card 2 / writing prompt 1 / reading passage 5. Full Speaking (15) and mock AI parts (23) are sums of parts, charged part by part; Reading/Listening grading uses the allowance (no rows). Estimated costs from §2.6; natural voice's model ("gemini-tts") and price are estimates to confirm (§2.6 says so); the writing prompt has no estimate in §2.6 (null).
+
+**Bug caught by the tests:** `plan_limits_valid` first accepted a limits object with a key missing: the per-key check is NULL for a missing key, and `bool_and` ignores NULLs. Fixed with `coalesce(…, false)`.
+
+**Tests**
+- pgTAP `credits_schema.test.sql` (+46): tables, enums, RLS on, privileges (no client writes, ai_usage closed), limits contract (missing/unknown key, negative, fractional, non-boolean), bucket range, ledger sign rules and FK, own-rows-only reads, no self-grants.
+- pgTAP `plans_credit_costs_seed.test.sql` (+19): every number from §2.5, new Free user = 18 credits (M3 exit), full Speaking 15, mock 23, generated Reading test 15, gated actions name real flags, the §2.5 Gold/Platinum examples fit, every estimate ≤ US$0.01 per credit, re-seeding keeps admin changes.
+- `apps/web/e2e/credits-rls.spec.ts` (+3, real PostgREST + sessions): anon reads plans/costs; users see only their own buckets/ledger; self-grant, balance edit, ai_usage read and plan edit → 42501.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **209/209** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` 249/249 ✓; web, admin, shared typecheck ✓; web lint ✓.
+- API e2e (credits, RLS, admin users, admin countries/waitlist) 13/13 ✓ against local Supabase.
+- **Not verified:** `deno check` of the regenerated `supabase/functions/_shared/db.ts` (only Deno 1.37 here; CI runs Deno 2); staging (the migrations workflow applies these on merge).
+
+## 2026-11-23 — M3-C3: Credit types, Zod schemas and error codes
+
+**What:** `@prepora/shared/api/credits`, the contract for everything credits: the shapes M3-B1/B3/B5 will return and M3-B6/F1–F3 will consume.
+
+**Error codes:** the API convention is lowercase snake_case (M0-C2, enforced by the contract test), so plan.md's `INSUFFICIENT_CREDITS`, `DAILY_CAP_REACHED`, `ALLOWANCE_EXCEEDED`, `FEATURE_NOT_IN_PLAN` are `insufficient_credits` (existed), `daily_cap_reached`, `allowance_exceeded`, `feature_not_in_plan`. Added to both `ApiErrorCode` (shared) and `ErrorCode` (Edge Functions), with Edge helpers and statuses: **402** insufficient credits / allowance used up (paying fixes it), **429** daily cap (wait until tomorrow), **403** feature not in plan.
+
+**Schemas and types** (`credits.ts`)
+- `PlanLimits`: strict Zod mirror of `plan_limits_valid()` (all 11 keys, whole numbers ≥ 0, booleans, nothing else); `planLimitCounts`, `planFeatures`, `gatedFeatures`.
+- `ActionKey` (the 10 seeded actions), `AllowanceType` (reading/listening/practice/mock), `CreditSource`, `PlanTier`.
+- `SpendResult` (spend_credits, M3-B1): `{ ok: true, reservation_id, action_key, credits, balance_after, spent_today }` or `{ ok: false, code: insufficient_credits | daily_cap_reached | feature_not_in_plan, action_key, credits, balance?, daily_cap?, spent_today?, feature? }`. Refusals are values, not exceptions, so the Edge helper can map them to HTTP.
+- `AllowanceResult` (use_allowance, M3-B3): ok, or `allowance_exceeded` with used/limit.
+- `CreditBalance` (get-my-credits, M3-B5): plan, balance, buckets (expiry soonest first, `expires_at` null = never), spent_today, daily_cap, period_start, allowances.
+- `creditErrorStatus`, `creditErrorMessages` (title + what to do next, for the M3-F3 dialogs), `isCreditErrorCode`, `spendableToday()`, `allowanceRemaining()`.
+- All schemas are `.strict()` (unknown fields rejected) and accept Postgres JSON timestamps (`+00:00`).
+
+**Contract tests** (`tests/contract.test.ts`, read the SQL/Deno sources as text): plan-limit keys = `plan_limits_valid()` arrays; action keys and required features = the `credit_costs` seed; allowance types = `usage_allowance` `*_used` columns and plan counts; credit error statuses = the Edge `errors.*` helpers. (The existing check keeps the two error-code unions equal.)
+
+**Branching:** stacked on `feature/m3-c1-c2-credits-schema` (needs its generated DB types and migrations).
+
+**Verified**
+- `pnpm test` **273/273** ✓ (+20 `credits.test.ts`, +4 contract).
+- web, admin, shared typecheck ✓; web and admin lint ✓.
+- `deno check supabase/functions/_shared/errors.ts` ✓ (Deno 1.37 locally; the file has no imports. CI runs Deno 2 on the functions).
+- No database change in this step.
+
+## 2026-11-23 — M3-B1…B4: Credits engine (spend, refund, allowance, grants + pg_cron)
+
+Done together on one branch (the four steps were given together).
+
+**Common rules**
+- Every function takes a user id, so **only the service role** (Edge Functions, pg_cron) may execute them. EXECUTE is revoked from `public`, `anon` and `authenticated` (Supabase grants new functions to anon/authenticated directly).
+- Refusals are JSON results matching the M3-C3 Zod schemas (`SpendResult`, `RefundResult`, `AllowanceResult`), not exceptions. Programming errors (unknown action, user or allowance type) raise `22023`.
+- **Concurrency:** spend and refund take a per-user transaction lock (`lock_user_credits`) and lock buckets `FOR UPDATE`, so parallel spends can't both pass the balance or cap check. Concurrency tests are M3-B7.
+
+**M3-B1 `spend_credits(user_id, action_key, ref_id)`** (`…171502`)
+- Checks, in order: action exists and is active → the plan has the action's `required_feature` → enough credits (`insufficient_credits`, with the balance) → daily cap (`daily_cap_reached`, with cap and spent today). Credits come before the cap because waiting until tomorrow wouldn't help an empty balance.
+- Spends from the bucket that **expires first** (never-expiring last, oldest first), possibly across several buckets, one ledger row per bucket, all with one `reservation_id`.
+- Expired buckets never count or get spent, even before the expiry job zeroes them.
+- The daily cap counts today's (midnight UTC) spends that weren't refunded.
+- Users without a profile row (M1-B2 not built) are treated as Free.
+- Helpers: `credit_balance`, `credits_spent_today`, `user_plan_limits`, `credit_day_start`.
+
+**M3-B2 `refund_credits(reservation_id)`** (`…171505`): puts each debited credit back into the bucket it came from with matching `refund` ledger rows. Idempotent (`already_refunded`), `not_found` for unknown reservations. A refunded spend stops counting toward today's cap. `RefundResult` added to `@prepora/shared/api/credits`.
+
+**M3-B3 `use_allowance(user_id, type)`** (`…171508`): counts one curated Reading/Listening test, practice session or mock test against the plan's monthly limit; period = calendar month in UTC (`allowance_period_start()`, one place to change for billing periods in M9). The row is locked before the check.
+
+**M3-B4 grants** (`…171512`)
+- `grant_credits(user, source, amount, expires_at)`: one bucket + one `grant` ledger entry (for admin grants in M3-A2 too).
+- Sign-up: trigger on `auth.users` (not `profiles`, which isn't created at sign-up yet) grants **10 welcome (never expire, spent last) + 8 monthly (1 month)** = 18 credits. Idempotent; a failure logs a warning and never blocks sign-up.
+- **Existing users** were backfilled with the same sign-up grant by the migration.
+- `run_credit_maintenance()`: expire buckets past their date (remaining → 0, one `expire` entry each), then give Free users without an unexpired monthly bucket a new one (rolling monthly periods per user; idempotent; paid plans are granted by billing in M9). Set-based statements, no per-user locks; one job-level lock so runs can't overlap.
+- **pg_cron**: `create extension pg_cron` and job `prepora-credit-maintenance` hourly at `:07`.
+
+**Tests**
+- pgTAP `credits_engine.test.sql` (+62): privileges (only service role), sign-up grant (18, buckets, ledger, once), spend (amounts, expiry order, multi-bucket, ledger, reservation), cap, feature flags (Free/Gold), insufficient, expired buckets ignored, unknown action/user, refunds (buckets restored, cap freed, idempotent, not found, multi-bucket), allowances (limits, per type, Free mocks 0, Gold 2, UTC month, unknown type), maintenance (expiry + ledger, fresh Free monthly, none for Gold, no roll-over, re-run grants nothing), grant validation, ledger-explains-buckets invariant, cron job scheduled.
+- `credits_schema.test.sql`: the own-buckets RLS check now asserts "no other user's rows" (users now get sign-up buckets).
+- `credits.test.ts` (+2): `RefundResult`.
+- `apps/web/e2e/credits-rls.spec.ts` (real PostgREST + sessions): a new user has 18 credits (8 monthly + 10 welcome); users can't call spend/refund/allowance/maintenance; the service role spends, gets `feature_not_in_plan`, refunds and counts an allowance, and **every response parses with the M3-C3 Zod schemas**; the user sees the full history (grant 10, grant 8, spend −4, refund 4).
+
+**Verified**
+- `supabase db reset` + `supabase test db` **271/271** ✓; `db lint` clean; `db:types:check` ✓.
+- `pnpm test` 275/275 ✓; web, admin, shared typecheck ✓; web lint ✓.
+- API e2e (credits, RLS, admin) 14/14 ✓ against local Supabase.
+- **Not verified:** pg_cron firing on its own (the function is tested directly; the schedule is checked to exist); the browser e2e suite (no UI changed; your `next dev` was on :3000 — CI runs it); `deno check` of the regenerated function types (Deno 2 in CI); staging, including `create extension pg_cron` there (the migrations dry-run in CI checks it).
+
+**Branching:** stacked on `feature/m3-c3-credit-types` (PR not merged yet) with `develop` merged in.
+
+## 2026-11-23 — M3-B5…B7: get_my_credits, withCredits, concurrency tests
+
+Done together on one branch (the three steps were given together).
+
+**M3-B5 `get_my_credits()`** (`20261123173137_get_my_credits.sql`): an RPC (`/rest/v1/rpc/get_my_credits`) rather than an Edge Function: one read, no AI, no secrets. Takes **no user id**: always answers for `auth.uid()`, so users only ever see their own; refused (42501) without a session; anon has no EXECUTE. Returns `CreditBalance` (M3-C3): plan, spendable balance, unexpired non-empty buckets soonest-expiry first, spent today (refunds excluded) vs daily cap, allowance period and used/limit for all four allowances.
+
+**M3-B6 `withCredits(ctx, actionKey, fn, { refId })`** (`supabase/functions/_shared/credits.ts`)
+- Reserve (`spend_credits`, service role) → run `fn` → log one `ai_usage` row with the real model/tokens/audio/cost and credits charged → on error: `refund_credits`, log a failed row (credits 0, with usage if fn threw an `AiCallError`), **rethrow fn's own error**.
+- A refusal becomes `HttpError` 402/429/403 with the shared code and details for the dialog (cost, balance, cap, spent today, missing feature); `fn` never runs.
+- Refund or logging failures are logged and never replace fn's result or error; usage numbers are cleaned (rounded, no negatives/NaN).
+- Action keys are copied into Deno (`ACTION_KEYS`); a contract test keeps them equal to `@prepora/shared/api/credits`.
+- CI (`edge-functions.yml`): `deno check` now includes `_shared/*.ts` (shared helpers were unchecked until a function imported them), plus a `deno test _shared/` step.
+
+**M3-B7 concurrency tests** (`apps/web/e2e/credits-concurrency.spec.ts`): pgTAP runs in one session and can't race, so these fire 12 calls at once through PostgREST (separate DB connections) against local Supabase: parallel spends never overdraw (exactly 3 of 12 × 6 credits succeed; balances seen 12/6/0), parallel spends respect the daily cap (exactly 2 of 12 for Free), soonest-expiring bucket first under concurrency, 12 parallel refunds of one reservation refund once, spends and refunds racing stay consistent, 12 parallel allowance uses stop at the limit (2). Each checks that every bucket's remaining = the sum of its ledger entries and stays within 0…granted. The sequential rules (cap, expiry order, refunds) are already in `credits_engine.test.sql` (M3-B1…B4).
+
+**The tests catch the race:** with the per-user lock removed from `spend_credits` in the local DB only, "respects the daily cap" failed on both runs and "never overdraws" on one of two (the bucket locks and the `remaining ≥ 0` check catch some cases but end them in database errors). Restored with `supabase db reset`; everything passes again.
+
+**Tests**
+- pgTAP `get_my_credits.test.sql` (+14): privileges, balance/spent today with a refunded spend, buckets (no expired/empty, order), balance = listed buckets, allowances, exact field set, another user's own numbers (Gold cap), no session refused.
+- Deno `_shared/credits_test.ts` (+9, fake client): success path and ai_usage row; each refusal → status/code/details, fn not run; failure → refund + failed row + same error; AiCallError usage logged; refund/log failures don't hide errors or results; usage cleaning; no user → 401; DB error or malformed result → internal error before fn runs.
+- `credits-rls.spec.ts`: `get_my_credits` output **parses with the `CreditBalance` Zod schema**; anon refused.
+- Contract test: Deno `ACTION_KEYS` = shared `actionKeys`.
+- One-off run of `withCredits` with the real service-role client against local Supabase (throwaway script, not committed): success logged with tokens/cost, failure refunded (ledger spend −4, refund +4) and logged with its usage, OCR on Free refused with `feature_not_in_plan`, balance 14.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **285/285** ✓; `db lint` clean; types regenerated.
+- `pnpm test` **276/276** ✓; web, admin, shared typecheck ✓; web lint ✓.
+- Deno 2.9.6 (via npx, locally only): `deno check --frozen` on every function and `_shared/*.ts` ✓ (lock unchanged); `deno test --frozen _shared/` 9/9 ✓.
+- API e2e (credits, concurrency, RLS, admin) **21/21** ✓; the concurrency spec passed 3 runs in a row.
+- **Not verified:** a real Edge Function using `withCredits` deployed (M3-I1 adds a dummy one); staging.
+
+**Branching:** stacked on `feature/m3-b1-b4-credits-engine` (PR not merged yet) with `develop` merged in.
+
+## 2026-11-24 — M3-F1…F3: Credits UI (header chip, Credits & usage, useCredits, cost confirm, credit dialogs)
+
+Done together on one branch (the three steps were given together), from `develop` (M3-B5…B7 merged).
+
+**M3-F1 balance chip + "Credits & usage"**
+- Header chip (`components/credits/credit-chip.tsx`): balance with a coin icon, red outline at 0, links to `/app/credits`. Also "Credits & usage" in the account menu.
+- `/app/credits`: balance with today's use vs the daily cap (meter), credits by bucket with expiry ("Never expires", "Expires in 5 days", "Expires on 3 Jan 2027", in the student's time zone), monthly allowance meters ("Not in your plan" for limit 0), and history from `credit_ledger` (newest 100 entries, RLS). A spend that took credits from several buckets, and its refund, show as one row each (grouped by `reservation_id`); labels come from `credit_costs`.
+- Home credits card (M2-F3 placeholder) now shows the balance, what's left today and a link to the page.
+- Server: `getMyCredits()` / `getCreditCosts()` in `lib/supabase/session.ts`, cached per request (layout, home and the page share one `get_my_credits` call). Output is parsed with the shared `CreditBalance` schema; on any error the UI shows no balance rather than a wrong one.
+
+**M3-F2 `useCredits()` + `<CostConfirm>`**
+- `CreditsProvider` (in the `/app` layout, seeded by the server render) and `useCredits()`: `credits`, `costs`, `costOf`, `check` (client-side hint, same order as `spend_credits`: balance, then daily cap), `refresh` (also on tab focus, at most every 30 s), `showCreditError`, and `run(call)` for AI calls: opens the credit dialog on a refusal and refreshes the balance afterwards.
+- `<CostConfirm actionKey confirmLabel onConfirm trigger>`: "This costs N credits" with the balance before/after and a note that failures are refunded. If the balance already can't cover it, the dialog says why and offers top-up / plans instead of Confirm. 0-credit actions run straight away. The cost is read from `credit_costs` (admin-tunable).
+
+**M3-F3 credit error dialogs**
+- `CreditErrorDialog` for `insufficient_credits` (Top up + See plans), `daily_cap_reached`, `allowance_exceeded`, `feature_not_in_plan` (See plans), with details from the API when present ("This costs 4 credits. You have 1.", "You've used 2 of 2 reading tests this month."). Malformed details are ignored.
+- Upgrade / top-up go to a placeholder `/app/plans` (`routes.upgrade`, `routes.topUp` → `#top-up`): the three plans' numbers from the `plans` table, "Your plan" marked, top-ups "coming soon". M9-F1/F3 replace it.
+- No AI action exists until M6, so the confirm and the dialogs are shown with sample data on `/design` ("Credit dialogs"), which is where the e2e tests drive them.
+
+**Fixed along the way:** `DropdownMenuLinkItem` (packages/ui) now closes the menu on click. Base UI's default is not to, and since the `/app` layout stays mounted across client navigation, the open menu stayed up and blocked the next page. That affected the existing "Profile" item too (M1-F3); it just wasn't tested past the click.
+
+**Tests**
+- Unit `lib/credits.test.ts` (+22): expiry text incl. time zones, meters, `checkCost` order and edges, credit error parsing/views/actions for every code, history grouping and fallbacks.
+- e2e `credits-ui.spec.ts` (new, mobile + desktop): 18 credits in chip, home card and page for a new user; after service-role spend/refund/refused OCR/spend/allowance use, the page shows 14, 4 of 8 today, the monthly bucket used first, reading 1 of 2 and the grouped history in order; account menu → Credits & usage → See plans → placeholder; on `/design`: confirm (balance after, runs on confirm), not enough credits, over the daily limit, and all four error dialogs with their links.
+- `dashboard.spec.ts` and `journey.spec.ts` expected the old "Coming soon" credits placeholder; they now expect 18 credits (and the chip in the journey).
+
+**Verified**
+- `pnpm test` **298/298** ✓; typecheck and lint clean in all packages.
+- Full web e2e against local Supabase (app on `next dev` :3200 from a temporary worktree, since local `next build` runs out of memory): **63 passed, 21 skipped** (API-only specs run on desktop only) after updating the journey spec; the credits/dashboard/journey specs re-run after the last fix: 22/22 ✓.
+- Looked at screenshots of home, Credits & usage and the confirm dialog (desktop and mobile); fixed a lowercased month in the expiry note.
+- **Not verified:** a real AI call through `run()` / `withCredits` (M3-I1 adds a dummy Edge Function), the focus refresh in a browser, staging.

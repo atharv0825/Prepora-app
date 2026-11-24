@@ -22,6 +22,10 @@ export const routes = {
   app: "/app", // signed-in home (M1-F1 placeholder)
   profile: "/app/profile", // M1-F3
   onboarding: "/app/onboarding", // M2-F2: 3 steps after the first sign-in
+  credits: "/app/credits", // M3-F1: "Credits & usage"
+  // M3-F3: where the upgrade / top-up buttons go. A placeholder page until billing (M9-F3).
+  upgrade: "/app/plans",
+  topUp: "/app/plans#top-up",
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)

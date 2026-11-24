@@ -14,12 +14,12 @@ import {
 } from "@/lib/dashboard";
 import { formatBand, localDate, validTimeZone } from "@/lib/onboarding";
 import { routes } from "@/lib/routes";
-import { getAccount } from "@/lib/supabase/session";
+import { getAccount, getMyCredits } from "@/lib/supabase/session";
 
 export const metadata: Metadata = { title: "Home · Prepora", robots: { index: false } };
 
 // Signed-in home dashboard (M2-F3): greeting, goal card (target band + exam countdown), credits
-// placeholder (until M3) and the four module tiles ("coming soon" until M4–M7). The layout
+// card (balance since M3-F1) and the four module tiles ("coming soon" until M4–M7). The layout
 // provides the header and the session check.
 export default async function AppHome() {
   const account = await getAccount();
@@ -32,6 +32,7 @@ export default async function AppHome() {
   // Dates and the greeting follow the student's time zone (saved in onboarding); UTC otherwise.
   const timeZone = validTimeZone(profile?.timezone);
   const today = localDate(timeZone);
+  const credits = await getMyCredits(); // shared with the layout's header chip (cached per request)
 
   return (
     <div className="flex flex-col gap-8 pb-16">
@@ -45,7 +46,7 @@ export default async function AppHome() {
           testType={testTypeLabel(profile?.test_type)}
           countdown={examCountdown(profile?.exam_date, today)}
         />
-        <CreditsCard plan={planLabel(profile?.plan)} />
+        <CreditsCard plan={planLabel(credits?.plan ?? profile?.plan)} credits={credits} />
       </div>
 
       <ModuleGrid modules={dashboardModules} recommended={recommendedModule(dashboardModules)} />

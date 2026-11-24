@@ -11,6 +11,10 @@ export type ErrorCode =
   | "method_not_allowed"
   | "conflict"
   | "insufficient_credits"
+  // Credits & allowances (M3-C3): see packages/shared/src/api/credits.ts.
+  | "daily_cap_reached"
+  | "allowance_exceeded"
+  | "feature_not_in_plan"
   | "rate_limited"
   | "wrong_region"
   | "internal";
@@ -50,6 +54,13 @@ export const errors = {
   conflict: (msg = "Conflict") => new HttpError(409, "conflict", msg),
   insufficientCredits: (msg = "Not enough credits") =>
     new HttpError(402, "insufficient_credits", msg),
+  // M3-C3. Statuses match creditErrorStatus in packages/shared/src/api/credits.ts.
+  dailyCapReached: (msg = "Daily credit limit reached") =>
+    new HttpError(429, "daily_cap_reached", msg),
+  allowanceExceeded: (msg = "Monthly allowance used up") =>
+    new HttpError(402, "allowance_exceeded", msg),
+  featureNotInPlan: (msg = "Not included in your plan") =>
+    new HttpError(403, "feature_not_in_plan", msg),
   rateLimited: (msg = "Too many requests") => new HttpError(429, "rate_limited", msg),
   wrongRegion: (expected: string, actual: string) =>
     new HttpError(421, "wrong_region", `Must be invoked in ${expected}, ran in ${actual}`),

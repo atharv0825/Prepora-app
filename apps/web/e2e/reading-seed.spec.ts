@@ -1,7 +1,7 @@
 import { expect, test, type Response } from "@playwright/test";
 import { readingBand } from "@prepora/shared/ielts/bands";
 import { ONBOARDED, adminClient, createTestUser, deleteTestUser, localSupabase, type TestUser } from "./support/local-supabase";
-import { answer, key } from "./support/reading";
+import { answer, key, pressSubmit } from "./support/reading";
 
 // M4-I1: a student takes the seeded General Training sample (M4-C3) in the browser, from the test
 // list to the results, and gets the band the General table gives for their score. Every response
@@ -88,7 +88,7 @@ test("M4-I1: take the General sample → submit → the right band; no answers r
 
   submitted = true;
   const graded = page.waitForResponse((r) => r.url().includes("/functions/v1/grade-test"));
-  await page.getByTestId("reading-player").getByRole("button", { name: "Submit answers" }).click();
+  await pressSubmit(page);
   await expect(page.getByRole("dialog")).toContainText("Submit with 4 unanswered?");
   await page.getByRole("dialog").getByRole("button", { name: "Submit" }).click();
   const response = await graded;

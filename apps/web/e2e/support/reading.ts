@@ -31,3 +31,15 @@ export async function answer(page: Page, n: number, value: string | string[]) {
     await expect(box.locator(`input[value="${v}"]`)).toBeChecked();
   }
 }
+
+/**
+ * Press "Submit answers". Desktop has it in the top bar; on mobile it replaces Next on the last
+ * question, so go there first.
+ */
+export async function pressSubmit(page: Page) {
+  const submit = page.getByTestId("reading-player").getByRole("button", { name: "Submit answers" });
+  if (!(await submit.filter({ visible: true }).count())) {
+    await page.getByRole("navigation", { name: "Questions" }).getByRole("button").last().click();
+  }
+  await submit.filter({ visible: true }).click();
+}

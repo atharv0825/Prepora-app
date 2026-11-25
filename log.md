@@ -2529,3 +2529,70 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
 - Playwright from a temporary worktree (`next dev` :3200, `supabase functions serve`), one at a time: `listening-home`, `listening-live`, `reading-ui`, `dashboard` and `journey`: **26/26** ✓.
 - Screenshots of the dashboard, the Listening list and a reopened attempt checked by eye.
 - **Not verified:** CI and staging. There are still no real Listening tests until one is built in the admin, and that needs the R2 setup in `docs/r2.md`; until then the list says "No Listening tests yet".
+
+## 2026-11-26 — Fix: Reading test player layout (fills the screen, fixed navigator, Previous / Next)
+
+**Request** (staging, `/app/reading/<sample>`):
+- remove the "Sample Academic Test / Academic Reading" title but keep the back link;
+- the test should sit in the middle of the screen and not scroll as a page;
+- the question numbers should stay put, with a Next button to move through them.
+
+**What was wrong:**
+- the panes had a guessed height (`100dvh − 19rem`) inside a page that also had the title, the back link and the page padding;
+- so the whole page scrolled, the top bar and navigator slid around, and empty space appeared below the numbers (the second screenshot).
+
+**Fix** (`reading-player.tsx`, `reading/[testId]/page.tsx`)
+- **Once the test starts, the player is a fixed workspace below the 4rem header**, centred in a max-width (7xl) column. The page itself no longer scrolls:
+  - top bar: **← Reading tests**, the timer, "Continued where you left off", Submit;
+  - passage tabs, plus the Passage/Questions switch on mobile;
+  - **the two panes take the rest of the height and scroll inside themselves**.
+- **The navigator is fixed at the bottom**, with **Previous** and **Next** either side of the numbers:
+  - the current question gets a ring (`aria-current`);
+  - Next and Previous move from it, switching passage when needed;
+  - focusing an answer makes that question current;
+  - the number bar scrolls sideways on phones to keep the current number in view;
+  - Previous is disabled on the first question, Next on the last.
+- **The title is gone from the test screen.** A screen-reader-only h1 keeps it accessible. The **start screen** (before the clock runs) still names the test inside the intro card, so students know which test they're starting.
+- The page's own header is removed; the player renders the back link on both screens.
+
+**Tests**
+- `reading-ui.spec.ts` (+1, mobile + desktop):
+  - the start screen names the test; during the test, no visible "Academic Reading" title and the back link is there;
+  - **the page height equals the window (no page scroll)**, the navigator is inside the screen, and the pane scrolls inside;
+  - Previous is disabled at the start; Next → 1, Next → 2 (in view); Previous → 1;
+  - jumping to 20 moves to passage 3 and disables Next.
+  - The test hides `next dev`'s floating "N" badge, which sits over the bottom-left corner (dev server only; CI uses a production build).
+
+**Verified**
+- `reading-ui` **12/12**; with `reading-seed` (M4-I1) and `dashboard`, **18/18**, mobile and desktop.
+- Screenshots of the new layout checked on desktop and mobile; fixed the current-number ring being clipped at the bar's edge.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging (the screenshots came from there; it updates on merge), Safari/iOS, and the Listening player, which wasn't part of this request.
+
+## 2026-11-26 — Fix (same PR #58): Reading player on mobile goes back to a scrolling page, pinned switch, Submit at the end
+
+**Request** (mobile screenshots):
+- the full-screen layout from the first #58 change should apply to **desktop and large screens only**;
+- on mobile, keep the earlier scrolling page;
+- pin only the **Passage / Questions** switch, so students don't scroll back up to switch;
+- on mobile, the Submit button should replace Next (it took a whole row at the top).
+
+**Change** (`reading-player.tsx`, `passage-view.tsx`; pushed to the same branch, so it's part of PR #58)
+- **Desktop (md+):** unchanged from the first #58 change: a fixed workspace with the page not scrolling, panes scrolling inside, and the navigator fixed at the bottom.
+- **Mobile:**
+  - **a normal scrolling page again**: no fixed workspace, and the panes aren't scroll boxes;
+  - **the Passage / Questions switch is pinned** under the header. Switching **returns to where that view was left** (first visit: the top of the view, under the switch);
+  - the passage's "title + Highlight" bar pins just under the switch;
+  - **no Submit in the top bar**. The navigator stays pinned at the bottom with ‹ › and the numbers; **on the last question, Next becomes "Submit answers"**, with the same confirm dialog when questions are unanswered.
+
+**Tests**
+- The layout test now checks each size:
+  - **desktop**: no page scroll, the panes scroll inside, the navigator is on screen, Submit is in the top bar, Next is disabled on question 20;
+  - **mobile**: no top Submit; the page scrolls and the switch stays pinned under the header; Questions → Passage comes back to the same scroll position; the navigator stays on screen; on question 20, Next is gone and Submit opens "Submit with 20 unanswered?".
+- New e2e helper `pressSubmit()` (`support/reading.ts`): the top bar on desktop, the last question on mobile. Used by `reading-ui` and `reading-seed`.
+
+**Verified**
+- `reading-ui` 12/12, `reading-seed` 2/2 and `dashboard` all pass, **18/18** on mobile and desktop (`next dev` :3200 from a temporary worktree).
+- Mobile screenshot checked: the switch pinned mid-scroll, and Submit in place of Next on question 20.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging until merge; Safari/iOS (sticky positioning and the restored scroll position on a real iPhone).

@@ -59,7 +59,8 @@ export function PassageView({
 
   return (
     <article className="flex flex-col gap-4" aria-label={title} onKeyDown={onKeyDown}>
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-2 bg-background/95 px-1 py-2 backdrop-blur">
+      {/* Pinned: on mobile under the header and the Passage / Questions switch; on desktop at the top of its pane. */}
+      <div className="sticky top-[7.75rem] z-10 -mx-1 flex flex-wrap items-center justify-between gap-2 bg-background/95 px-1 py-2 backdrop-blur md:top-0">
         <h2 className="text-h3">{title}</h2>
         <div className="flex gap-1">
           <Button

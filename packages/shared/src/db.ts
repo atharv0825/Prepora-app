@@ -565,6 +565,7 @@ export type Database = {
           band: number
           created_at: string
           id: string
+          mode: string | null
           module: Database["public"]["Enums"]["test_module"]
           raw_score: number
           results: Json | null
@@ -577,6 +578,7 @@ export type Database = {
           band: number
           created_at?: string
           id?: string
+          mode?: string | null
           module: Database["public"]["Enums"]["test_module"]
           raw_score: number
           results?: Json | null
@@ -589,6 +591,7 @@ export type Database = {
           band?: number
           created_at?: string
           id?: string
+          mode?: string | null
           module?: Database["public"]["Enums"]["test_module"]
           raw_score?: number
           results?: Json | null
@@ -777,6 +780,7 @@ export type Database = {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      get_listening_test: { Args: { p_test_id: string }; Returns: Json }
       get_my_credits: { Args: never; Returns: Json }
       get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {
@@ -811,6 +815,7 @@ export type Database = {
         Args: {
           p_answers: Json
           p_band: number
+          p_mode?: string
           p_module: Database["public"]["Enums"]["test_module"]
           p_raw_score: number
           p_results?: Json

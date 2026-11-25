@@ -52,12 +52,23 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
-      # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, the Kong gateway and the
-      # edge runtime, which serves supabase/functions (credits-edge.spec.ts, M3-I1).
-      # Skipping the rest saves minutes and avoids image pulls we don't need.
+      # r2-upload-url (M5-B1) only signs URLs (no network call), so placeholder R2 settings let
+      # listening-backend.spec.ts check it end to end. Nothing is uploaded; these aren't secrets.
+      - name: Placeholder R2 settings for the edge runtime
+        run: |
+          cat > supabase/functions/.env <<'ENV'
+          R2_ACCOUNT_ID=e2e00000000000000000000000000000
+          R2_ACCESS_KEY_ID=e2e-access-key
+          R2_SECRET_ACCESS_KEY=e2e-secret-key
+          R2_BUCKET=prepora-audio-e2e
+          R2_PUBLIC_URL=https://audio.e2e.invalid
+          ENV
+      # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, Storage (the M5-B3 image
+      # bucket), the Kong gateway and the edge runtime, which serves supabase/functions
+      # (credits-edge.spec.ts, M3-I1). Skipping the rest saves minutes and avoids image pulls.
       - name: Start local Supabase
         run: |
-          args="-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor"
+          args="-x realtime,imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor"
           # One retry for transient Docker errors on the runner.
           supabase start $args || { echo "::warning::supabase start failed; retrying once"; supabase stop --no-backup || true; supabase start $args; }
 

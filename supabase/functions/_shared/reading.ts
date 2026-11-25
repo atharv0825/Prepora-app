@@ -1,11 +1,12 @@
-// Reading grading (M4-B2): grades a student's answers against reading_questions and converts
-// the raw score to a band. Pure TypeScript with NO imports, so the same file runs in the
+// Reading and Listening grading (M4-B2, M5-B2): grades a student's answers against
+// reading_questions / listening_questions and converts the raw score to a band. Pure TypeScript with NO imports, so the same file runs in the
 // grade-test Edge Function (Deno) and in the unit tests (vitest, tests/reading-grading.test.ts).
 //
 // It copies the rules in packages/shared/src/ielts (Edge Functions can't import packages/shared):
 //   * band tables and scaling        ↔ ielts/bands.ts
 //   * normalizeText, countWords, word limits, labels ↔ ielts/reading.ts
-// tests/reading-grading.test.ts checks both copies agree.
+//   * the Listening band table       ↔ ielts/listening.ts
+// tests/reading-grading.test.ts and tests/listening-grading.test.ts check the copies agree.
 //
 // Marking rules, per type:
 //   * MCQ: the chosen letters must be exactly the answer's letters (order doesn't matter).
@@ -15,6 +16,8 @@
 //   * Matching and word banks: the label must match (case doesn't matter).
 //   * Typed gaps: over the word limit is wrong even if the right words are in it; otherwise the
 //     normalised text must equal one of the accepted answers. Spelling counts.
+//   * Map labelling (Listening): the place's letter must match, like matching.
+//   * Diagram labelling (Listening): typed with a word limit like a gap, or a word-bank letter.
 //   * No answer (missing, "" or []) is wrong and noted as unanswered.
 
 // ── Bands (copy of ielts/bands.ts) ──────────────────────────────────────────────────────────
@@ -43,6 +46,18 @@ export function scaledRawScore(raw: number, total: number): number {
 export function readingBand(testType: TestType, raw: number, total: number = FULL_TEST_QUESTIONS): number {
   const scaled = scaledRawScore(raw, total);
   const row = READING_BANDS[testType].find(([min]) => scaled >= min);
+  return row ? row[1] : 0;
+}
+
+/** Listening: one table for Academic and General Training (copy of ielts/listening.ts). */
+export const LISTENING_BANDS: readonly (readonly [number, number])[] = [
+  [39, 9], [37, 8.5], [35, 8], [32, 7.5], [30, 7], [26, 6.5], [23, 6], [18, 5.5], [16, 5],
+  [13, 4.5], [10, 4], [8, 3.5], [6, 3], [4, 2.5], [2, 2], [1, 1], [0, 0],
+];
+
+export function listeningBand(raw: number, total: number = FULL_TEST_QUESTIONS): number {
+  const scaled = scaledRawScore(raw, total);
+  const row = LISTENING_BANDS.find(([min]) => scaled >= min);
   return row ? row[1] : 0;
 }
 
@@ -82,7 +97,10 @@ export type QuestionType =
   | "summary_completion"
   | "note_table_completion"
   | "flowchart_completion"
-  | "short_answer";
+  | "short_answer"
+  // Listening only (M5-B2).
+  | "map_labelling"
+  | "diagram_labelling";
 
 /** A question with its key, as grade-test loads it (service role). */
 export interface GradableQuestion {
@@ -168,12 +186,14 @@ export function gradeQuestion(q: GradableQuestion, rawGiven: unknown): QuestionR
     }
     case "matching_headings":
     case "matching_information":
-    case "matching_features": {
+    case "matching_features":
+    case "map_labelling": {
       const label = typeof key.label === "string" ? key.label : "";
       return result(label !== "" && typeof given === "string" && sameLabel(given, label), label);
     }
     case "summary_completion":
     case "flowchart_completion":
+    case "diagram_labelling":
       // Word-bank variant: answered with a letter.
       if (typeof key.label === "string") {
         const label = key.label;
@@ -203,4 +223,12 @@ export function gradeTest(testType: TestType, questions: readonly GradableQuesti
   const results = [...questions].sort((a, b) => a.q_no - b.q_no).map((q) => gradeQuestion(q, answers[String(q.q_no)]));
   const raw_score = results.filter((r) => r.correct).length;
   return { raw_score, total: results.length, band: readingBand(testType, raw_score, results.length), results };
+}
+
+/** Grade a whole Listening test (any of the 13 types); the band uses the Listening table. */
+export function gradeListeningTest(questions: readonly GradableQuestion[], answers: Record<string, unknown>): GradedTest {
+  if (questions.length === 0) throw new RangeError("a test without questions can't be graded");
+  const results = [...questions].sort((a, b) => a.q_no - b.q_no).map((q) => gradeQuestion(q, answers[String(q.q_no)]));
+  const raw_score = results.filter((r) => r.correct).length;
+  return { raw_score, total: results.length, band: listeningBand(raw_score, results.length), results };
 }

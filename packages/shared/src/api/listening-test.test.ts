@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ListeningGradeRequest, ListeningGradeResponse, ListeningTestPayload } from "./listening-test";
+import { ListeningGradeRequest, ListeningGradeResponse, ListeningTestPayload, ListeningAttemptPayload } from "./listening-test";
 
 const id = "00000000-0000-4000-8000-000000000001";
 const payload = {
@@ -40,5 +40,30 @@ describe("Listening test payload", () => {
       allowance: { type: "listening_tests", used: 1, limit: 2 },
     };
     expect(ListeningGradeResponse.parse(res).transcripts[0]?.transcript).toBe("Good morning…");
+  });
+});
+
+describe("a reopened Listening attempt (get_listening_attempt)", () => {
+  const attempt = {
+    id: "5e200000-0000-4000-8000-000000000001",
+    test_id: "5e100000-0000-4000-8000-000000000001",
+    mode: "exam",
+    raw_score: 1,
+    band: 4.5,
+    time_taken_sec: 1800,
+    created_at: "2026-11-26T09:00:00+00:00",
+    results: [{ q_no: 1, q_type: "map_labelling", correct: true, given: "B", correct_answer: "B", also_accepted: [], note: null, explanation: null }],
+  };
+  it("parses the attempt, the test and the transcripts", () => {
+    const p = ListeningAttemptPayload.parse({
+      attempt,
+      test: { id: attempt.test_id, title: "Test 1" },
+      transcripts: [{ order_no: 1, title: "Part 1", transcript: "Hello." }],
+    });
+    expect(p.attempt.results?.[0]?.q_type).toBe("map_labelling");
+  });
+  it("a deleted test, an attempt without results, and nothing extra", () => {
+    expect(ListeningAttemptPayload.safeParse({ attempt: { ...attempt, results: null }, test: null, transcripts: [] }).success).toBe(true);
+    expect(ListeningAttemptPayload.safeParse({ attempt: { ...attempt, user_id: "x" }, test: null, transcripts: [] }).success).toBe(false);
   });
 });

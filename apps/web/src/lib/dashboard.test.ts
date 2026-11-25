@@ -15,7 +15,8 @@ describe("modules", () => {
   it("lists the four IELTS modules in exam order; Reading is open (M4), the rest coming soon", () => {
     expect(dashboardModules.map((m) => m.key)).toEqual(["reading", "listening", "writing", "speaking"]);
     expect(dashboardModules[0]).toMatchObject({ status: "available", href: "/app/reading" });
-    expect(dashboardModules.slice(1).every((m) => m.status === "soon" && !m.href)).toBe(true);
+    expect(dashboardModules[1]).toMatchObject({ status: "available", href: "/app/listening" });
+    expect(dashboardModules.slice(2).every((m) => m.status === "soon" && !m.href)).toBe(true);
   });
 
   it("recommends the first available module, none while all are coming soon", () => {

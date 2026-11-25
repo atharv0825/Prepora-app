@@ -27,6 +27,7 @@ export const routes = {
   upgrade: "/app/plans",
   topUp: "/app/plans#top-up",
   reading: "/app/reading", // M4-F1: test list (+ ?type=academic|general|all)
+  listening: "/app/listening", // Listening home: test list, allowance, attempts
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)
@@ -36,6 +37,10 @@ export const routes = {
 /** Reading pages with an id: the player (M4-F2) and one attempt's results (M4-F4). */
 export const readingTestPath = (testId: string) => `/app/reading/${testId}`;
 export const readingAttemptPath = (attemptId: string) => `/app/reading/attempts/${attemptId}`;
+
+/** Listening pages with an id: the test (M5-I1) and one past attempt's results. */
+export const listeningTestPath = (testId: string) => `/app/listening/${testId}`;
+export const listeningAttemptPath = (attemptId: string) => `/app/listening/attempts/${attemptId}`;
 
 export const mainNav = [
   { label: "Home", href: routes.home },

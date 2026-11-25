@@ -5,7 +5,7 @@ import { Badge } from "@prepora/ui/components/badge";
 import type { QuestionResult } from "@prepora/shared/api/grade-test";
 import { readingQuestionTypeLabels } from "@prepora/shared/ielts/reading";
 import { displayAnswer } from "@prepora/shared/ielts/questions";
-import { readingAttemptPath } from "@/lib/routes";
+import { listeningAttemptPath, readingAttemptPath } from "@/lib/routes";
 
 // Results (M4-F4): band and score, then every question (grouped by passage when the test can
 // still be opened) with the student's answer, the correct answer and the explanation; and the
@@ -99,10 +99,29 @@ export function ResultList({
   );
 }
 
-export type HistoryItem = { id: string; date: string; title: string; rawScore: number; band: number };
+export type HistoryItem = {
+  id: string;
+  date: string;
+  title: string;
+  rawScore: number;
+  band: number;
+  /** Extra words after the date, e.g. "exam mode". */
+  note?: string | null;
+};
 
-/** Attempt history: newest first, each linking to its results. */
-export function AttemptHistory({ title, items, currentId }: { title: string; items: readonly HistoryItem[]; currentId?: string }) {
+/** Attempt history (Reading or Listening): newest first, each linking to its results. */
+export function AttemptHistory({
+  title,
+  items,
+  currentId,
+  module = "reading",
+}: {
+  title: string;
+  items: readonly HistoryItem[];
+  currentId?: string;
+  module?: "reading" | "listening";
+}) {
+  const pathOf = module === "reading" ? readingAttemptPath : listeningAttemptPath;
   return (
     <section className="flex flex-col gap-3" aria-label={title}>
       <h2 className="text-h3">{title}</h2>
@@ -113,7 +132,7 @@ export function AttemptHistory({ title, items, currentId }: { title: string; ite
           {items.map((a) => (
             <li key={a.id}>
               <Link
-                href={readingAttemptPath(a.id)}
+                href={pathOf(a.id)}
                 aria-current={a.id === currentId ? "page" : undefined}
                 className={cn("flex items-center justify-between gap-3 p-4 text-sm hover:bg-secondary/40", a.id === currentId && "bg-secondary/60")}
               >
@@ -121,6 +140,7 @@ export function AttemptHistory({ title, items, currentId }: { title: string; ite
                   <span className="truncate font-medium">{a.title}</span>
                   <span className="text-muted-foreground">
                     {a.date} · {a.rawScore} correct
+                    {a.note ? ` · ${a.note}` : ""}
                   </span>
                 </span>
                 <span className="shrink-0 text-lg font-semibold tabular-nums">{a.band.toFixed(1)}</span>

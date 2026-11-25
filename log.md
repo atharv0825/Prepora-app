@@ -2476,3 +2476,56 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
   - a **real R2 upload**, CORS included (the bucket isn't set up; see `docs/r2.md`);
   - image upload through Storage locally (the local Supabase runs without Storage, so the picture URL was pasted; CI covers the bucket in `listening-backend`);
   - CI and staging.
+
+## 2026-11-26 — Listening home: test list, dashboard tile, attempt history (follow-up to M5)
+
+**Request:** the home dashboard still showed Listening as "Coming soon". Add what's missing for students to reach Listening, as a separate PR, first checking which components already exist (some M5 frontend was built early, during M4).
+
+**Why it was missing:** the plan's M5 steps cover the player, answer sheet and results (M5-F1..F3), the backend and the builder, but not a Listening test list or attempt history like M4-F1/F4 for Reading. No step ID covers this, so there's no row to mark in plan.agent.md.
+
+**Checked first: already there, reused (not rebuilt)**
+- `ListeningResults` (M5-F3): band, score per part, every question, transcripts. It now also shows a reopened attempt.
+- `AttemptHistory` (M4-F4): made module-aware (`module="listening"` links to the Listening attempt page) with an optional note ("exam mode").
+- `planAllows`, `attemptSummary`, `durationText` (`lib/reading.ts`): generic, used as is.
+- The Reading page's allowance meter: extracted to **`components/allowance-meter.tsx`** and used by both pages (Reading looks the same).
+- `get_listening_test`, `grade-test` for Listening (M5-B2), and `/app/listening/[testId]` (M5-I1, #56).
+
+**New**
+- **`/app/listening`**: the published tests (no Academic/General filter: one Listening test serves both), with:
+  - "Taken N times · best band"; Start / Take again;
+  - Gold tests locked with "Unlock with Gold";
+  - this month's **Listening allowance** meter and its upgrade note;
+  - **"Your attempts"**, each with its band and mode.
+- **`/app/listening/attempts/[id]`**: a past attempt reopened in the same results view as after submitting, **transcripts included**, plus "Take this test again", "Choose another test" and this test's attempt history.
+- **Dashboard:** the Listening tile is `available` and links to `/app/listening`.
+- **Test page:** a "← Listening tests" link; the Gold upgrade card has "All Listening tests".
+- `routes.listening`, `listeningTestPath`, `listeningAttemptPath`.
+- **Migration `20261126090000_listening_attempt.sql`:** `get_listening_attempt(id)`.
+  - SECURITY DEFINER, **owner only**: anyone else, or a Reading attempt, gets PT404.
+  - It returns the attempt (mode, score, band, results), the test's title (null if deleted) and the **transcripts**.
+  - Users still can't select `listening_sections.transcript` directly. This only shows the transcripts of a test the student has already submitted, which they were sent with the results then.
+- Shared contract `ListeningAttemptPayload` (`api/listening-test.ts`).
+
+**Tests**
+- pgTAP `listening_attempt.test.sql` (+9):
+  - privileges and definer;
+  - the owner gets the attempt, mode, title and transcripts in order;
+  - a Reading attempt → PT404; transcripts still closed directly;
+  - another student → PT404;
+  - after the test is deleted: the attempt, no test, no transcripts.
+- Unit: the payload contract (+2); `dashboard.test.ts` updated (Listening available).
+- e2e **`listening-home.spec.ts`** (+2, mobile and desktop):
+  - dashboard tile → list (allowance 0 of 2, not taken, Start link, Gold locked, no attempts);
+  - a test graded through grade-test in exam mode → list shows 1 of 2, "Taken 1 time · best band", Take again, and the history with "exam mode";
+  - reopen → band, score, exam mode, the correct answer, the transcript, history current, Take again;
+  - **another student opening the same URL gets 404 and no transcript**;
+  - a Gold test on Free → the upgrade card → back to the list.
+- `dashboard.spec.ts`: the Listening tile now links to `/app/listening`; only Writing and Speaking are "Coming soon".
+
+**Verified**
+- `pnpm test` **493/493** ✓.
+- pgTAP **523/523** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- Typecheck ✓ (shared, ui, web, admin); web lint ✓.
+- Playwright from a temporary worktree (`next dev` :3200, `supabase functions serve`), one at a time: `listening-home`, `listening-live`, `reading-ui`, `dashboard` and `journey`: **26/26** ✓.
+- Screenshots of the dashboard, the Listening list and a reopened attempt checked by eye.
+- **Not verified:** CI and staging. There are still no real Listening tests until one is built in the admin, and that needs the R2 setup in `docs/r2.md`; until then the list says "No Listening tests yet".

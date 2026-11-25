@@ -6,7 +6,7 @@ import type { PublicListeningQuestion } from "@prepora/shared/api/listening-test
 import type { ImagePoint, MapLocation } from "@prepora/shared/ielts/listening";
 import type { Answers } from "@/lib/listening/answers";
 import { isAnswered } from "@/lib/listening/answers";
-import { QuestionField } from "@/components/questions/question-field";
+import { QuestionField } from "@prepora/ui/components/ielts/question-field";
 
 /**
  * M5-F2: map / diagram labelling. One picture for a group of questions on the same image.

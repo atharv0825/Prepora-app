@@ -10,7 +10,6 @@ import {
   removeHighlightAt,
   resultsByPassage,
   secondsLeft,
-  segments,
   TEST_SECONDS,
   timerTone,
 } from "./reading";
@@ -84,20 +83,6 @@ describe("highlights (M4-F2)", () => {
   it("removes the highlight that was tapped", () => {
     expect(removeHighlightAt([[10, 20], [30, 40]], 12)).toEqual([[30, 40]]);
     expect(removeHighlightAt([[10, 20]], 25)).toEqual([[10, 20]]);
-  });
-
-  it("cuts the text into plain and highlighted pieces that add back up to it", () => {
-    const text = "Bees in the city are thriving.";
-    const parts = segments(text, [[0, 4], [12, 16]]);
-    expect(parts).toEqual([
-      { text: "Bees", start: 0, marked: true },
-      { text: " in the ", start: 4, marked: false },
-      { text: "city", start: 12, marked: true },
-      { text: " are thriving.", start: 16, marked: false },
-    ]);
-    expect(parts.map((p) => p.text).join("")).toBe(text);
-    // Ranges past the end are clipped.
-    expect(segments("abc", [[1, 99]]).map((p) => p.text)).toEqual(["a", "bc"]);
   });
 });
 

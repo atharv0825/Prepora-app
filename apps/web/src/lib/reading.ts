@@ -3,8 +3,8 @@
 import type { QuestionResult } from "@prepora/shared/api/grade-test";
 import type { TestType } from "@prepora/shared/ielts/bands";
 import { plans } from "@prepora/shared/types/profile";
-import type { Answers } from "./questions";
-import { parseDraft } from "./questions";
+import type { Answers } from "@prepora/shared/ielts/questions";
+import { parseDraft } from "@prepora/shared/ielts/questions";
 
 // ── Test list (M4-F1) ───────────────────────────────────────────────────────────────────────
 /** ?type=academic|general|all; anything else falls back to the student's own test type, then all. */
@@ -66,7 +66,7 @@ export function durationText(seconds: number | null | undefined): string | null 
 }
 
 // ── Highlights (M4-F2) ──────────────────────────────────────────────────────────────────────
-/** [start, end) character offsets into a passage body. Sorted, never overlapping. */
+/** [start, end) character offsets into a passage's plain text (parsePassage). Sorted, never overlapping. */
 export type Range = readonly [start: number, end: number];
 
 /** Add a highlight, merging it with any it touches or overlaps. Empty ranges are ignored. */
@@ -88,22 +88,6 @@ export function addHighlight(ranges: readonly Range[], add: Range): Range[] {
 /** Remove the highlight containing this offset (tapping a highlight clears it). */
 export function removeHighlightAt(ranges: readonly Range[], offset: number): Range[] {
   return ranges.filter((r) => !(offset >= r[0] && offset < r[1]));
-}
-
-/** The text cut into plain and highlighted pieces, with each piece's starting offset. */
-export function segments(text: string, ranges: readonly Range[]): { text: string; start: number; marked: boolean }[] {
-  const out: { text: string; start: number; marked: boolean }[] = [];
-  let at = 0;
-  for (const [s0, e0] of ranges) {
-    const s = Math.max(at, Math.min(s0, text.length));
-    const e = Math.min(e0, text.length);
-    if (e <= s) continue;
-    if (s > at) out.push({ text: text.slice(at, s), start: at, marked: false });
-    out.push({ text: text.slice(s, e), start: s, marked: true });
-    at = e;
-  }
-  if (at < text.length) out.push({ text: text.slice(at), start: at, marked: false });
-  return out;
 }
 
 // ── Draft (autosave, M4-F2) ─────────────────────────────────────────────────────────────────

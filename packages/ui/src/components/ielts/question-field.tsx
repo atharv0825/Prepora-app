@@ -3,7 +3,7 @@
 import { cn } from "cn";
 import { Input } from "@prepora/ui/components/input";
 import { answerLabels, type ReadingQuestionType } from "@prepora/shared/ielts/reading";
-import { isTyped, limitText, overWordLimit, type PlayerQuestion } from "@/lib/questions";
+import { isTyped, limitText, overWordLimit, type PlayerQuestion } from "@prepora/shared/ielts/questions";
 
 // One question's answer control, for every Reading type (M4-F3) and Listening type (M5-F2):
 //   * MCQ: the choices with their letters; "Choose TWO" uses checkboxes, capped at two.

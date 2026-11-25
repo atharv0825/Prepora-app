@@ -17,8 +17,8 @@ import {
 import type { GradeTestResponse } from "@prepora/shared/api/grade-test";
 import type { ReadingTestPayload } from "@prepora/shared/api/reading-test";
 import { useCredits } from "@/components/credits/credits-provider";
-import { QuestionGroupView } from "@/components/questions/question-group";
-import { type Answers, answeredCount, isAnswered, questionGroups, setAnswer, toGradeAnswers } from "@/lib/questions";
+import { QuestionGroupView } from "@prepora/ui/components/ielts/question-group";
+import { type Answers, answeredCount, isAnswered, questionGroups, setAnswer, toGradeAnswers } from "@prepora/shared/ielts/questions";
 import {
   clock,
   parseReadingDraft,

@@ -2196,3 +2196,78 @@ Done together on one branch from `develop` (everything up to M4-C3 is merged).
   - Run in parallel, 5 mobile tests timed out on the dev server (including the untouched M2 journey). All passed when rerun one at a time.
 - Screenshots checked by eye on mobile and desktop.
 - **Not verified:** CI, staging, and Safari/iOS text selection for highlighting.
+
+## 2026-11-25 — M4-A1 + M4-I1: Reading builder (admin) and the seed-test integration test
+
+Done together on one branch from `develop` (M4-F1..F4 merged in #52).
+
+**M4-A1: Reading builder** (admin, `/reading`)
+- **Flow:** create a test (title, Academic/General, minimum plan) → 3 passages → each passage's questions → preview as a student → publish.
+  - The list shows every test, whatever its status, with its question count; the sidebar's Reading module is now live.
+  - Workflow buttons: Send for review, Publish, Move to draft, Archive, Delete (drafts only; a published test is archived instead).
+  - A "Ready to publish?" checklist (`publishCheck`, shared) blocks publishing until there are 3 passages, questions numbered 1..N in passage order, and every answer key valid for its type. It warns about passages without questions, missing explanations and short tests. The server runs the checklist again on publish, and the database trigger (M4-C1) checks passages and numbering a third time.
+- **Passages, "rich text":** a small format, not HTML:
+  - a blank line between paragraphs, `## heading`, `**bold**` and `*italic*`;
+  - the editor has Heading/Bold/Italic buttons that put the marks around the selection, a live preview, and a character count;
+  - `sanitizePassage` runs on save: it removes pasted HTML tags, control and zero-width characters, CRLF line endings and extra blank lines. Bodies are only ever rendered as React text, so nothing in them can run as code.
+  - Chosen over a WYSIWYG/HTML editor so the student highlighting (character offsets, M4-F2) keeps working; there's no new dependency and no HTML sanitiser to keep safe. Highlights now count the text as shown (marks removed); the seeded samples have no marks, so existing drafts are unaffected.
+- **Questions:** one form whose fields change with the type (all 11):
+  - MCQ choices with "choose one/TWO/THREE" and the correct letters;
+  - True/False/Not Given and Yes/No/Not Given;
+  - heading, feature and word-bank lists with the correct label;
+  - matching paragraphs and the "use a letter more than once" option;
+  - the word limit, AND/OR A NUMBER, and accepted answers;
+  - summary and flow-chart questions answered by typing or from a word bank;
+  - an explanation.
+  - The next question of the same type starts with the previous one's list and limits.
+  - Empty list rows are dropped and the answer letters are adjusted to match.
+  - Each question is checked against the M4-C2 contract in the browser, and again by the server before saving. So a saved key always grades.
+- **Numbering:** numbers run through the test in passage order and are kept that way automatically: adding to passage 1 pushes later passages' numbers up, and so do Move up/down and Delete.
+- **Preview as student:** a new admin page that uses the same passage and question components as the player. Questions can be answered, and "Check answers" marks them with the grade-test marking code (score and band shown). Nothing is saved and no allowance is used.
+- **Shared code:** the question components and the question helpers moved out of the web app so the admin preview can use them:
+  - `QuestionField` and `QuestionGroupView` now live in `packages/ui/components/ielts`;
+  - `questions.ts` now lives in `packages/shared/ielts`;
+  - the web app and Listening now import them from there.
+  - `packages/ui` now depends on `@prepora/shared` (a workspace link). The lockfile change also includes pnpm's own rewrite of some peer-dependency entries; `pnpm install --frozen-lockfile --offline` passes on it.
+- **Database** (migration `20261125150000_reading_builder.sql`):
+  - `admin_get_reading_test(id)`: SECURITY DEFINER, staff only (42501). It returns the test with answer keys and explanations, which students and even staff still can't select directly (column grants unchanged).
+  - `admin_order_reading_questions(id, ids[])`: invoker rights, staff only. It renumbers 1..N in the given order and refuses an order that misses or repeats a question, or that breaks passage order (22023).
+    - For this, the `(test_id, q_no)` unique constraint is now DEFERRABLE (initially immediate), checked at the end of the renumbering.
+    - Side effect: `ON CONFLICT (test_id, q_no)` can no longer name it. Only the M4-C3 seed did, and that ran earlier.
+  - Everything else is plain table writes under the M4-C1 staff policies. Server Functions validate first (`api/admin-reading.ts`).
+
+**M4-I1: seed-test integration test** (`e2e/reading-seed.spec.ts`)
+- A student opens the list, takes the seeded General Training sample in the browser, answers 1–10 correctly, reloads, and submits with 4 unanswered. The result is 10/14, and the band equals `readingBand("general", 10, 14)`, both in the grade-test response and on the results page.
+- **Leak check:** every document, RSC payload and API response received before submitting is searched.
+  - There must be no `"answer":`, `"explanation":`, `"accept":` or `"correct_answer":` fields, and none of the test's explanation texts.
+  - The check first caught an explanation that is a word-for-word quote of the passage; that one is excluded as not a leak.
+  - After submitting, the grade-test response does carry the explanations, which shows the check would see them.
+
+**Tests**
+- Unit (+17):
+  - `passage-text.test.ts`: cleaning, parsing, highlight pieces;
+  - `admin-reading.test.ts`: inputs, numbering, checklist;
+  - `reading-builder.test.ts`: every type's form round-trips to valid content; relabelling; carry-over; field errors;
+  - the nav test updated. The web `segments` test moved to `passage-text`.
+- pgTAP `reading_builder.test.sql` (+17): privileges and definer/invoker; a Platinum student gets 42501 for both RPCs; the editor reads a draft with keys and explanations; unknown → P0002; a 1↔2 swap works; a missing or repeated question or a passage-order break → 22023; duplicate numbers are still refused.
+- e2e `reading-builder.spec.ts` (+1, API): an editor builds, reads keys, renumbers and publishes. A student gets 42501 for both RPCs, can't publish, gets 404 for the draft, and after publishing sees formatted passages but no answers.
+- The Reading e2e helpers (`key`, `answer`) moved to `e2e/support/reading.ts`.
+
+**Verified**
+- `pnpm test` **469/469** ✓.
+- pgTAP **436/436** ✓; `db lint` clean; `db:types:check` ✓; `deno check` ✓ (grade-test, credits-test, health).
+- Typecheck ✓ (shared, ui, web, admin); lint ✓ (web, admin).
+- Playwright, against local Supabase, `supabase functions serve` and `next dev` on :3200 (web) and :3201 (admin), from a temporary worktree, run one at a time:
+  - `reading-seed` 2/2 (mobile, desktop); `reading-builder` 1/1; `reading-ui` 10/10;
+  - `listening-player`, `grade-test`, `dashboard`, `journey`, `admin-*` and `reading-rls`: 36 passed, 18 skipped (the API-only tests skip on mobile by design).
+- **Admin builder UI, driven in a browser by a local-only script (not committed):**
+  - create a test; 3 formatted passages via the toolbar and preview;
+  - TFNG, two matching-headings questions (list carried over), sentence completion (a prompt without a gap was refused with the contract's message), MCQ "choose TWO", short answer;
+  - adding to passage 1 renumbered passages 2–3; Move up;
+  - checklist ready; preview "Check answers" → 2/6 with the answers shown; publish;
+  - a student then opened it in the app with the formatting and all 6 questions.
+  - Screenshots checked by eye.
+- **Not verified:**
+  - CI and staging;
+  - the admin builder UI has no committed browser test, because admin isn't served in the e2e setup;
+  - Safari/iOS.

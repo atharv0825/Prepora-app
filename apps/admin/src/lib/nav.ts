@@ -80,6 +80,7 @@ export const navGroups: NavGroup[] = [
         label: "Reading",
         icon: BookOpen,
         milestone: "M4",
+        built: true, // M4-A1: builder (3 passages, 11 question types), preview, publish
         summary: "Build tests: 3 passages and all 11 question types.",
         features: [
           "Create a test → 3 passages → questions",

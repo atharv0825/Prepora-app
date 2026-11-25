@@ -2,12 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { Plus, X } from "lucide-react";
-import { type AdminReadingQuestion, ReadingQuestionInput } from "@prepora/shared/api/admin-reading";
-import { letterLabel, type ReadingQuestionType, readingQuestionTypeLabels, readingQuestionTypes } from "@prepora/shared/ielts/reading";
+import { ListeningQuestionInput, listeningQuestionTypeLabels } from "@prepora/shared/api/admin-listening";
+import { ReadingQuestionInput } from "@prepora/shared/api/admin-reading";
+import { type ListeningQuestionType, listeningQuestionTypes } from "@prepora/shared/ielts/listening";
+import { letterLabel, readingQuestionTypes } from "@prepora/shared/ielts/reading";
 import { Button } from "@prepora/ui/components/button";
 import { Input } from "@prepora/ui/components/input";
 import { toast } from "@prepora/ui/components/sonner";
 import { Textarea } from "@prepora/ui/components/textarea";
+import { saveListeningQuestion } from "@/lib/listening-actions";
 import { saveReadingQuestion } from "@/lib/reading-actions";
 import {
   contentFromDraft,
@@ -16,64 +19,93 @@ import {
   fieldErrors,
   hasList,
   isBankable,
+  isLabellingType,
   isTypedDraft,
+  labellingProblem,
   listLabel,
   paragraphLetters,
   promptHints,
   type QuestionDraft,
   usesGap,
 } from "@/lib/reading-builder";
+import { LabellingField } from "./labelling-field";
 import { selectClass } from "./status";
 
+type QuestionType = ListeningQuestionType;
+export type BuilderModule = "reading" | "listening";
+/** A saved question as either builder loads it. */
+export type EditableQuestion = {
+  id: string;
+  q_no: number;
+  q_type: QuestionType;
+  prompt: string;
+  options: Record<string, unknown>;
+  answer: unknown;
+  explanation: string | null;
+};
+
 const WORDS = ["ONE", "TWO", "THREE", "FOUR", "FIVE"];
-const LIST_NAME: Partial<Record<ReadingQuestionType, string>> = {
+const LIST_NAME: Partial<Record<QuestionType, string>> = {
   matching_headings: "Headings",
   matching_features: "Features (people, places, dates…)",
   summary_completion: "Word bank",
   flowchart_completion: "Word bank",
+  diagram_labelling: "Word bank",
 };
-const LIST_MAX: Partial<Record<ReadingQuestionType, number>> = { matching_headings: 15, matching_features: 10 };
+const LIST_MAX: Partial<Record<QuestionType, number>> = { matching_headings: 15, matching_features: 10 };
 
 /**
- * Add or edit one question (M4-A1). The form changes with the type; whatever is typed is checked
+ * Add or edit one question (Reading M4-A1: 11 types in a passage; Listening M5-A1: 13 types in a
+ * section, labelling included). The form changes with the type; whatever is typed is checked
  * against that type's contract here and again on the server, so a saved answer key always grades.
  */
 export function QuestionEditor({
+  module = "reading",
   testId,
-  passageId,
+  parentId,
   question,
   previous,
   onDone,
 }: {
+  module?: BuilderModule;
   testId: string;
-  passageId: string;
-  question?: AdminReadingQuestion;
-  /** The question before this one in the passage, to carry its list and limits over. */
+  /** The passage (Reading) or section (Listening) the question belongs to. */
+  parentId: string;
+  question?: EditableQuestion;
+  /** The question before this one, to carry its list, limits and picture over. */
   previous?: QuestionDraft;
   onDone: () => void;
 }) {
+  const types: readonly QuestionType[] = module === "reading" ? readingQuestionTypes : listeningQuestionTypes;
+  const source = module === "reading" ? "the passage" : "the recording";
   const [d, setD] = useState<QuestionDraft>(() => (question ? draftFromQuestion(question) : emptyDraft(previous?.q_type ?? "tfng", previous)));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, start] = useTransition();
   const set = (patch: Partial<QuestionDraft>) => setD((prev) => ({ ...prev, ...patch }));
-  const id = (name: string) => `${question?.id ?? `new-${passageId}`}-${name}`;
+  const id = (name: string) => `${question?.id ?? `new-${parentId}`}-${name}`;
 
-  function changeType(q_type: ReadingQuestionType) {
+  function changeType(q_type: QuestionType) {
     const next = emptyDraft(q_type, previous);
     setD({ ...next, prompt: d.prompt, explanation: d.explanation });
     setErrors({});
   }
 
   function save() {
-    const input = { test_id: testId, passage_id: passageId, id: question?.id, ...contentFromDraft(d), explanation: d.explanation };
-    const checked = ReadingQuestionInput.safeParse(input);
+    const picture = labellingProblem(d);
+    if (picture) {
+      setErrors({ image: picture });
+      return;
+    }
+    const common = { test_id: testId, id: question?.id, ...contentFromDraft(d), explanation: d.explanation };
+    const input = module === "reading" ? { ...common, passage_id: parentId } : { ...common, section_id: parentId };
+    const checked = (module === "reading" ? ReadingQuestionInput : ListeningQuestionInput).safeParse(input);
     if (!checked.success) {
       setErrors(fieldErrors(checked.error.issues));
       return;
     }
     setErrors({});
     start(async () => {
-      const result = await saveReadingQuestion(input);
+      const result = module === "reading" ? await saveReadingQuestion(input) : await saveListeningQuestion(input);
       if (result.ok) {
         toast.success(result.message);
         onDone();
@@ -88,6 +120,8 @@ export function QuestionEditor({
   const answerChoices =
     d.q_type === "matching_information"
       ? paragraphLetters(d.paragraphs)
+      : d.q_type === "map_labelling"
+        ? d.points.map((_, i) => letterLabel(i))
       : hasList(d)
         ? d.list.map((_, i) => listLabel(d, i)).filter((_, i) => d.list[i]?.trim())
         : [];
@@ -96,10 +130,10 @@ export function QuestionEditor({
     <div className="flex flex-col gap-5 rounded-2xl border border-primary/40 bg-background p-4" data-testid="question-editor">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Type" htmlFor={id("type")}>
-          <select id={id("type")} value={d.q_type} onChange={(e) => changeType(e.target.value as ReadingQuestionType)} className={selectClass}>
-            {readingQuestionTypes.map((t) => (
+          <select id={id("type")} value={d.q_type} onChange={(e) => changeType(e.target.value as QuestionType)} className={selectClass}>
+            {types.map((t) => (
               <option key={t} value={t}>
-                {readingQuestionTypeLabels[t]}
+                {listeningQuestionTypeLabels[t]}
               </option>
             ))}
           </select>
@@ -107,7 +141,7 @@ export function QuestionEditor({
         {isBankable(d.q_type) && (
           <Field label="Students answer by" htmlFor={id("bank")}>
             <select id={id("bank")} value={d.bank ? "bank" : "typed"} onChange={(e) => set({ bank: e.target.value === "bank", label: "" })} className={selectClass}>
-              <option value="typed">Typing words from the passage</option>
+              <option value="typed">Typing words from {source}</option>
               <option value="bank">Choosing from a word bank</option>
             </select>
           </Field>
@@ -125,6 +159,17 @@ export function QuestionEditor({
           aria-invalid={errors.prompt ? true : undefined}
         />
       </Field>
+
+      {isLabellingType(d.q_type) && (
+        <LabellingField
+          testId={testId}
+          kind={d.q_type === "map_labelling" ? "map" : "diagram"}
+          draft={d}
+          onChange={(patch) => set(patch)}
+          error={errors.image}
+          idPrefix={id("img")}
+        />
+      )}
 
       {/* MCQ choices, or the list to match against. */}
       {(d.q_type === "mcq" || hasList(d)) && (

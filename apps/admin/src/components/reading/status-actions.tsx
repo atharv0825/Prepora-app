@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@prepora/ui/components/dialog";
 import { toast } from "@prepora/ui/components/sonner";
+import { deleteListeningTest, setListeningTestStatus } from "@/lib/listening-actions";
 import { deleteReadingTest, setReadingTestStatus } from "@/lib/reading-actions";
 
 type Confirm = { kind: "status"; to: ContentStatus } | { kind: "delete" };
@@ -22,13 +23,25 @@ type Confirm = { kind: "status"; to: ContentStatus } | { kind: "delete" };
  * delete (drafts only). Publishing is offered only when the checklist has nothing blocking, and
  * the server runs the same checklist again.
  */
-export function StatusActions({ testId, status, check }: { testId: string; status: ContentStatus; check: PublishCheck }) {
+export function StatusActions({
+  module = "reading",
+  testId,
+  status,
+  check,
+}: {
+  module?: "reading" | "listening";
+  testId: string;
+  status: ContentStatus;
+  check: PublishCheck;
+}) {
+  const setStatus = module === "reading" ? setReadingTestStatus : setListeningTestStatus;
+  const remove = module === "reading" ? deleteReadingTest : deleteListeningTest;
   const [pending, start] = useTransition();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
   function run(c: Confirm) {
     start(async () => {
-      const result = c.kind === "delete" ? await deleteReadingTest(testId) : await setReadingTestStatus(testId, c.to);
+      const result = c.kind === "delete" ? await remove(testId) : await setStatus(testId, c.to);
       setConfirm(null);
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
@@ -52,7 +65,11 @@ export function StatusActions({ testId, status, check }: { testId: string; statu
       body: "Students can't see it any more. Their past results are kept. You can publish it again later.",
       action: "Archive",
     },
-    delete: { title: "Delete this draft?", body: "The test, its passages and questions are deleted for good.", action: "Delete" },
+    delete: {
+      title: "Delete this draft?",
+      body: `The test, its ${module === "reading" ? "passages" : "sections"} and questions are deleted for good.`,
+      action: "Delete",
+    },
   };
   const shown = confirm ? text[confirm.kind === "delete" ? "delete" : confirm.to] : null;
 

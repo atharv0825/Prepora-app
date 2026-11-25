@@ -72,8 +72,9 @@ jobs:
           # One retry for transient Docker errors on the runner.
           supabase start $args || { echo "::warning::supabase start failed; retrying once"; supabase stop --no-backup || true; supabase start $args; }
 
-      - name: Install Chromium
-        run: pnpm --filter @prepora/web exec playwright install --with-deps chromium
+      # WebKit for the "ios-safari" project (M5-I1: Listening exam mode on Safari for iPhone).
+      - name: Install Chromium and WebKit
+        run: pnpm --filter @prepora/web exec playwright install --with-deps chromium webkit
 
       # playwright.config.ts reads the local keys from `supabase status`, builds the app against
       # local Supabase and serves it on :3200.

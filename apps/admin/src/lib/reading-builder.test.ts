@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseReadingQuestion, type ReadingQuestionType, readingQuestionTypes } from "@prepora/shared/ielts/reading";
-import { compactList, contentFromDraft, draftFromQuestion, emptyDraft, fieldErrors, paragraphLetters, type QuestionDraft } from "./reading-builder";
+import { type ListeningQuestionType, listeningQuestionTypes, parseListeningQuestion } from "@prepora/shared/ielts/listening";
+import { compactList, contentFromDraft, draftFromQuestion, emptyDraft, fieldErrors, labellingProblem, paragraphLetters, type QuestionDraft } from "./reading-builder";
 
 /** A filled-in form for each type, as an editor would leave it. */
-function filled(t: ReadingQuestionType): QuestionDraft {
+function filled(t: ListeningQuestionType): QuestionDraft {
   const d = emptyDraft(t);
   d.prompt = ["sentence_completion", "summary_completion", "note_table_completion", "flowchart_completion"].includes(t)
     ? "Bees were first kept on ___ roofs."
@@ -24,6 +24,10 @@ function filled(t: ReadingQuestionType): QuestionDraft {
       return { ...d, paragraphs: "a, b c", label: "C" };
     case "summary_completion":
       return { ...d, bank: true, list: ["hotel", "", "office"], label: "C" };
+    case "map_labelling":
+      return { ...d, prompt: "Café", image_url: "https://cdn.test/map.png", image_alt: "Plan", points: [{ x: 10.04, y: 20 }, { x: 55.55, y: 60 }], label: "B" };
+    case "diagram_labelling":
+      return { ...d, prompt: "Part 3", image_url: "https://cdn.test/d.png", image_alt: "Filter", marker: { x: 30, y: 40 }, max_words: 1, accept: ["valve"] };
     default:
       return { ...d, max_words: 2, number_allowed: true, accept: ["hotel", " ", "hotel's"] };
   }
@@ -31,10 +35,10 @@ function filled(t: ReadingQuestionType): QuestionDraft {
 
 describe("question form (M4-A1)", () => {
   it("every type's filled form makes valid content, and reads back the same", () => {
-    for (const t of readingQuestionTypes) {
+    for (const t of listeningQuestionTypes) {
       const content = contentFromDraft(filled(t));
-      const parsed = parseReadingQuestion(content);
-      expect(parsed.success, `${t}: ${parsed.error?.issues[0]?.message}`).toBe(true);
+      const parsed = parseListeningQuestion(content);
+      expect(parsed.success, `${t}: ${parsed.success ? "" : parsed.error.issues[0]?.message}`).toBe(true);
       const again = contentFromDraft(draftFromQuestion({ ...content, options: content.options, explanation: "Paragraph B." }));
       expect(again, t).toEqual(content);
     }
@@ -54,6 +58,29 @@ describe("question form (M4-A1)", () => {
     expect(emptyDraft("matching_headings", prev)).toMatchObject({ list: ["Origins", "Costs", "Future"], prompt: "", label: "" });
     expect(emptyDraft("short_answer", { ...filled("short_answer"), max_words: 3 })).toMatchObject({ max_words: 3, accept: [""] });
     expect(emptyDraft("tfng", prev).list).toEqual(["", "", ""]); // another type: nothing carried
+  });
+
+  it("labelling: lettered places and the marker, rounded to 0.1%, and the picture carried over", () => {
+    expect(contentFromDraft(filled("map_labelling")).options).toEqual({
+      image_url: "https://cdn.test/map.png",
+      image_alt: "Plan",
+      locations: [
+        { label: "A", x: 10, y: 20 },
+        { label: "B", x: 55.6, y: 60 },
+      ],
+    });
+    expect(contentFromDraft(filled("diagram_labelling"))).toMatchObject({ options: { marker: { x: 30, y: 40 }, max_words: 1 }, answer: { accept: ["valve"] } });
+    const next = emptyDraft("map_labelling", filled("map_labelling"));
+    expect(next).toMatchObject({ image_url: "https://cdn.test/map.png", prompt: "", label: "" });
+    expect(next.points).toHaveLength(2);
+    expect(emptyDraft("diagram_labelling", filled("diagram_labelling")).marker).toBeNull(); // each question has its own
+    expect(fieldErrors([{ path: ["options", "locations"], message: "two places" }])).toEqual({ image: "two places" });
+    // What's missing, in words.
+    expect(labellingProblem(filled("map_labelling"))).toBeNull();
+    expect(labellingProblem({ ...filled("map_labelling"), points: [{ x: 1, y: 1 }] })).toBe("Click the picture to add at least 2 lettered places.");
+    expect(labellingProblem({ ...filled("diagram_labelling"), marker: null })).toBe("Click the picture where this question's number goes.");
+    expect(labellingProblem({ ...filled("diagram_labelling"), image_url: " " })).toBe("Add the picture: upload it or paste its URL.");
+    expect(labellingProblem(filled("tfng"))).toBeNull();
   });
 
   it("paragraph letters however they're typed", () => {

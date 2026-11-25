@@ -2392,3 +2392,87 @@ Done together on one branch from `develop` (M5-C1/C2 merged in #54).
   - **a real upload to R2**: no bucket exists yet. The signature matches AWS's example, but R2's acceptance of it (including the signed Content-Type) and CORS are untested until `docs/r2.md` is done.
   - the browser Listening sample after the grader swap (unit-tested only);
   - CI and staging.
+
+## 2026-11-25 — M5-A1 + M5-I1: Listening builder (admin) and the Listening integration tests
+
+Done together on one branch from `develop` (M5-B1..B3 merged in #55).
+
+**M5-A1: Listening builder** (admin, `/listening`; the sidebar's Listening module is now live)
+- **Flow:** create a test (title, minimum plan; one test serves Academic and General) → 4 sections → each section's recording, transcript and questions → publish.
+  - Workflow buttons as for Reading: Send for review, Publish, Move to draft, Archive, Delete (drafts only).
+  - A "Ready to publish?" checklist (`listeningPublishCheck`, shared) blocks publishing until there are 4 sections each with a recording and transcript, valid answer keys, and numbering without gaps.
+    - Because numbers run 1–10, 11–20, …, it says which section must be filled first.
+    - It warns about short or empty sections and missing explanations.
+    - The server runs it again on publish, and the M5-C1 trigger checks a third time.
+- **Recording upload:** the browser asks `r2-upload-url` (M5-B1) for a presigned PUT, uploads **straight to R2 with a progress bar**, reads the length from the file, and saves the public URL and duration on the section.
+  - The type and size are checked first; "not set up" errors point to `docs/r2.md`.
+  - The section shows a player, the length and the URL; "Replace recording" uploads a new object.
+- **Transcript** per section (up to 30,000 characters), with a note that students see it only after submitting.
+- **Questions:** up to **10 per section**, numbered inside the section (section n: 10n−9 …). Add, edit, move up/down and delete renumber automatically (new `admin_order_listening_questions`).
+- **All 13 types.** The Reading builder's question form, list, details and status components now take a `module` and serve both builders; one draft model covers both.
+- **Labelling questions:**
+  - **upload the picture** to the `listening-images` bucket (M5-B3), or paste a URL;
+  - describe it for screen readers;
+  - **click the picture** to place a map's lettered places (A, B, C… in order, up to 12) or the diagram question's marker;
+  - points are stored as % of the picture's size, rounded to 0.1%;
+  - the next question of the same type starts with the picture and its places;
+  - missing pieces are named in words ("Click the picture where this question's number goes.") instead of the contract's "Invalid input".
+- **Migration `20261125220000_listening_builder.sql`:**
+  - `admin_get_listening_test` (definer, staff only): keys, explanations and transcripts;
+  - `admin_order_listening_questions` (invoker, staff only): numbers each question from its place among its section's questions.
+- **Shared:** `api/admin-listening.ts` (payload, inputs, numbering, checklist, type labels). The shared server-action helpers moved to `lib/builder-server.ts`.
+- **Not included:**
+  - a "preview as student" page (not in the step; the student page below shows the result);
+  - a student Listening list and dashboard tile;
+  - removing replaced recordings from R2.
+
+**Student page** `/app/listening/[testId]` (needed by M5-I1)
+- A published test via `get_listening_test`, in the existing player (M5-F1..F3).
+- Marked by `grade-test` with module `listening`: one allowance; the allowance dialog when it's used up; the answers stay on the device.
+- PT403 → an upgrade card; anything else not found → 404.
+
+**M5-I1: integration** (`e2e/listening-live.spec.ts`)
+- A published test (4 sections, tone recordings from the sample route with real Range support; a typed gap, a map, an MCQ, a diagram).
+- **Practice mode, end to end:**
+  - nothing secret in the page first;
+  - play, pause, seek;
+  - answer every type through the UI (one misspelt);
+  - submit → 3 of 4, the Listening band, correct answers, and the transcript shown only now;
+  - the attempt is saved as `practice`.
+- **Exam mode:**
+  - no slider, part buttons, replay or native controls;
+  - a tap starts part 1, and it can't be paused;
+  - a jump ahead is put back;
+  - part 1 ends and part 2 follows by itself, with no replay;
+  - submit → results in exam mode, saved as `exam`.
+- **Safari on iPhone:** a new Playwright project, **`ios-safari`** (WebKit with the iPhone 15 profile), runs this spec. CI now installs WebKit.
+  - **Playwright's WebKit on Windows can't play media** (`play()` → NotSupportedError, media error 4). So on WebKit the test first checks that audio plays: locally it skips with that reason; **in CI (Linux) it must pass, and fails if audio can't play**.
+  - It's WebKit, Safari's engine, not a real iPhone.
+- `e2e/listening-builder.spec.ts` (API): an editor builds, reads keys and transcripts, reorders and publishes. A student gets 42501 for both builder RPCs and 404 for the draft, and once published sees no transcript or explanation.
+
+**Tests**
+- Unit (+8):
+  - `admin-listening.test.ts`: inputs, numbering within sections, a section's next number and full at 10, moves, and the checklist (missing sections, recordings, transcripts, invalid keys, short sections);
+  - `reading-builder.test.ts`: all 13 types round-trip through the form, labelling content and rounding, picture carry-over, the labelling messages.
+- pgTAP `listening_builder.test.sql` (+14): privileges and definer; a Platinum student gets 42501 for both RPCs; the editor gets transcripts, keys and explanations; unknown → P0002; reordering within sections; an incomplete order → 22023; renumbering after a delete.
+
+**Verified**
+- `pnpm test` **491/491** ✓.
+- pgTAP **514/514** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- Typecheck ✓ (shared, ui, web, admin); lint ✓ (web, admin).
+- Playwright, from a temporary worktree (`next dev` web :3200 and admin :3201, `supabase functions serve` with placeholder R2 settings):
+  - `listening-live` **4/4 on Chromium** (practice and exam, mobile and desktop); the 2 `ios-safari` runs skipped for the WebKit-on-Windows media limit above;
+  - `listening-builder` 1/1;
+  - `listening-backend`, `listening-player`, `listening-rls`, `reading-builder`, `reading-ui`, `grade-test` and `dashboard`: 34 passed, 13 skipped (API-only tests run once by design). One `reading-ui` test (monthly limit) failed once under load and passed when rerun alone.
+- **Admin Listening builder UI, driven in a browser (local-only script, not committed):**
+  - create a test; 4 sections with titles and transcripts;
+  - **4 WAV uploads**: the presigned PUT was intercepted because no R2 exists yet; it carried the signed `content-type;host` and the file's exact bytes, and the length was read as 0:03;
+  - TFNG; two map questions (3 places by clicking; picture and places carried over); a diagram question, refused without its marker with the plain message, then placed;
+  - Move up renumbered; checklist ready; published;
+  - a student opened it in the app with the map, its letters, and the diagram marker.
+  - Screenshots checked by eye.
+- **Not verified:**
+  - **Safari/WebKit playback** (CI runs it on Linux, real iPhone not tested);
+  - a **real R2 upload**, CORS included (the bucket isn't set up; see `docs/r2.md`);
+  - image upload through Storage locally (the local Supabase runs without Storage, so the picture URL was pasted; CI covers the bucket in `listening-backend`);
+  - CI and staging.

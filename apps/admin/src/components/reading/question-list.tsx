@@ -2,17 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
-import type { AdminReadingQuestion } from "@prepora/shared/api/admin-reading";
-import { readingQuestionTypeLabels } from "@prepora/shared/ielts/reading";
+import { listeningQuestionTypeLabels } from "@prepora/shared/api/admin-listening";
 import { Badge } from "@prepora/ui/components/badge";
 import { Button } from "@prepora/ui/components/button";
 import { toast } from "@prepora/ui/components/sonner";
+import { deleteListeningQuestion, moveListeningQuestion } from "@/lib/listening-actions";
 import { deleteReadingQuestion, moveReadingQuestion } from "@/lib/reading-actions";
 import { draftFromQuestion } from "@/lib/reading-builder";
-import { QuestionEditor } from "./question-editor";
+import { type BuilderModule, type EditableQuestion, QuestionEditor } from "./question-editor";
 
 /** The key in a few characters: "B", "A, C", "True", "the mayor (+1)". */
-export function answerSummary(q: Pick<AdminReadingQuestion, "answer">): string {
+export function answerSummary(q: Pick<EditableQuestion, "answer">): string {
   const a = (q.answer ?? {}) as { labels?: string[]; value?: string; label?: string; accept?: string[] };
   if (a.labels) return a.labels.join(", ");
   if (a.value) return a.value === "not_given" ? "Not given" : a.value[0]!.toUpperCase() + a.value.slice(1);
@@ -22,22 +22,29 @@ export function answerSummary(q: Pick<AdminReadingQuestion, "answer">): string {
 }
 
 /**
- * A passage's questions in the builder (M4-A1): number, type, prompt and key, with edit, move
- * (within the passage) and delete; "Add question" opens the editor below the last one. Numbers
- * run through the test in passage order and are kept that way by the server.
+ * A passage's (Reading, M4-A1) or section's (Listening, M5-A1) questions in the builder: number,
+ * type, prompt and key, with edit, move (within the passage or section) and delete; "Add
+ * question" opens the editor below the last one. The server keeps the numbers in order.
  */
 export function QuestionList({
+  module = "reading",
   testId,
-  passageId,
+  parentId,
   questions,
-  total,
+  canAdd,
+  fullText,
 }: {
+  module?: BuilderModule;
   testId: string;
-  passageId: string;
-  questions: AdminReadingQuestion[];
-  /** Questions in the whole test (40 at most). */
-  total: number;
+  /** The passage or section. */
+  parentId: string;
+  questions: EditableQuestion[];
+  /** False when the test (Reading: 40) or section (Listening: 10) is full. */
+  canAdd: boolean;
+  fullText: string;
 }) {
+  const move = module === "reading" ? moveReadingQuestion : moveListeningQuestion;
+  const remove = module === "reading" ? deleteReadingQuestion : deleteListeningQuestion;
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [pending, start] = useTransition();
   const last = questions[questions.length - 1];
@@ -51,15 +58,18 @@ export function QuestionList({
   }
 
   return (
-    <div className="flex flex-col gap-3" data-testid={`questions-${passageId}`}>
-      {questions.length === 0 && editing !== "new" && <p className="text-sm text-muted-foreground">No questions for this passage yet.</p>}
+    <div className="flex flex-col gap-3" data-testid={`questions-${parentId}`}>
+      {questions.length === 0 && editing !== "new" && (
+        <p className="text-sm text-muted-foreground">No questions for this {module === "reading" ? "passage" : "section"} yet.</p>
+      )}
       <ol className="flex flex-col gap-2">
         {questions.map((q, i) =>
           editing === q.id ? (
             <li key={q.id}>
               <QuestionEditor
+                module={module}
                 testId={testId}
-                passageId={passageId}
+                parentId={parentId}
                 question={q}
                 previous={i > 0 ? draftFromQuestion(questions[i - 1]!) : undefined}
                 onDone={() => setEditing(null)}
@@ -72,7 +82,7 @@ export function QuestionList({
                 <span className="flex min-w-0 flex-col gap-1">
                   <span className="line-clamp-2 text-sm">{q.prompt}</span>
                   <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{readingQuestionTypeLabels[q.q_type]}</Badge>
+                    <Badge variant="outline">{listeningQuestionTypeLabels[q.q_type]}</Badge>
                     <span>
                       Answer: <span className="font-medium text-foreground">{answerSummary(q)}</span>
                     </span>
@@ -81,14 +91,14 @@ export function QuestionList({
                 </span>
               </span>
               <span className="flex shrink-0 gap-1 self-end sm:self-auto">
-                <Button size="icon" variant="ghost" disabled={pending || i === 0} onClick={() => act(() => moveReadingQuestion(testId, q.id, "up"))} aria-label={`Move question ${q.q_no} up`}>
+                <Button size="icon" variant="ghost" disabled={pending || i === 0} onClick={() => act(() => move(testId, q.id, "up"))} aria-label={`Move question ${q.q_no} up`}>
                   <ArrowUp />
                 </Button>
                 <Button
                   size="icon"
                   variant="ghost"
                   disabled={pending || i === questions.length - 1}
-                  onClick={() => act(() => moveReadingQuestion(testId, q.id, "down"))}
+                  onClick={() => act(() => move(testId, q.id, "down"))}
                   aria-label={`Move question ${q.q_no} down`}
                 >
                   <ArrowDown />
@@ -102,7 +112,7 @@ export function QuestionList({
                   className="text-destructive"
                   disabled={pending}
                   onClick={() => {
-                    if (window.confirm(`Delete question ${q.q_no}? Later questions are renumbered.`)) act(() => deleteReadingQuestion(testId, q.id));
+                    if (window.confirm(`Delete question ${q.q_no}? Later questions are renumbered.`)) act(() => remove(testId, q.id));
                   }}
                   aria-label={`Delete question ${q.q_no}`}
                 >
@@ -114,13 +124,19 @@ export function QuestionList({
         )}
       </ol>
       {editing === "new" ? (
-        <QuestionEditor testId={testId} passageId={passageId} previous={last ? draftFromQuestion(last) : undefined} onDone={() => setEditing(null)} />
+        <QuestionEditor
+          module={module}
+          testId={testId}
+          parentId={parentId}
+          previous={last ? draftFromQuestion(last) : undefined}
+          onDone={() => setEditing(null)}
+        />
       ) : (
         <div>
-          <Button variant="outline" disabled={pending || editing !== null || total >= 40} onClick={() => setEditing("new")}>
+          <Button variant="outline" disabled={pending || editing !== null || !canAdd} onClick={() => setEditing("new")}>
             <Plus /> Add question
           </Button>
-          {total >= 40 && <span className="ml-3 text-xs text-muted-foreground">40 questions: the test is full.</span>}
+          {!canAdd && <span className="ml-3 text-xs text-muted-foreground">{fullText}</span>}
         </div>
       )}
     </div>

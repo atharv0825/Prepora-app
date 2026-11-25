@@ -785,6 +785,7 @@ export type Database = {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      get_listening_attempt: { Args: { p_attempt_id: string }; Returns: Json }
       get_listening_test: { Args: { p_test_id: string }; Returns: Json }
       get_my_credits: { Args: never; Returns: Json }
       get_reading_test: { Args: { p_test_id: string }; Returns: Json }

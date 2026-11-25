@@ -5,8 +5,9 @@ import { cn } from "cn";
 import { Badge } from "@prepora/ui/components/badge";
 import { buttonVariants } from "@prepora/ui/components/button";
 import { allowanceRemaining } from "@prepora/shared/api/credits";
+import { AllowanceMeter } from "@/components/allowance-meter";
 import { AttemptHistory } from "@/components/reading/reading-results";
-import { formatDate, meterPercent } from "@/lib/credits";
+import { formatDate } from "@/lib/credits";
 import { planLabel, testTypeLabel } from "@/lib/dashboard";
 import { validTimeZone } from "@/lib/onboarding";
 import { attemptSummary, listFilter, planAllows } from "@/lib/reading";
@@ -65,35 +66,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
         <p className="text-muted-foreground">Full tests with 60 minutes on the clock, marked instantly with a band score.</p>
       </div>
 
-      {allowance && (
-        <section aria-label="Reading tests this month" className="flex flex-col gap-2 rounded-3xl border border-black/5 bg-white p-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="font-medium">Reading tests this month</p>
-            <p className="text-sm text-muted-foreground" data-testid="allowance">
-              {allowance.used} of {allowance.limit} used
-            </p>
-          </div>
-          <div
-            role="meter"
-            aria-label="Reading tests used"
-            aria-valuemin={0}
-            aria-valuemax={allowance.limit}
-            aria-valuenow={allowance.used}
-            className="h-2 overflow-hidden rounded-full bg-muted"
-          >
-            <div className="h-full rounded-full bg-primary" style={{ width: `${meterPercent(allowance.used, allowance.limit)}%` }} />
-          </div>
-          {remaining === 0 && (
-            <p className="text-sm">
-              You&apos;ve used this month&apos;s Reading tests.{" "}
-              <Link href={routes.upgrade} className="font-medium underline underline-offset-4">
-                See plans
-              </Link>{" "}
-              for more.
-            </p>
-          )}
-        </section>
-      )}
+      {allowance && <AllowanceMeter module="Reading" used={allowance.used} limit={allowance.limit} />}
 
       <nav aria-label="Test type" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (

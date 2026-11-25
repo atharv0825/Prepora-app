@@ -20,7 +20,7 @@ export type DashboardModule = {
  */
 export const dashboardModules: readonly DashboardModule[] = [
   { key: "reading", title: "Reading", description: "Timed passages with instant band scores.", status: "available", href: "/app/reading" },
-  { key: "listening", title: "Listening", description: "Real-exam audio, all four sections.", status: "soon" },
+  { key: "listening", title: "Listening", description: "Real-exam audio, all four sections.", status: "available", href: "/app/listening" },
   { key: "writing", title: "Writing", description: "Task 1 and 2 scored by AI, with corrections.", status: "soon" },
   { key: "speaking", title: "Speaking", description: "Talk to an AI examiner, get a band per criterion.", status: "soon" },
 ];

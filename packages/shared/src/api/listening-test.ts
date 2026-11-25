@@ -96,3 +96,28 @@ export const ListeningGradeResponse = z
   })
   .strict();
 export type ListeningGradeResponse = z.infer<typeof ListeningGradeResponse>;
+
+/**
+ * get_listening_attempt(id): one of the student's own Listening attempts, reopened later, with the
+ * test's transcripts (seen at submission). test is null when the test was deleted.
+ */
+export const ListeningAttemptPayload = z
+  .object({
+    attempt: z
+      .object({
+        id: z.uuid(),
+        test_id: z.uuid(),
+        mode: ListeningMode.nullable(),
+        raw_score: z.number().int().min(0).max(40),
+        band: z.coerce.number().min(0).max(9),
+        time_taken_sec: z.number().int().nullable(),
+        created_at: z.string(),
+        /** Null for attempts saved without results. */
+        results: z.array(ListeningQuestionResult).nullable(),
+      })
+      .strict(),
+    test: z.object({ id: z.uuid(), title: z.string() }).strict().nullable(),
+    transcripts: ListeningGradeResponse.shape.transcripts,
+  })
+  .strict();
+export type ListeningAttemptPayload = z.infer<typeof ListeningAttemptPayload>;

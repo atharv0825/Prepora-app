@@ -2529,3 +2529,42 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
 - Playwright from a temporary worktree (`next dev` :3200, `supabase functions serve`), one at a time: `listening-home`, `listening-live`, `reading-ui`, `dashboard` and `journey`: **26/26** ✓.
 - Screenshots of the dashboard, the Listening list and a reopened attempt checked by eye.
 - **Not verified:** CI and staging. There are still no real Listening tests until one is built in the admin, and that needs the R2 setup in `docs/r2.md`; until then the list says "No Listening tests yet".
+
+## 2026-11-26 — Fix: Reading test player layout (fills the screen, fixed navigator, Previous / Next)
+
+**Request** (staging, `/app/reading/<sample>`):
+- remove the "Sample Academic Test / Academic Reading" title but keep the back link;
+- the test should sit in the middle of the screen and not scroll as a page;
+- the question numbers should stay put, with a Next button to move through them.
+
+**What was wrong:**
+- the panes had a guessed height (`100dvh − 19rem`) inside a page that also had the title, the back link and the page padding;
+- so the whole page scrolled, the top bar and navigator slid around, and empty space appeared below the numbers (the second screenshot).
+
+**Fix** (`reading-player.tsx`, `reading/[testId]/page.tsx`)
+- **Once the test starts, the player is a fixed workspace below the 4rem header**, centred in a max-width (7xl) column. The page itself no longer scrolls:
+  - top bar: **← Reading tests**, the timer, "Continued where you left off", Submit;
+  - passage tabs, plus the Passage/Questions switch on mobile;
+  - **the two panes take the rest of the height and scroll inside themselves**.
+- **The navigator is fixed at the bottom**, with **Previous** and **Next** either side of the numbers:
+  - the current question gets a ring (`aria-current`);
+  - Next and Previous move from it, switching passage when needed;
+  - focusing an answer makes that question current;
+  - the number bar scrolls sideways on phones to keep the current number in view;
+  - Previous is disabled on the first question, Next on the last.
+- **The title is gone from the test screen.** A screen-reader-only h1 keeps it accessible. The **start screen** (before the clock runs) still names the test inside the intro card, so students know which test they're starting.
+- The page's own header is removed; the player renders the back link on both screens.
+
+**Tests**
+- `reading-ui.spec.ts` (+1, mobile + desktop):
+  - the start screen names the test; during the test, no visible "Academic Reading" title and the back link is there;
+  - **the page height equals the window (no page scroll)**, the navigator is inside the screen, and the pane scrolls inside;
+  - Previous is disabled at the start; Next → 1, Next → 2 (in view); Previous → 1;
+  - jumping to 20 moves to passage 3 and disables Next.
+  - The test hides `next dev`'s floating "N" badge, which sits over the bottom-left corner (dev server only; CI uses a production build).
+
+**Verified**
+- `reading-ui` **12/12**; with `reading-seed` (M4-I1) and `dashboard`, **18/18**, mobile and desktop.
+- Screenshots of the new layout checked on desktop and mobile; fixed the current-number ring being clipped at the bar's edge.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging (the screenshots came from there; it updates on merge), Safari/iOS, and the Listening player, which wasn't part of this request.

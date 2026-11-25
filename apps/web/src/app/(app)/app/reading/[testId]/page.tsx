@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cn } from "cn";
 import { buttonVariants } from "@prepora/ui/components/button";
 import { ReadingTestPayload } from "@prepora/shared/api/reading-test";
 import { ReadingPlayer } from "@/components/reading/reading-player";
-import { planLabel, testTypeLabel } from "@/lib/dashboard";
+import { planLabel } from "@/lib/dashboard";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 
@@ -37,18 +36,8 @@ export default async function ReadingTestPage({ params }: PageProps<"/app/readin
   }
   const parsed = ReadingTestPayload.safeParse(data);
   if (error || !parsed.success) notFound();
-  const payload = parsed.data;
 
-  return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <Link href={routes.reading} className={cn("self-start text-sm text-muted-foreground underline-offset-4 hover:underline")}>
-          ← Reading tests
-        </Link>
-        <h1 className="text-h2">{payload.test.title}</h1>
-        <p className="text-sm text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
-      </div>
-      <ReadingPlayer payload={payload} />
-    </div>
-  );
+  // The player shows the back link, and the title on its start screen (during the test it
+  // fills the screen; the title is kept for screen readers only).
+  return <ReadingPlayer payload={parsed.data} />;
 }

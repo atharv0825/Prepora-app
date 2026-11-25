@@ -164,6 +164,43 @@ test("M4-F2..F4: take the Academic sample, all correct → band 9, results and h
   await expect(page.getByRole("region", { name: "Your attempts" }).getByRole("link")).toHaveCount(1);
 });
 
+test("M4-F2 layout: the test fills the screen without page scroll; back link; Previous / Next through the numbers", async ({ page, context, baseURL, isMobile }) => {
+  await signIn(context, baseURL!);
+  await page.goto(`/app/reading/${ACADEMIC}`);
+  // The start screen names the test.
+  await expect(page.getByTestId("reading-intro").getByRole("heading", { level: 1 })).toHaveText("Sample Academic Test");
+  await page.getByRole("button", { name: "Start the test" }).click();
+  // `next dev` floats its "N" badge over the bottom-left corner (not in production builds).
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+
+  // During the test: no visible title, the back link stays.
+  await expect(page.getByText("Academic Reading", { exact: true })).toBeHidden();
+  await expect(player(page).getByRole("link", { name: "Reading tests" })).toHaveAttribute("href", "/app/reading");
+  // The page itself doesn't scroll; the panes and the navigator are inside the screen.
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
+  const viewport = page.viewportSize()!;
+  const nav = await page.getByRole("navigation", { name: "Questions" }).boundingBox();
+  expect(nav!.y + nav!.height).toBeLessThanOrEqual(viewport.height);
+  const pane = page.getByTestId(isMobile ? "passage-pane" : "questions-pane");
+  expect(await pane.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true); // it scrolls inside
+
+  // Next / Previous move through the question numbers.
+  const navigator = page.getByRole("navigation", { name: "Questions" });
+  await expect(page.getByRole("button", { name: "Previous question" })).toBeDisabled();
+  await page.getByRole("button", { name: "Next question" }).click();
+  await expect(navigator.getByRole("button", { name: /^Question 1(,|$)/ })).toHaveAttribute("aria-current", "step");
+  await page.getByRole("button", { name: "Next question" }).click();
+  await expect(navigator.getByRole("button", { name: /^Question 2(,|$)/ })).toHaveAttribute("aria-current", "step");
+  await expect(page.getByTestId("questions-pane").locator('[data-q="2"]')).toBeInViewport();
+  await page.getByRole("button", { name: "Previous question" }).click();
+  await expect(navigator.getByRole("button", { name: /^Question 1(,|$)/ })).toHaveAttribute("aria-current", "step");
+  // To the last question, across passages.
+  await navigator.getByRole("button", { name: /^Question 20(,|$)/ }).click();
+  await expect(page.getByRole("tab", { name: /Passage 3/ })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "Next question" })).toBeDisabled();
+  await page.screenshot({ path: test.info().outputPath("layout.png") });
+});
+
 test("M4-F3/F4: wrong and unanswered answers show the correct answer; confirm before submitting", async ({ page, context, baseURL }) => {
   await signIn(context, baseURL!, "general");
   await page.goto(`/app/reading/${GENERAL}`);

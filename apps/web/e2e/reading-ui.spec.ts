@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { ONBOARDED, adminClient, createTestUser, deleteTestUser, localSupabase, type TestUser } from "./support/local-supabase";
+import { answer, key } from "./support/reading";
 
 // M4-F1..F4 in the browser against local Supabase and the local grade-test Edge Function, on the
 // seeded sample tests (M4-C3): the test list with filters and allowance, the player (timer,
@@ -60,35 +61,6 @@ async function signIn(context: BrowserContext, baseURL: string, testType: "acade
   user = await createTestUser("Rhea Reader", "user", { ...ONBOARDED, test_type: testType, timezone: "UTC" });
   await context.addCookies(user.cookies.map((c) => ({ ...c, url: baseURL })));
   return user;
-}
-
-/** The right answer for each question, as the student would give it (read with the service role). */
-async function key(testId: string): Promise<Map<number, string | string[]>> {
-  const { data } = await adminClient().from("reading_questions").select("q_no, answer").eq("test_id", testId);
-  return new Map(
-    (data ?? []).map((q) => {
-      const a = q.answer as { labels?: string[]; value?: string; label?: string; accept?: string[] };
-      return [q.q_no, a.labels ?? a.value ?? a.label ?? a.accept![0]!];
-    }),
-  );
-}
-
-/** Answer question n through the UI, whatever its control. */
-async function answer(page: Page, n: number, value: string | string[]) {
-  await page.getByRole("navigation", { name: "Questions" }).getByRole("button", { name: new RegExp(`^Question ${n}(,|$)`) }).click();
-  const box = page.getByTestId("questions-pane").locator(`[data-q="${n}"]`);
-  await expect(box).toBeVisible();
-  const field = box.locator(`#q${n}`);
-  if (await field.count()) {
-    if ((await field.evaluate((el) => el.tagName)) === "SELECT") await field.selectOption(value as string);
-    else await field.fill(value as string);
-    return;
-  }
-  // The inputs are visually hidden: click their labels, as a student would.
-  for (const v of Array.isArray(value) ? value : [value]) {
-    await box.locator("label", { has: page.locator(`input[value="${v}"]`) }).click();
-    await expect(box.locator(`input[value="${v}"]`)).toBeChecked();
-  }
 }
 
 const player = (page: Page) => page.getByTestId("reading-player");

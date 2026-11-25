@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { Badge } from "@prepora/ui/components/badge";
 import type { QuestionResult } from "@prepora/shared/api/grade-test";
 import { readingQuestionTypeLabels } from "@prepora/shared/ielts/reading";
-import { displayAnswer } from "@/lib/questions";
+import { displayAnswer } from "@prepora/shared/ielts/questions";
 import { readingAttemptPath } from "@/lib/routes";
 
 // Results (M4-F4): band and score, then every question (grouped by passage when the test can

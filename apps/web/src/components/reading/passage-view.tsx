@@ -1,17 +1,19 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Highlighter, Eraser } from "lucide-react";
 import { Button } from "@prepora/ui/components/button";
-import { addHighlight, type Range, removeHighlightAt, segments } from "@/lib/reading";
+import { PassageText } from "@prepora/ui/components/ielts/passage-text";
+import { addHighlight, type Range, removeHighlightAt } from "@/lib/reading";
 
 /**
  * A passage with highlighting (M4-F2), as in the computer-delivered test: select some text, press
  * Highlight (or Ctrl/⌘+H); tap a highlight to clear it. Highlights are character offsets into the
- * passage body, so they survive a reload (saved with the draft).
+ * passage's plain text, so they survive a reload (saved with the draft).
  *
- * The body is rendered as one text block (white-space: pre-line), so its DOM text equals the body
- * string and an offset is just the length of the text before the selection point.
+ * PassageText renders the body as one text block (white-space: pre-line) whose DOM text equals the
+ * plain text (formatting marks removed), so an offset is just the length of the text before the
+ * selection point.
  */
 export function PassageView({
   title,
@@ -78,23 +80,13 @@ export function PassageView({
           )}
         </div>
       </div>
-      <div ref={bodyRef} className="leading-relaxed whitespace-pre-line" data-testid="passage-body">
-        {segments(body, highlights).map((s) =>
-          s.marked ? (
-            <mark
-              key={s.start}
-              data-start={s.start}
-              title="Tap to remove the highlight"
-              onClick={() => onHighlightsChange(removeHighlightAt(highlights, s.start))}
-              className="cursor-pointer rounded-sm bg-amber-200/80 text-inherit"
-            >
-              {s.text}
-            </mark>
-          ) : (
-            <Fragment key={s.start}>{s.text}</Fragment>
-          ),
-        )}
-      </div>
+      <PassageText
+        ref={bodyRef}
+        body={body}
+        highlights={highlights}
+        onMarkClick={(start) => onHighlightsChange(removeHighlightAt(highlights, start))}
+        data-testid="passage-body"
+      />
     </article>
   );
 }

@@ -1,8 +1,9 @@
 // Answering questions, shared by the Reading (M4-F3) and Listening (M5-F2) players: answers,
 // drafts, word limits, and how questions are grouped under IELTS-style instructions.
-// Pure, unit-tested (questions.test.ts).
-import type { ListeningQuestionType } from "@prepora/shared/ielts/listening";
-import { withinWordLimit } from "@prepora/shared/ielts/reading";
+// Pure, unit-tested (questions.test.ts). In packages/shared so the admin builder's preview (M4-A1)
+// renders questions exactly as students see them.
+import type { ListeningQuestionType } from "./listening";
+import { withinWordLimit } from "./reading";
 
 /** A question as a player shows it (never with its answer). Reading types are a subset of Listening's. */
 export type PlayerQuestion = { q_no: number; q_type: ListeningQuestionType; prompt: string; options: Record<string, unknown> };

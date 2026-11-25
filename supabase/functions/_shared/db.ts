@@ -549,6 +549,7 @@ export type Database = {
           id: number
         }[]
       }
+      admin_get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       admin_get_user: {
         Args: { p_id: string }
         Returns: {
@@ -598,6 +599,10 @@ export type Database = {
         }[]
       }
       admin_note: { Args: { p_note: string }; Returns: string }
+      admin_order_reading_questions: {
+        Args: { p_ids: string[]; p_test_id: string }
+        Returns: undefined
+      }
       admin_refund_credits: {
         Args: { p_note: string; p_reservation_id: string; p_user_id: string }
         Returns: Json

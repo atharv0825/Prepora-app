@@ -2,7 +2,7 @@
 import type { ListeningGradeResponse, ListeningQuestionResult, PublicListeningQuestion } from "@prepora/shared/api/listening-test";
 import { isLabelling, labellingImage, LISTENING_SECTIONS, sectionOfQuestion } from "@prepora/shared/ielts/listening";
 
-// The answer helpers shared with the Reading player live in lib/questions.ts.
+// The answer helpers shared with the Reading player live in @prepora/shared/ielts/questions.
 export {
   type Answers,
   answeredCount,
@@ -14,7 +14,7 @@ export {
   parseDraft,
   setAnswer,
   toGradeAnswers,
-} from "../questions";
+} from "@prepora/shared/ielts/questions";
 
 /** Questions by section (1–4), each sorted by number. */
 export function questionsBySection(questions: readonly PublicListeningQuestion[]): Map<number, PublicListeningQuestion[]> {

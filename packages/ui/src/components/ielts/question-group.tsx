@@ -1,8 +1,8 @@
 "use client";
 
 import { letterLabel, romanLabel } from "@prepora/shared/ielts/reading";
-import { groupInstruction, type PlayerQuestion, type QuestionGroup, questionRange, sharedList } from "@/lib/questions";
-import type { Answers } from "@/lib/questions";
+import { groupInstruction, type PlayerQuestion, type QuestionGroup, questionRange, sharedList } from "@prepora/shared/ielts/questions";
+import type { Answers } from "@prepora/shared/ielts/questions";
 import { QuestionField } from "./question-field";
 
 /**

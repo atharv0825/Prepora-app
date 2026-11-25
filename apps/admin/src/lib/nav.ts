@@ -94,6 +94,7 @@ export const navGroups: NavGroup[] = [
         label: "Listening",
         icon: Headphones,
         milestone: "M5",
+        built: true, // M5-A1: builder (4 sections, R2 audio, transcripts, labelling images)
         summary: "Build tests: 4 sections, audio upload, 40 questions.",
         features: [
           "4 sections with audio uploaded to R2",

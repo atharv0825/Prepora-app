@@ -14,49 +14,16 @@ import {
   ReadingTestDetails,
 } from "@prepora/shared/api/admin-reading";
 import type { Json } from "@prepora/shared/db";
-import { createClient } from "@/lib/supabase/server";
+import { type BuilderState, failure, fieldErrors, SESSION_ENDED, signedIn, type Supabase } from "./builder-server";
 import { fieldErrors as questionFieldErrors } from "./reading-builder";
+
+export type { BuilderState } from "./builder-server";
 
 // Reading builder (M4-A1). Server Functions are public endpoints: each one validates its input
 // and writes with the editor's own session, so the M4-C1 staff policies decide (admins and
 // content editors). Answer keys are read through admin_get_reading_test (staff only).
 
-export type BuilderState = {
-  ok: boolean;
-  message: string;
-  fieldErrors?: Record<string, string>;
-  savedAt?: number;
-  /** A new question's id, so the editor can close. */
-  id?: string;
-};
-
-const SESSION_ENDED: BuilderState = { ok: false, message: "Your session has ended. Sign in again." };
 const Id = ContentId;
-
-function fieldErrors(issues: readonly { path: PropertyKey[]; message: string }[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const i of issues) out[String(i.path[0] ?? "form")] ??= i.message;
-  return out;
-}
-
-/** Database errors in words; details go to the server log only. */
-function failure(context: string, error: { code?: string; message: string }): BuilderState {
-  console.error(`${context} failed`, error.code, error.message);
-  if (error.code === "42501") return { ok: false, message: "Only admins and content editors can do this." };
-  if (error.code === "23514") return { ok: false, message: `Not saved: ${error.message}.` };
-  if (error.code === "23505") return { ok: false, message: "That number is taken. Reload the page and try again." };
-  if (error.code === "P0002") return { ok: false, message: "This test no longer exists." };
-  if (error.code === "22023") return { ok: false, message: `Not saved: ${error.message}.` };
-  return { ok: false, message: "Couldn't save. Please try again." };
-}
-
-async function signedIn() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user ? { supabase, userId: data.user.id } : null;
-}
-
-type Supabase = Awaited<ReturnType<typeof createClient>>;
 
 async function loadTest(supabase: Supabase, testId: string) {
   const { data, error } = await supabase.rpc("admin_get_reading_test", { p_test_id: testId });

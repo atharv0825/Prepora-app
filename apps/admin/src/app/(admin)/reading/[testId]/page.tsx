@@ -118,7 +118,13 @@ export default async function ReadingBuilderPage({ params }: PageProps<"/reading
               {passage && (
                 <section aria-label={`Passage ${n} questions`} className="flex flex-col gap-3 border-t border-border pt-6">
                   <h3 className="font-semibold">Questions</h3>
-                  <QuestionList testId={test.id} passageId={passage.id} questions={own} total={questions.length} />
+                  <QuestionList
+                    testId={test.id}
+                    parentId={passage.id}
+                    questions={own}
+                    canAdd={questions.length < 40}
+                    fullText="40 questions: the test is full."
+                  />
                 </section>
               )}
             </CardContent>

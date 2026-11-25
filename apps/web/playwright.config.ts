@@ -30,6 +30,8 @@ export default defineConfig({
   projects: [
     { name: "mobile", use: { ...devices["Pixel 7"] } },
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    // M5-I1: Safari on iPhone (WebKit with an iPhone profile) for Listening playback rules.
+    { name: "ios-safari", use: { ...devices["iPhone 15"] }, testMatch: /listening-live\.spec\.ts/ },
   ],
   webServer: {
     command: `pnpm exec next build && pnpm exec next start --port ${PORT}`,

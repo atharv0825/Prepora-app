@@ -4,7 +4,7 @@ import { BookOpen } from "lucide-react";
 import { type ContentStatus, contentStatusLabels } from "@prepora/shared/api/admin-reading";
 import { Badge } from "@prepora/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@prepora/ui/components/card";
-import { NewReadingTestForm } from "@/components/reading/new-test-form";
+import { NewTestForm } from "@/components/reading/new-test-form";
 import { statusBadge } from "@/components/reading/status";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, titleCase } from "@/lib/users";
@@ -41,7 +41,7 @@ export default async function ReadingTestsPage() {
           <CardDescription>It starts as a draft. Students see it only once you publish it.</CardDescription>
         </CardHeader>
         <CardContent>
-          <NewReadingTestForm />
+          <NewTestForm module="reading" />
         </CardContent>
       </Card>
 

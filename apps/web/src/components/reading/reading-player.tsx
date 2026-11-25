@@ -197,7 +197,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
     return (
       <div className="flex flex-col gap-4">
         <div className="self-start">{backLink}</div>
-        <div className="flex max-w-xl flex-col gap-5 rounded-3xl border border-black/5 bg-white p-6 shadow-sm" data-testid="reading-intro">
+        <div className="flex max-w-xl flex-col gap-5 rounded-3xl border border-foreground/5 bg-card p-6 shadow-sm" data-testid="reading-intro">
           <div className="flex flex-col gap-1">
             <h1 className="text-h2">{payload.test.title}</h1>
             <p className="text-sm text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
@@ -253,7 +253,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               className={cn(
                 "flex items-center gap-2 rounded-full px-4 py-2 font-semibold tabular-nums",
                 tone === "normal" && "bg-secondary",
-                tone === "warn" && "bg-amber-100 text-amber-900",
+                tone === "warn" && "bg-amber-100 text-amber-900 dark:bg-amber-400/20 dark:text-amber-200",
                 tone === "urgent" && "bg-destructive/10 text-destructive",
               )}
             >
@@ -292,7 +292,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
                 onClick={() => setPassageNo(p.order_no)}
                 className={cn(
                   "flex shrink-0 flex-col items-start rounded-2xl border px-4 py-2 text-left text-sm transition-colors",
-                  p.order_no === passage.order_no ? "border-primary bg-primary/10" : "border-black/10 hover:border-primary/60",
+                  p.order_no === passage.order_no ? "border-primary bg-primary/10" : "border-foreground/10 hover:border-primary/60",
                 )}
               >
                 <span className="font-medium">Passage {p.order_no}</span>
@@ -310,7 +310,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
                 type="button"
                 aria-pressed={pane === v}
                 onClick={() => show(v)}
-                className={cn("rounded-full py-2 text-sm font-medium capitalize", pane === v && "bg-white shadow-sm")}
+                className={cn("rounded-full py-2 text-sm font-medium capitalize", pane === v && "bg-background shadow-sm")}
               >
                 {v}
               </button>
@@ -342,7 +342,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
       </div>
 
       {/* Navigator, always at the bottom: Previous / every number / Next. */}
-      <div className="sticky bottom-0 z-20 -mx-1 border-t border-black/5 bg-background/95 backdrop-blur md:static md:mx-0 md:bg-background">
+      <div className="sticky bottom-0 z-20 -mx-1 border-t border-foreground/5 bg-background/95 backdrop-blur md:static md:mx-0 md:bg-background">
         <div className="flex w-full items-center gap-2 px-1 py-2.5 md:mx-auto md:max-w-7xl md:px-6">
           <Button variant="outline" size="sm" onClick={() => step(-1)} disabled={at <= 0} aria-label="Previous question">
             <ChevronLeft /> <span className="hidden sm:inline">Previous</span>
@@ -358,7 +358,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
                 aria-current={current === n ? "step" : undefined}
                 className={cn(
                   "grid size-8 shrink-0 place-items-center rounded-full border text-xs font-medium transition-colors",
-                  isAnswered(answers[String(n)]) ? "border-primary bg-primary text-primary-foreground" : "border-black/15 hover:border-primary",
+                  isAnswered(answers[String(n)]) ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 hover:border-primary",
                   current === n && "ring-2 ring-primary ring-offset-2",
                 )}
               >

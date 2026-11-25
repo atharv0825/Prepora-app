@@ -23,7 +23,7 @@ const buttonVariants = cva(
         /** Text link style, e.g. "Log in" in the navbar. */
         link: "h-auto border-transparent px-0 text-foreground underline-offset-4 hover:underline",
         destructive:
-          "border-destructive bg-destructive text-white hover:bg-transparent hover:text-destructive",
+          "border-destructive bg-destructive text-white hover:bg-transparent hover:text-destructive dark:text-brand-ink dark:hover:text-destructive",
       },
       size: {
         sm: "h-9 px-4 text-sm",

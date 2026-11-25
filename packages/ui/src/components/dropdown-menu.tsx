@@ -1,6 +1,7 @@
 "use client"
 
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
+import { Check } from "lucide-react"
 import { cn } from "cn"
 
 // Dropdown menu on Base UI's Menu (M1-F3, account menu). Keyboard and screen-reader behaviour
@@ -59,6 +60,28 @@ function DropdownMenuLinkItem({ className, closeOnClick = true, ...props }: Menu
   )
 }
 
+/** A set of mutually exclusive choices (e.g. Appearance: System / Light / Dark). */
+function DropdownMenuRadioGroup(props: MenuPrimitive.RadioGroup.Props) {
+  return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />
+}
+
+/** One choice in a radio group: a check marks the selected one. Stays open by default. */
+function DropdownMenuRadioItem({ className, children, closeOnClick = false, ...props }: MenuPrimitive.RadioItem.Props) {
+  return (
+    <MenuPrimitive.RadioItem
+      data-slot="dropdown-menu-radio-item"
+      className={cn(itemClass, className)}
+      closeOnClick={closeOnClick}
+      {...props}
+    >
+      {children}
+      <MenuPrimitive.RadioItemIndicator className="ml-auto">
+        <Check aria-hidden />
+      </MenuPrimitive.RadioItemIndicator>
+    </MenuPrimitive.RadioItem>
+  )
+}
+
 function DropdownMenuLabel({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="dropdown-menu-label" className={cn("px-3 py-2", className)} {...props} />
 }
@@ -79,6 +102,8 @@ export {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuLinkItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 }

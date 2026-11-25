@@ -8,7 +8,7 @@ import { routes } from "@/lib/routes";
  */
 export function AllowanceMeter({ module, used, limit }: { module: "Reading" | "Listening"; used: number; limit: number }) {
   return (
-    <section aria-label={`${module} tests this month`} className="flex flex-col gap-2 rounded-3xl border border-black/5 bg-white p-5">
+    <section aria-label={`${module} tests this month`} className="flex flex-col gap-2 rounded-3xl border border-foreground/5 bg-card p-5">
       <div className="flex items-baseline justify-between gap-3">
         <p className="font-medium">{module} tests this month</p>
         <p className="text-sm text-muted-foreground" data-testid="allowance">

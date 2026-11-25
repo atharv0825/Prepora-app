@@ -84,7 +84,7 @@ export function QuestionField({ question: q, value, onChange, compact = false }:
           id={id}
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
-          className="h-11 max-w-full rounded-2xl border border-black/15 bg-white px-3 text-sm sm:w-auto"
+          className="h-11 max-w-full rounded-2xl border border-foreground/15 bg-background px-3 text-sm sm:w-auto"
         >
           <option value="">Choose…</option>
           {labels.map((label, i) => (
@@ -116,7 +116,7 @@ export function QuestionField({ question: q, value, onChange, compact = false }:
                   ? "min-w-11 justify-center border-transparent px-1.5"
                   : on
                     ? "border-primary bg-primary/10"
-                    : "border-black/10 hover:border-primary/60",
+                    : "border-foreground/10 hover:border-primary/60",
               )}
             >
               <input
@@ -131,7 +131,7 @@ export function QuestionField({ question: q, value, onChange, compact = false }:
                 aria-hidden
                 className={cn(
                   "grid size-7 shrink-0 place-items-center rounded-full border text-xs font-semibold",
-                  on ? "border-primary bg-primary text-primary-foreground" : "border-black/15",
+                  on ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15",
                 )}
               >
                 {CHOICE_TEXT[label] ? label[0]!.toUpperCase() : label}

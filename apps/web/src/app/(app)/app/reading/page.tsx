@@ -76,7 +76,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
             aria-current={filter === f.value ? "page" : undefined}
             className={cn(
               "rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-              filter === f.value ? "border-primary bg-primary text-primary-foreground" : "border-black/15 hover:border-primary",
+              filter === f.value ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 hover:border-primary",
             )}
           >
             {f.label}
@@ -93,7 +93,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);
               return (
-                <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-black/5 bg-white p-5 shadow-sm" data-testid="reading-test">
+                <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 shadow-sm" data-testid="reading-test">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">{testTypeLabel(t.test_type)}</Badge>
                     {t.min_plan !== "free" && (

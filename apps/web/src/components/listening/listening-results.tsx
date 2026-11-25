@@ -45,7 +45,7 @@ export function ListeningResults({ data, onRetry }: { data: ListeningResultsData
 
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Score by part">
         {scores.map((s) => (
-          <li key={s.section} className="rounded-2xl border border-black/5 bg-white p-4">
+          <li key={s.section} className="rounded-2xl border border-foreground/5 bg-card p-4">
             <p className="text-sm text-muted-foreground">Part {s.section}</p>
             <p className="text-xl font-semibold">
               {s.correct}/{s.total}
@@ -61,7 +61,7 @@ export function ListeningResults({ data, onRetry }: { data: ListeningResultsData
             <h2 id={`part-${s.section}`} className="text-h3">
               {transcript?.title ?? `Part ${s.section}`}
             </h2>
-            <ol className="flex flex-col divide-y divide-black/5 rounded-2xl border border-black/5 bg-white">
+            <ol className="flex flex-col divide-y divide-foreground/5 rounded-2xl border border-foreground/5 bg-card">
               {data.results
                 .filter((r) => sectionOfQuestion(r.q_no) === s.section)
                 .map((r) => (
@@ -69,7 +69,7 @@ export function ListeningResults({ data, onRetry }: { data: ListeningResultsData
                 ))}
             </ol>
             {transcript && (
-              <details className="group rounded-2xl border border-black/5 bg-white p-4" data-testid={`transcript-${s.section}`}>
+              <details className="group rounded-2xl border border-foreground/5 bg-card p-4" data-testid={`transcript-${s.section}`}>
                 <summary className="cursor-pointer font-medium">Transcript</summary>
                 <p className="mt-3 leading-relaxed whitespace-pre-line text-muted-foreground">{transcript.transcript}</p>
               </details>

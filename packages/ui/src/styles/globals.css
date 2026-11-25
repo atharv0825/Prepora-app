@@ -8,8 +8,9 @@
  *   --font-hanken-grotesk, --font-instrument-serif
  *
  * Schemes: tokens are light (white) by default. Add the `mint` class to ANY element (a card,
- * a band, the footer) and everything inside switches to the light-green tokens. `dark` is
- * kept for the mobile app's dark mode.
+ * a band, the footer) and everything inside switches to the light-green tokens. `dark` on <html>
+ * is the signed-in app's dark mode (apps/web lib/theme.ts); inside it, `mint` surfaces use the
+ * deep-teal tokens below. Marketing sections also use `dark` locally.
  */
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -170,8 +171,10 @@
   --destructive: #8c3f3f;
 }
 
-/* Dark: kept for the mobile app's dark mode. Not used on the website. */
+/* Dark: the signed-in app's dark mode (and dark marketing sections). Deep-teal surfaces,
+   mint text; contrast: #EAFAF0 on #08222B 15.6 : 1, #A7E6C9 on #0F3B47 8.5 : 1. */
 .dark {
+  color-scheme: dark;
   --background: #08222b;
   --foreground: #eafaf0;
   --card: #0f3b47;
@@ -180,9 +183,33 @@
   --popover-foreground: #eafaf0;
   --primary: #3fc48c;
   --primary-foreground: #08222b;
-  --secondary: #0f3b47;
+  --secondary: #164c58; /* a step above cards (#0F3B47), so badges and chips show on them */
   --secondary-foreground: #eafaf0;
-  --muted: #0f3b47;
+  --muted: #1a5763; /* meter tracks and quiet surfaces, visible on cards */
+  --muted-foreground: #a7e6c9;
+  --accent: #1c5f66;
+  --accent-foreground: #eafaf0;
+  --border: #1c5f66;
+  --input: #37918a;
+  --ring: #3fc48c;
+  --accent-green: #3fc48c;
+  --accent-teal: #a7e6c9;
+  --destructive: #e08a8a;
+}
+
+/* Mint surfaces inside dark mode: one step lighter than the page instead of light green. */
+.dark .mint {
+  --background: #0f3b47;
+  --foreground: #eafaf0;
+  --card: #08222b;
+  --card-foreground: #eafaf0;
+  --popover: #0f3b47;
+  --popover-foreground: #eafaf0;
+  --primary: #3fc48c;
+  --primary-foreground: #08222b;
+  --secondary: #08222b;
+  --secondary-foreground: #eafaf0;
+  --muted: #1c5f66;
   --muted-foreground: #a7e6c9;
   --accent: #1c5f66;
   --accent-foreground: #eafaf0;

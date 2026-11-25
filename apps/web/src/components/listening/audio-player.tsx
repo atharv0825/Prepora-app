@@ -273,7 +273,7 @@ export function AudioPlayer({
       data-status={current}
       data-preloaded={Object.keys(preloaded).sort().join(",")}
       data-preload-plan={plan ?? ""}
-      className="flex flex-col gap-3 rounded-3xl border border-black/5 bg-white p-4 shadow-sm sm:p-5"
+      className="flex flex-col gap-3 rounded-3xl border border-foreground/5 bg-card p-4 shadow-sm sm:p-5"
     >
       <audio
         ref={audio}

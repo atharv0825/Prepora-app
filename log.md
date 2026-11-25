@@ -2321,3 +2321,74 @@ Done together on one branch from `develop` (M4-A1/I1 merged in #53).
 - **Not verified:**
   - a from-scratch `supabase db reset`: the auto-mode safety check blocked it, because it would wipe local data. The migration was applied with `migration up` on top of all the earlier ones;
   - staging (the DB migrations workflow applies it on merge).
+
+## 2026-11-25 — M5-B1…B3: R2 audio uploads, grade-test for Listening, image bucket
+
+Done together on one branch from `develop` (M5-C1/C2 merged in #54).
+
+**M5-B1: Cloudflare R2 + `r2-upload-url`**
+- **New Edge Function `r2-upload-url`** (POST, signed in). It returns a **presigned PUT** for one section's recording, plus the public URL it will have. Contract: `api/r2-upload.ts`.
+  - The browser uploads straight to R2 with progress, and the R2 keys never leave the function.
+  - The URL is an S3 SigV4 presign (region `auto`), valid 15 minutes, for one object key and one **signed Content-Type**.
+  - It is signed in `_shared/r2.ts` with WebCrypto: no SDK, no imports. The unit test reproduces **AWS's published example signature** exactly.
+- **Who and what is allowed:**
+  - Staff only: admins **and content editors** (403 otherwise). The plan says "admin only", but content editors build tests too (M5-A1), as they do for Reading.
+  - The test must exist (404).
+  - Only MP3, M4A/MP4, WAV, OGG and WebM, up to 100 MB (400 otherwise).
+  - Missing R2 secrets → 503 "Audio uploads aren't set up yet".
+- **Object keys:** `listening/<test>/section-<n>-<uuid>.<ext>`, so a re-upload never overwrites audio students may be streaming.
+- **The bucket, public domain, CORS and API token are a one-time manual setup.** Steps are in **`docs/r2.md`** (Wrangler for the bucket; dashboard for the custom domain `audio[-staging].prepora.site`, CORS and a bucket-scoped token; then `supabase secrets set`). None of it is done yet.
+- **Limitation:** the size is checked when the URL is requested, not by the URL itself (R2 caps a single PUT at 5 GB). Replaced recordings stay in the bucket.
+
+**M5-B2: `grade-test` for Listening** (`module: "listening"`, `mode: "exam" | "practice"`)
+- The input is now a discriminated union; the Reading path is unchanged and was split into functions.
+- **The Listening path:**
+  - the test must be published (404) and within the student's plan (403 `{min_plan}`);
+  - the key is loaded with the service role;
+  - **the Listening band table** is used, with short tests scaled to 40;
+  - `record_test_attempt` uses the **Listening** allowance and saves the results **and the mode** (402 when used up);
+  - the response follows `ListeningGradeResponse`, including **each section's transcript, sent only now**.
+- **Marking** (`_shared/reading.ts`, the one import-free grading module):
+  - `map_labelling` is a letter, like matching;
+  - `diagram_labelling` is typed with a word limit, or a word-bank letter;
+  - `LISTENING_BANDS`/`listeningBand` are copies, checked against `packages/shared`;
+  - `gradeListeningTest`.
+  - The web sample grader (M5-F3) now uses this code instead of its own type mapping.
+- **Migration `20261125200000_listening_backend.sql`:**
+  - `test_attempts.mode` (exam/practice, Listening only);
+  - `record_test_attempt` gains `p_mode` (dropped and recreated; service role only);
+  - **`get_listening_test(id)`**: invoker rights like `get_reading_test`. It returns sections with audio and questions, never answers, explanations or transcripts; PT404/PT403; staff can open drafts. Not in the step list, but the player and M5-I1 need it.
+
+**M5-B3: image bucket** (same migration)
+- A public Supabase Storage bucket, **`listening-images`**: 5 MB, PNG/JPEG/WebP only. SVG is excluded because it can carry script.
+- RLS on `storage.objects`: only staff list, upload, replace and delete; anyone can view by public URL (the URLs sit in the question options, which only students with the plan can read).
+
+**CI:** `e2e.yml` writes **placeholder** R2 settings (not secrets) to `supabase/functions/.env` before `supabase start`, so `r2-upload-url` can be tested; it only signs, nothing is uploaded. **Storage is no longer excluded**, for the image-bucket test.
+
+**Tests**
+- Unit (+11):
+  - `tests/listening-grading.test.ts`: map and diagram marking (typed, word limit, bank), a mixed test, results matching the shared contract, band parity for every score 0–40 at every length 1–40;
+  - `tests/r2.test.ts`: the AWS SigV4 example, encoding, an R2 URL's host/path/credential/signed headers/expiry, Content-Type bound to the signature, "not configured", and limits equal to the shared contract.
+- pgTAP `listening_backend.test.sql` (+22):
+  - privileges;
+  - `get_listening_test`: 4 sections in order with audio, questions, nothing secret; Gold → PT403; draft/unknown → PT404; staff open drafts;
+  - the attempt is recorded with its mode and uses the Listening allowance; a mode on Reading, or an unknown mode, → 23514;
+  - the bucket's settings; staff upload and list; a student can't upload or list.
+  - `reading_rpcs.test.sql`: the `record_test_attempt` signature updated.
+- e2e `listening-backend.spec.ts` (+4, API, edge runtime):
+  - **load → grade** in practice mode: 3/4, the Listening band, map and diagram marked, transcripts only in the response, allowance 1 of 2, attempt saved with mode and results;
+  - Gold 403, draft 404, no mode 400, third test → 402; Reading still works;
+  - **r2-upload-url**: an editor gets a valid presigned URL; a student 403, no session 401, video 400, 200 MB 400, unknown test 404;
+  - **image bucket**: an editor uploads a PNG and it's served publicly; SVG is refused; a student is refused.
+
+**Verified**
+- `pnpm test` **483/483** ✓.
+- pgTAP **500/500** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `deno check` ✓ (grade-test, r2-upload-url, credits-test, health).
+- Typecheck ✓ (shared, web, admin); web lint ✓.
+- Playwright API specs against local Supabase + `supabase functions serve --env-file <placeholder R2 values>`: `listening-backend` 3 passed, 1 skipped (see below); `grade-test` 5/5; `listening-rls`, `reading-rls` and `credits-edge` API pass. The one failure was credits-edge's browser test, which can't run in the API-only setup (no app URL).
+- **Not verified:**
+  - **the image-bucket e2e test**: the local Supabase runs without Storage, so it skipped here. It runs in CI, now that Storage is on there; the policies are covered by pgTAP.
+  - **a real upload to R2**: no bucket exists yet. The signature matches AWS's example, but R2's acceptance of it (including the signed Content-Type) and CORS are untested until `docs/r2.md` is done.
+  - the browser Listening sample after the grader swap (unit-tested only);
+  - CI and staging.

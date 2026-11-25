@@ -22,7 +22,7 @@ from public.reading_passages where test_id = '4b100000-0000-0000-0000-0000000000
 update public.reading_tests set status = 'published' where id = '4b100000-0000-0000-0000-000000000001';
 
 select function_privs_are('public', 'get_reading_test', array['uuid'], 'anon', array[]::text[], 'anon can''t call get_reading_test');
-select function_privs_are('public', 'record_test_attempt', array['uuid', 'test_module', 'uuid', 'jsonb', 'integer', 'numeric', 'integer', 'jsonb'],
+select function_privs_are('public', 'record_test_attempt', array['uuid', 'test_module', 'uuid', 'jsonb', 'integer', 'numeric', 'integer', 'jsonb', 'text'],
   'authenticated', array[]::text[], 'users can''t record their own attempts');
 select is((select prosecdef from pg_proc where proname = 'get_reading_test'), false,
   'get_reading_test runs with the caller''s rights (column grants apply)');

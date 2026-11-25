@@ -33,7 +33,7 @@ export function PassageText({
             data-start={p.start}
             title="Tap to remove the highlight"
             onClick={onMarkClick ? () => onMarkClick(p.start) : undefined}
-            className="cursor-pointer rounded-sm bg-amber-200/80 text-inherit"
+            className="cursor-pointer rounded-sm bg-amber-200/80 text-inherit dark:bg-amber-300/35"
           >
             {styled(p)}
           </mark>

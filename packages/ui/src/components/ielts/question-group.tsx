@@ -32,7 +32,7 @@ export function QuestionGroupView<Q extends PlayerQuestion>({
         <p className="text-sm text-muted-foreground">{groupInstruction(group)}</p>
       </header>
       {showList && (
-        <div className="rounded-2xl border border-black/10 bg-secondary/40 p-4">
+        <div className="rounded-2xl border border-foreground/10 bg-secondary/40 p-4">
           <p className="mb-2 text-sm font-semibold">{listTitle[list.key]}</p>
           <ol className="flex flex-col gap-1 text-sm">
             {list.items.map((item, i) => (

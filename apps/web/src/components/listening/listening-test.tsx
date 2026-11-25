@@ -156,7 +156,7 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
           {error}
         </p>
       )}
-      <div className="flex justify-end border-t border-black/5 pt-6">
+      <div className="flex justify-end border-t border-foreground/5 pt-6">
         <Button size="lg" onClick={() => (unanswered > 0 ? setConfirming(true) : submit())} disabled={pending}>
           {pending ? "Marking…" : "Submit answers"}
         </Button>
@@ -194,7 +194,7 @@ function ModeCard({
   outline?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+    <div className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6 shadow-sm">
       <span className="grid size-11 place-items-center rounded-2xl bg-secondary [&_svg]:size-5">{icon}</span>
       <div className="flex flex-col gap-1.5">
         <h2 className="text-h3">{title}</h2>

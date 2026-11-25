@@ -63,7 +63,7 @@ export function ResultList({
           {correct}/{results.length}
         </p>
       </div>
-      <ol className="flex flex-col divide-y divide-black/5 rounded-2xl border border-black/5 bg-white">
+      <ol className="flex flex-col divide-y divide-foreground/5 rounded-2xl border border-foreground/5 bg-card">
         {results.map((r) => (
           <li key={r.q_no} className="flex gap-3 p-4" data-q={r.q_no} data-correct={r.correct}>
             <span
@@ -128,7 +128,7 @@ export function AttemptHistory({
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No tests taken yet.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-black/5 rounded-2xl border border-black/5 bg-white">
+        <ul className="flex flex-col divide-y divide-foreground/5 rounded-2xl border border-foreground/5 bg-card">
           {items.map((a) => (
             <li key={a.id}>
               <Link

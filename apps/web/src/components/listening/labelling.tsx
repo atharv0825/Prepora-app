@@ -52,7 +52,7 @@ export function LabellingBlock({
 
   return (
     <div className="grid gap-5 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" data-testid={isMap ? "map-labelling" : "diagram-labelling"}>
-      <figure className="relative self-start overflow-hidden rounded-2xl border border-black/10 bg-white">
+      <figure className="relative self-start overflow-hidden rounded-2xl border border-foreground/10 bg-white">
         {/* Plain <img>: CDN images, sized by the container; optimisation is off app-wide. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={image.url} alt={image.alt} className="block h-auto w-full select-none" draggable={false} />
@@ -66,7 +66,7 @@ export function LabellingBlock({
               aria-label={`Place ${l.label}${takenBy ? `, chosen for question ${takenBy}` : ""}: answer question ${current}`}
               className={cn(
                 "absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 text-sm font-bold shadow transition-transform hover:scale-110 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
-                takenBy ? "border-primary bg-primary text-primary-foreground" : "border-foreground bg-white text-foreground",
+                takenBy ? "border-primary bg-primary text-primary-foreground" : "border-brand-ink bg-white text-brand-ink",
               )}
               style={{ left: `${l.x}%`, top: `${l.y}%` }}
             >
@@ -82,7 +82,7 @@ export function LabellingBlock({
             aria-label={`Question ${m.q_no} on the diagram`}
             className={cn(
               "absolute grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 text-xs font-bold shadow focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
-              isAnswered(answers[String(m.q_no)]) ? "border-primary bg-primary text-primary-foreground" : "border-foreground bg-white",
+              isAnswered(answers[String(m.q_no)]) ? "border-primary bg-primary text-primary-foreground" : "border-brand-ink bg-white text-brand-ink",
               m.q_no === current && "ring-3 ring-primary/50",
             )}
             style={{ left: `${m.at.x}%`, top: `${m.at.y}%` }}
@@ -91,7 +91,7 @@ export function LabellingBlock({
           </button>
         ))}
         {isMap && (
-          <figcaption className="border-t border-black/5 px-3 py-2 text-xs text-muted-foreground" aria-live="polite">
+          <figcaption className="border-t border-foreground/5 px-3 py-2 text-xs text-muted-foreground" aria-live="polite">
             Tap a letter on the map to answer question {current}.
           </figcaption>
         )}

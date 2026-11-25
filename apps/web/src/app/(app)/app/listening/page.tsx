@@ -73,7 +73,7 @@ export default async function ListeningListPage() {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);
               return (
-                <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-black/5 bg-white p-5 shadow-sm" data-testid="listening-test">
+                <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 shadow-sm" data-testid="listening-test">
                   {t.min_plan !== "free" && (
                     <div>
                       <Badge variant="outline">

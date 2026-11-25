@@ -2596,3 +2596,43 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
 - Mobile screenshot checked: the switch pinned mid-scroll, and Submit in place of Next on question 20.
 - `pnpm test` 493/493 ✓; web typecheck and lint ✓.
 - **Not verified:** staging until merge; Safari/iOS (sticky positioning and the restored scroll position on a real iPhone).
+
+## 2026-11-26 — Dark mode for the signed-in app
+
+**Request:** add dark mode. Mid-way: "by default it set to white mode", so it's **Light by default** and dark only when chosen.
+
+**Scope:** the signed-in student app (`/app/*`: dashboard, Reading, Listening, results, credits, profile, plans). The marketing site and sign-in pages keep their light brand design. The admin panel isn't included yet.
+
+**How it works**
+- **Account menu → Appearance:** **System / Light / Dark**, a proper radio group with a check on the current choice. New `DropdownMenuRadioGroup` and `DropdownMenuRadioItem` in `packages/ui` (Base UI's menu radio items).
+- **Default: Light**, whatever the device setting. System follows the device, including live changes (e.g. at sunset).
+- The choice is kept on the device (localStorage `prepora:theme`), not in the account.
+- **No white flash:** a tiny inline script at the top of the app layout (`lib/theme.ts`) sets the `dark` class on `<html>` before anything paints. `ThemeProvider` keeps it in sync with the choice and the device setting, and removes it when the student leaves the app.
+  - The root `<html>` has `suppressHydrationWarning`, because the script changes its class before React hydrates.
+- **Colours:** the design system already had dark tokens (kept for the mobile app). Now:
+  - `.dark` sets `color-scheme: dark`, so scrollbars, native selects and audio controls follow;
+  - `--secondary` and `--muted` are a step above the card colour, so badges, chips and meter tracks show on cards;
+  - new **`.dark .mint`** tokens make mint surfaces deep teal instead of light green.
+- **Hard-coded colours replaced** in the app and the shared question components:
+  - `bg-white` → `bg-card` / `bg-background`; `border-black/…` and `divide-black/…` → `foreground/…`;
+  - the header glass, the dashboard tiles, the Reading timer's warning amber and the passage highlight have dark variants;
+  - the destructive button text is dark on the light-red dark-mode colour;
+  - map and diagram markers keep fixed ink colours, because they sit on the (white) picture.
+- **Bug found and fixed while testing:**
+  - the first version's clean-up removed the class during React's development remount, so the page fell back to light after loading, half-themed;
+  - the provider now re-applies the theme whenever it mounts;
+  - the e2e checks the theme after the app has settled, not just at first paint.
+
+**Tests**
+- Unit `lib/theme.test.ts` (+3): parsing (nothing chosen → light), resolving System, and the inline script itself (dark, light, system, nothing chosen on a dark device → light).
+- e2e **`theme.spec.ts`** (+2, mobile + desktop):
+  - the menu shows System / Light / Dark with Light checked;
+  - Dark → `html.dark` and a deep-teal page; a reload is dark from the first parse and still dark once settled (page #08222B, heading #EAFAF0);
+  - the marketing page stays light; Light wins over a dark device;
+  - **with a dark device and nothing chosen, the app is light**; System → dark, and follows the device as it changes.
+
+**Verified**
+- `theme` 4/4. Regression in light mode, from a temporary worktree (`next dev` :3200): `reading-ui`, `reading-seed`, `dashboard`, `credits-ui`, `journey`, `listening-player`, `onboarding` and `auth`: **48 passed, 14 skipped** (API-only tests run once by design).
+- **Dark screenshots checked by eye**: dashboard, Reading list, Reading player (desktop and mobile), credits, Listening. That's how the half-themed bug, the invisible meter tracks and the invisible "Academic" badge were found and fixed.
+- `pnpm test` ✓; typecheck ✓ (ui, web, admin); lint ✓.
+- **Not verified:** every page in dark (results, profile, onboarding and plans weren't screenshot; they use the same tokens); the Listening map/diagram pictures in dark; Safari/iOS; staging.

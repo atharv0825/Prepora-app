@@ -137,7 +137,7 @@ function ModuleTile({ module: m, recommended }: { module: DashboardModule; recom
         <span
           className={cn(
             "grid size-10 place-items-center rounded-full",
-            recommended ? "bg-white/25" : "bg-white text-foreground",
+            recommended ? "bg-white/25" : "bg-background text-foreground",
           )}
         >
           <Icon className="size-5" aria-hidden />
@@ -145,7 +145,7 @@ function ModuleTile({ module: m, recommended }: { module: DashboardModule; recom
         {available ? (
           <ArrowRight className="size-5" aria-hidden />
         ) : (
-          <Badge variant="outline" className="bg-white/60">
+          <Badge variant="outline" className="bg-background/60">
             Coming soon
           </Badge>
         )}

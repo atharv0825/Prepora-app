@@ -56,7 +56,7 @@ export function AnswerSheet({
               onClick={() => onPartChange(p)}
               className={cn(
                 "flex flex-col items-start rounded-2xl border px-4 py-2.5 text-left transition-colors",
-                p === part ? "border-primary bg-primary/10" : "border-black/10 hover:border-primary/60",
+                p === part ? "border-primary bg-primary/10" : "border-foreground/10 hover:border-primary/60",
               )}
             >
               <span className="font-medium">Part {p}</span>
@@ -77,7 +77,7 @@ export function AnswerSheet({
             aria-label={`Question ${n}${isAnswered(answers[String(n)]) ? ", answered" : ""}`}
             className={cn(
               "grid size-8 place-items-center rounded-full border text-xs font-medium transition-colors",
-              isAnswered(answers[String(n)]) ? "border-primary bg-primary text-primary-foreground" : "border-black/15 hover:border-primary",
+              isAnswered(answers[String(n)]) ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 hover:border-primary",
               sectionOfQuestion(n) === part && !isAnswered(answers[String(n)]) && "border-foreground/40",
             )}
           >

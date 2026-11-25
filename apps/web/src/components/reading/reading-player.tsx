@@ -40,10 +40,12 @@ type Question = ReadingTestPayload["questions"][number];
 
 /**
  * The Reading test player (M4-F2):
- *   * once started it fills the screen below the header, like the computer-delivered test: the
- *     page itself doesn't scroll; the passage and the questions scroll inside their own panes
- *     (side by side on desktop, Passage / Questions tabs on mobile), centred in a max-width column;
- *   * Passage 1 / 2 / 3 tabs, and a navigator of every question number fixed at the bottom
+ *   * desktop (md+): once started it fills the screen below the header, like the computer-delivered
+ *     test: the page itself doesn't scroll; the passage and the questions sit side by side, each
+ *     scrolling in its own pane, centred in a max-width column;
+ *   * mobile: a normal scrolling page with the Passage / Questions switch pinned at the top (each
+ *     view keeps its scroll position), and Submit in place of Next on the last question;
+ *   * Passage 1 / 2 / 3 tabs, and a navigator of every question number at the bottom
  *     (answered = filled, current = ringed) with Previous / Next;
  *   * a 60-minute timer that keeps running across reloads, turns amber at 10 minutes and red at
  *     5, and sends the answers when it reaches 0;
@@ -67,6 +69,9 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
   const [error, setError] = useState<string | null>(null);
   const questionsPane = useRef<HTMLDivElement>(null);
   const navigator = useRef<HTMLElement>(null);
+  /** Mobile: where each view was scrolled to, so switching back returns there. */
+  const paneScroll = useRef<Record<"passage" | "questions", number | null>>({ passage: null, questions: null });
+  const panesTop = useRef<HTMLDivElement>(null);
   /** The question being worked on: the navigator rings it; Previous / Next move from it. */
   const [current, setCurrent] = useState<number | null>(null);
 
@@ -154,6 +159,19 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
     save({ ...draft, highlights: { ...draft.highlights, [passage.id]: ranges } });
   }
 
+  /** Mobile Passage / Questions switch: come back to where that view was left. */
+  function show(next: "passage" | "questions") {
+    if (next === pane) return;
+    paneScroll.current[pane] = window.scrollY;
+    setPane(next);
+    requestAnimationFrame(() => {
+      const saved = paneScroll.current[next];
+      // First visit: the top of the view, just under the pinned switch.
+      const top = panesTop.current ? panesTop.current.getBoundingClientRect().top + window.scrollY - 140 : 0;
+      window.scrollTo({ top: saved ?? Math.min(window.scrollY, Math.max(0, top)) });
+    });
+  }
+
   function jump(qNo: number) {
     setCurrent(qNo);
     const q = payload.questions.find((x) => x.q_no === qNo);
@@ -208,6 +226,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
     const next = allNos[at === -1 ? 0 : Math.min(allNos.length - 1, Math.max(0, at + by))];
     if (next !== undefined) jump(next);
   };
+  const requestSubmit = () => (unanswered > 0 && !timeUp ? setConfirming(true) : void submit());
   /** Typing or choosing in a question makes it the current one. */
   function track(e: React.FocusEvent<HTMLDivElement>) {
     const q = (e.target as HTMLElement).closest<HTMLElement>("[data-q]")?.dataset.q;
@@ -215,12 +234,13 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
   }
 
   return (
-    // Fixed below the 4rem app header: the page doesn't scroll, only the panes do.
-    <div className="fixed inset-x-0 top-16 bottom-0 z-30 flex flex-col bg-background" data-testid="reading-player">
+    // Desktop: fixed below the 4rem app header; the page doesn't scroll, only the panes do.
+    // Mobile: a normal page (the switch and the navigator are pinned).
+    <div className="flex flex-col bg-background md:fixed md:inset-x-0 md:top-16 md:bottom-0 md:z-30" data-testid="reading-player">
       <h1 className="sr-only">
         {payload.test.title}, {testTypeLabel(payload.test.test_type)} Reading
       </h1>
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3 px-4 pt-3 sm:px-6">
+      <div className="flex w-full flex-col gap-3 md:mx-auto md:min-h-0 md:max-w-7xl md:flex-1 md:px-6 md:pt-3">
         {/* Top bar: back, timer and submit. */}
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-4">
@@ -245,7 +265,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
             {tone === "warn" && left > 9 * 60 ? "Ten minutes left." : tone === "urgent" && left > 4 * 60 ? "Five minutes left." : ""}
           </p>
           {resumed && <p className="text-sm text-muted-foreground">Continued where you left off.</p>}
-          <Button onClick={() => (unanswered > 0 && !timeUp ? setConfirming(true) : void submit())} disabled={submitting}>
+          <Button className="hidden md:inline-flex" onClick={requestSubmit} disabled={submitting}>
             {submitting ? "Marking…" : "Submit answers"}
           </Button>
         </div>
@@ -260,7 +280,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
           </p>
         )}
 
-        {/* Passage tabs, and on mobile the Passage / Questions switch. */}
+        {/* Passage tabs. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div role="tablist" aria-label="Passages" className="flex gap-2 overflow-x-auto">
             {passages.map((p) => (
@@ -280,13 +300,16 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               </button>
             ))}
           </div>
-          <div role="group" aria-label="Show" className="grid w-full grid-cols-2 gap-1 rounded-full bg-secondary p-1 md:hidden">
+        </div>
+        {/* Mobile: pinned under the header, so the other view is always one tap away. */}
+        <div className="sticky top-16 z-20 -mx-1 bg-background/95 px-1 py-2 backdrop-blur md:hidden">
+          <div role="group" aria-label="Show" className="grid w-full grid-cols-2 gap-1 rounded-full bg-secondary p-1">
             {(["passage", "questions"] as const).map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={pane === v}
-                onClick={() => setPane(v)}
+                onClick={() => show(v)}
                 className={cn("rounded-full py-2 text-sm font-medium capitalize", pane === v && "bg-white shadow-sm")}
               >
                 {v}
@@ -295,10 +318,10 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
           </div>
         </div>
 
-        {/* The panes take the rest of the height and scroll on their own. */}
-        <div className="grid min-h-0 flex-1 md:grid-cols-2 md:gap-8">
+        {/* Desktop: the panes take the rest of the height and scroll on their own. */}
+        <div ref={panesTop} className="grid md:min-h-0 md:flex-1 md:grid-cols-2 md:gap-8">
           <div
-            className={cn("h-full min-h-0 overflow-y-auto pr-2 md:block md:pr-3", pane === "passage" ? "block" : "hidden")}
+            className={cn("md:block md:h-full md:min-h-0 md:overflow-y-auto md:pr-3", pane === "passage" ? "block" : "hidden")}
             data-testid="passage-pane"
           >
             <PassageView title={passage.title} body={passage.body} highlights={draft.highlights[passage.id] ?? []} onHighlightsChange={setHighlights} />
@@ -306,7 +329,7 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
           <div
             ref={questionsPane}
             onFocus={track}
-            className={cn("h-full min-h-0 overflow-y-auto pr-2 md:block md:pr-3", pane === "questions" ? "block" : "hidden")}
+            className={cn("md:block md:h-full md:min-h-0 md:overflow-y-auto md:pr-3", pane === "questions" ? "block" : "hidden")}
             data-testid="questions-pane"
           >
             <fieldset disabled={timeUp} className="flex flex-col gap-10 pb-6">
@@ -319,8 +342,8 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
       </div>
 
       {/* Navigator, always at the bottom: Previous / every number / Next. */}
-      <div className="border-t border-black/5 bg-background">
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 py-2.5 sm:px-6">
+      <div className="sticky bottom-0 z-20 -mx-1 border-t border-black/5 bg-background/95 backdrop-blur md:static md:mx-0 md:bg-background">
+        <div className="flex w-full items-center gap-2 px-1 py-2.5 md:mx-auto md:max-w-7xl md:px-6">
           <Button variant="outline" size="sm" onClick={() => step(-1)} disabled={at <= 0} aria-label="Previous question">
             <ChevronLeft /> <span className="hidden sm:inline">Previous</span>
           </Button>
@@ -343,7 +366,19 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               </button>
             ))}
           </nav>
-          <Button size="sm" onClick={() => step(1)} disabled={at === allNos.length - 1} aria-label="Next question">
+          {/* Mobile: on the last question, Next becomes Submit (there's no Submit at the top). */}
+          {at === allNos.length - 1 && (
+            <Button size="sm" className="md:hidden" onClick={requestSubmit} disabled={submitting}>
+              {submitting ? "Marking…" : "Submit answers"}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            className={cn(at === allNos.length - 1 && "hidden md:inline-flex")}
+            onClick={() => step(1)}
+            disabled={at === allNos.length - 1}
+            aria-label="Next question"
+          >
             <span className="hidden sm:inline">Next</span> <ChevronRight />
           </Button>
         </div>

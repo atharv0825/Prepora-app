@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { ONBOARDED, adminClient, createTestUser, deleteTestUser, localSupabase, type TestUser } from "./support/local-supabase";
-import { answer, key } from "./support/reading";
+import { answer, key, pressSubmit } from "./support/reading";
 
 // M4-F1..F4 in the browser against local Supabase and the local grade-test Edge Function, on the
 // seeded sample tests (M4-C3): the test list with filters and allowance, the player (timer,
@@ -147,7 +147,7 @@ test("M4-F2..F4: take the Academic sample, all correct → band 9, results and h
   for (const n of nos.slice(10)) await answer(page, n, answers.get(n)!);
   await expect(page.getByRole("navigation", { name: "Questions" }).getByRole("button", { name: /answered$/ })).toHaveCount(20);
 
-  await player(page).getByRole("button", { name: "Submit answers" }).click();
+  await pressSubmit(page);
   await expect(page).toHaveURL(/\/app\/reading\/attempts\/[0-9a-f-]{36}$/, { timeout: 20_000 });
   await expect(page.getByTestId("band")).toHaveText("9.0");
   await expect(page.getByTestId("raw-score")).toHaveText("20 of 20 correct");
@@ -164,7 +164,12 @@ test("M4-F2..F4: take the Academic sample, all correct → band 9, results and h
   await expect(page.getByRole("region", { name: "Your attempts" }).getByRole("link")).toHaveCount(1);
 });
 
-test("M4-F2 layout: the test fills the screen without page scroll; back link; Previous / Next through the numbers", async ({ page, context, baseURL, isMobile }) => {
+test("M4-F2 layout: desktop fills the screen; mobile scrolls with a pinned switch; Previous / Next, Submit at the end on mobile", async ({
+  page,
+  context,
+  baseURL,
+  isMobile,
+}) => {
   await signIn(context, baseURL!);
   await page.goto(`/app/reading/${ACADEMIC}`);
   // The start screen names the test.
@@ -176,16 +181,38 @@ test("M4-F2 layout: the test fills the screen without page scroll; back link; Pr
   // During the test: no visible title, the back link stays.
   await expect(page.getByText("Academic Reading", { exact: true })).toBeHidden();
   await expect(player(page).getByRole("link", { name: "Reading tests" })).toHaveAttribute("href", "/app/reading");
-  // The page itself doesn't scroll; the panes and the navigator are inside the screen.
-  expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
+  const navigator = page.getByRole("navigation", { name: "Questions" });
   const viewport = page.viewportSize()!;
-  const nav = await page.getByRole("navigation", { name: "Questions" }).boundingBox();
-  expect(nav!.y + nav!.height).toBeLessThanOrEqual(viewport.height);
-  const pane = page.getByTestId(isMobile ? "passage-pane" : "questions-pane");
-  expect(await pane.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true); // it scrolls inside
+  const submitTop = player(page).getByRole("button", { name: "Submit answers" });
+
+  if (!isMobile) {
+    // Desktop: the page doesn't scroll; the panes scroll inside; the navigator is on screen.
+    expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);
+    const nav = await navigator.boundingBox();
+    expect(nav!.y + nav!.height).toBeLessThanOrEqual(viewport.height);
+    expect(await page.getByTestId("questions-pane").evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+    await expect(submitTop).toBeVisible();
+  } else {
+    // Mobile: a normal scrolling page; no Submit at the top; the switch stays pinned.
+    await expect(submitTop).toBeHidden();
+    const show = page.getByRole("group", { name: "Show" });
+    await page.mouse.wheel(0, 1500);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+    const pinned = await show.boundingBox();
+    expect(pinned!.y).toBeGreaterThanOrEqual(60); // just under the 64px header
+    expect(pinned!.y).toBeLessThan(140);
+    // Questions, then back to the passage where it was left.
+    const passageAt = await page.evaluate(() => window.scrollY);
+    await show.getByRole("button", { name: "questions" }).click();
+    await expect(page.getByTestId("questions-pane")).toBeVisible();
+    await show.getByRole("button", { name: "passage" }).click();
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(passageAt);
+    // The navigator stays at the bottom of the screen.
+    const nav = await navigator.boundingBox();
+    expect(nav!.y + nav!.height).toBeLessThanOrEqual(viewport.height + 1);
+  }
 
   // Next / Previous move through the question numbers.
-  const navigator = page.getByRole("navigation", { name: "Questions" });
   await expect(page.getByRole("button", { name: "Previous question" })).toBeDisabled();
   await page.getByRole("button", { name: "Next question" }).click();
   await expect(navigator.getByRole("button", { name: /^Question 1(,|$)/ })).toHaveAttribute("aria-current", "step");
@@ -194,10 +221,17 @@ test("M4-F2 layout: the test fills the screen without page scroll; back link; Pr
   await expect(page.getByTestId("questions-pane").locator('[data-q="2"]')).toBeInViewport();
   await page.getByRole("button", { name: "Previous question" }).click();
   await expect(navigator.getByRole("button", { name: /^Question 1(,|$)/ })).toHaveAttribute("aria-current", "step");
-  // To the last question, across passages.
+  // The last question, across passages: Next ends (desktop) or becomes Submit (mobile).
   await navigator.getByRole("button", { name: /^Question 20(,|$)/ }).click();
   await expect(page.getByRole("tab", { name: /Passage 3/ })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("button", { name: "Next question" })).toBeDisabled();
+  if (isMobile) {
+    await expect(page.getByRole("button", { name: "Next question" })).toBeHidden();
+    await submitTop.filter({ visible: true }).click();
+    await expect(page.getByRole("dialog")).toContainText("Submit with 20 unanswered?");
+    await page.getByRole("dialog").getByRole("button", { name: "Keep going" }).click();
+  } else {
+    await expect(page.getByRole("button", { name: "Next question" })).toBeDisabled();
+  }
   await page.screenshot({ path: test.info().outputPath("layout.png") });
 });
 
@@ -209,7 +243,7 @@ test("M4-F3/F4: wrong and unanswered answers show the correct answer; confirm be
   await answer(page, 8, "your staff ID card"); // over the word limit
   await expect(page.getByTestId("questions-pane").getByText(/Too long/)).toBeVisible();
 
-  await player(page).getByRole("button", { name: "Submit answers" }).click();
+  await pressSubmit(page);
   await expect(page.getByRole("dialog")).toContainText("Submit with 12 unanswered?");
   await page.getByRole("dialog").getByRole("button", { name: "Submit" }).click();
   await expect(page.getByTestId("raw-score")).toHaveText("0 of 14 correct", { timeout: 20_000 });
@@ -254,7 +288,7 @@ test("M4-F2: a third test this month on Free opens the monthly-limit dialog", as
   await page.goto(`/app/reading/${ACADEMIC}`);
   await page.getByRole("button", { name: "Start the test" }).click();
   await answer(page, 1, "true");
-  await player(page).getByRole("button", { name: "Submit answers" }).click();
+  await pressSubmit(page);
   await page.getByRole("dialog").getByRole("button", { name: "Submit" }).click();
   await expect(page.getByRole("dialog")).toContainText("Monthly limit reached");
   // Still on the test, answers kept.

@@ -2568,3 +2568,31 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
 - Screenshots of the new layout checked on desktop and mobile; fixed the current-number ring being clipped at the bar's edge.
 - `pnpm test` 493/493 ✓; web typecheck and lint ✓.
 - **Not verified:** staging (the screenshots came from there; it updates on merge), Safari/iOS, and the Listening player, which wasn't part of this request.
+
+## 2026-11-26 — Fix (same PR #58): Reading player on mobile goes back to a scrolling page, pinned switch, Submit at the end
+
+**Request** (mobile screenshots):
+- the full-screen layout from the first #58 change should apply to **desktop and large screens only**;
+- on mobile, keep the earlier scrolling page;
+- pin only the **Passage / Questions** switch, so students don't scroll back up to switch;
+- on mobile, the Submit button should replace Next (it took a whole row at the top).
+
+**Change** (`reading-player.tsx`, `passage-view.tsx`; pushed to the same branch, so it's part of PR #58)
+- **Desktop (md+):** unchanged from the first #58 change: a fixed workspace with the page not scrolling, panes scrolling inside, and the navigator fixed at the bottom.
+- **Mobile:**
+  - **a normal scrolling page again**: no fixed workspace, and the panes aren't scroll boxes;
+  - **the Passage / Questions switch is pinned** under the header. Switching **returns to where that view was left** (first visit: the top of the view, under the switch);
+  - the passage's "title + Highlight" bar pins just under the switch;
+  - **no Submit in the top bar**. The navigator stays pinned at the bottom with ‹ › and the numbers; **on the last question, Next becomes "Submit answers"**, with the same confirm dialog when questions are unanswered.
+
+**Tests**
+- The layout test now checks each size:
+  - **desktop**: no page scroll, the panes scroll inside, the navigator is on screen, Submit is in the top bar, Next is disabled on question 20;
+  - **mobile**: no top Submit; the page scrolls and the switch stays pinned under the header; Questions → Passage comes back to the same scroll position; the navigator stays on screen; on question 20, Next is gone and Submit opens "Submit with 20 unanswered?".
+- New e2e helper `pressSubmit()` (`support/reading.ts`): the top bar on desktop, the last question on mobile. Used by `reading-ui` and `reading-seed`.
+
+**Verified**
+- `reading-ui` 12/12, `reading-seed` 2/2 and `dashboard` all pass, **18/18** on mobile and desktop (`next dev` :3200 from a temporary worktree).
+- Mobile screenshot checked: the switch pinned mid-scroll, and Submit in place of Next on question 20.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging until merge; Safari/iOS (sticky positioning and the restored scroll position on a real iPhone).

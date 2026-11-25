@@ -2271,3 +2271,53 @@ Done together on one branch from `develop` (M4-F1..F4 merged in #52).
   - CI and staging;
   - the admin builder UI has no committed browser test, because admin isn't served in the e2e setup;
   - Safari/iOS.
+
+## 2026-11-25 — M5-C1 + M5-C2: Listening schema + RLS; Listening question contract
+
+Done together on one branch from `develop` (M4-A1/I1 merged in #53).
+
+**M5-C1: migration `20261125180000_listening_schema.sql`**, the same model as Reading (M4-C1):
+- **`listening_question_type`**: the 11 Reading types plus `map_labelling` and `diagram_labelling`. A new enum, because Postgres can't extend one enum from another.
+- **`listening_tests`**: title, source, status, `min_plan`, `created_by`, `published_at`. There's no Academic/General field: both take the same Listening test.
+- **`listening_sections`**: `order_no` 1–4; title; `audio_url` (http(s) only; empty until the builder uploads it); `duration_sec`; `transcript`.
+- **`listening_questions`**: q_no 1–40, unique per test, and DEFERRABLE as in M4-A1, so the builder can renumber.
+  - `(section_id, test_id)` foreign key; options and answer as jsonb; explanation.
+  - A trigger keeps **section n to questions 10n−9 … 10n** (section 2 holds 11–20), on insert and on renumbering.
+- **Publishing trigger:** needs **4 sections, each with audio and a transcript**, and questions numbered 1..N with no gaps. It sets `published_at`. Published tests can only be archived, not deleted.
+- **RLS and grants**, as for Reading:
+  - the published list is public (so Gold tests can be shown locked);
+  - sections and questions are readable only by signed-in users whose plan includes the test;
+  - staff read and write everything.
+  - **`answer`, `explanation` and `transcript` have no SELECT grant for users.** The transcript would give the answers away; grade-test (M5-B2) returns it with the results.
+- Attempts reuse `test_attempts` (module `listening`, M4-C1).
+- Not in these steps: storing exam/practice mode with the attempt (M5-B2), `get_listening_test`, and the builder's staff RPC (M5-A1).
+
+**M5-C2: contract** (`packages/shared/src/ielts/listening.ts`)
+- Already there from M5-F1..F3: the labelling shapes (map with lettered places A, B, C… as % points; diagram with a marker, typed or from a word bank), `labellingImage`, `LISTENING_BANDS` and `listeningBand`, and the section helpers.
+- New:
+  - `listeningQuestionTypes` is now checked against the database enum (`satisfies`, plus a test);
+  - `parseListeningQuestion()` validates any of the 13 stored types: the Reading types by the Reading contract, labelling by its own, and errors are reported for the question's own type;
+  - `ListeningQuestionContent`;
+  - `listeningAnswerLabels()` for every type (map letters, diagram word banks).
+
+**Tests**
+- pgTAP `listening_schema.test.sql` (+42):
+  - tables, RLS, the 13 types, and the closed columns;
+  - the editor builds tests: a 5th section, a non-http audio URL, a question in the wrong section (insert or renumber), duplicates, cross-test sections and question 41 are all refused;
+  - publishing: no audio or transcript is refused, a gap is refused, a complete test publishes; a published test can't be deleted;
+  - a Free student: sees the list (Gold included); reads sections with audio and questions with their map; gets 42501 for `transcript`, `*`, `answer` and `explanation`; sees no Gold content; can't edit;
+  - Gold reads Gold content, and archiving hides it; anon sees the list only.
+- Unit (+3, `listening.test.ts`): enum parity; all 13 types validate (with errors on the question's own fields); answer labels.
+- e2e `listening-rls.spec.ts` (+1, real PostgREST):
+  - a Free student reads sections (with audio) and questions (with the map options);
+  - gets 42501 for transcript, `*`, answer, explanation, and filtering on the answer;
+  - sees no Gold or draft content; can't write;
+  - anon sees the list only.
+
+**Verified**
+- `supabase test db` **478/478** ✓; `db lint` clean; types regenerated, `db:types:check` ✓; `deno check` grade-test ✓.
+- `pnpm test` **472/472** ✓; typecheck ✓ (shared, web, admin); web lint ✓.
+- `listening-rls` + `reading-rls` **5/5** ✓ against local Supabase.
+- **Not verified:**
+  - a from-scratch `supabase db reset`: the auto-mode safety check blocked it, because it would wipe local data. The migration was applied with `migration up` on top of all the earlier ones;
+  - staging (the DB migrations workflow applies it on merge).

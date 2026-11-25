@@ -1,5 +1,6 @@
-// Listening contract (the part of M5-C2 the player needs, written with M5-F1..F3): question
-// types, the map/diagram labelling shapes, the section layout and the band table.
+// Listening contract (M5-C2; the player's part was written with M5-F1..F3): question types, the
+// map/diagram labelling shapes, the stored-question validator for all 13 types, the section
+// layout and the band table. Stored in listening_questions (M5-C1).
 //
 // Listening reuses the 11 Reading question types (ielts/reading.ts: same options, answers and
 // typed-answer rules) and adds two labelling types:
@@ -15,10 +16,24 @@
 //
 // A full test is 4 sections (parts) of 10 questions: 1–10, 11–20, 21–30, 31–40.
 import { z } from "zod";
+import type { Database } from "../db";
 import { scaledRawScore } from "./bands";
-import { letterLabel, readingQuestionTypes, TextAnswer, TextOptions } from "./reading";
+import {
+  answerLabels,
+  letterLabel,
+  parseReadingQuestion,
+  type ReadingQuestionContent,
+  type ReadingQuestionType,
+  readingQuestionTypes,
+  TextAnswer,
+  TextOptions,
+} from "./reading";
 
-export const listeningQuestionTypes = [...readingQuestionTypes, "map_labelling", "diagram_labelling"] as const;
+export const listeningQuestionTypes = [
+  ...readingQuestionTypes,
+  "map_labelling",
+  "diagram_labelling",
+] as const satisfies readonly Database["public"]["Enums"]["listening_question_type"][];
 export type ListeningQuestionType = (typeof listeningQuestionTypes)[number];
 export const ListeningQuestionTypeSchema = z.enum(listeningQuestionTypes);
 
@@ -122,6 +137,37 @@ const DiagramLabelling = z.union([
 /** A labelling question as stored (prompt, options, answer). The other types use ReadingQuestionContent. */
 export const LabellingQuestionContent = z.union([MapLabelling, DiagramLabelling]);
 export type LabellingQuestionContent = z.infer<typeof LabellingQuestionContent>;
+
+/** One stored Listening question (prompt, options, answer), any of the 13 types. */
+export type ListeningQuestionContent = ReadingQuestionContent | LabellingQuestionContent;
+
+/**
+ * Validate one stored Listening question; reports the problems of its own type only. The 11
+ * Reading types follow the Reading contract exactly (same options, answers and marking).
+ */
+export function parseListeningQuestion(input: { q_type: string; prompt: unknown; options: unknown; answer: unknown }):
+  | { success: true; data: ListeningQuestionContent }
+  | { success: false; error: z.ZodError } {
+  const type = ListeningQuestionTypeSchema.safeParse(input.q_type);
+  if (!type.success) return { success: false, error: type.error };
+  if (isLabelling(type.data)) {
+    const parsed = LabellingQuestionContent.safeParse(input);
+    return parsed.success ? { success: true, data: parsed.data } : { success: false, error: parsed.error };
+  }
+  const parsed = parseReadingQuestion(input);
+  return parsed.success ? { success: true, data: parsed.data } : { success: false, error: parsed.error };
+}
+
+/** The labels a student can answer with (empty for typed answers), for every Listening type. */
+export function listeningAnswerLabels(q: { q_type: ListeningQuestionType; options: Record<string, unknown> }): string[] {
+  if (q.q_type === "map_labelling") {
+    return Array.isArray(q.options.locations)
+      ? (q.options.locations as unknown[]).flatMap((l) => (l && typeof (l as { label?: unknown }).label === "string" ? [(l as { label: string }).label] : []))
+      : [];
+  }
+  if (q.q_type === "diagram_labelling") return answerLabels({ q_type: "summary_completion", options: q.options });
+  return answerLabels({ q_type: q.q_type as ReadingQuestionType, options: q.options });
+}
 
 /** What a labelling question's options look like to the player (no answer in them). */
 export function labellingImage(options: Record<string, unknown>): { url: string; alt: string } | null {

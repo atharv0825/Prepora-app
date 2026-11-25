@@ -236,6 +236,136 @@ export type Database = {
           },
         ]
       }
+      listening_questions: {
+        Row: {
+          answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["listening_question_type"]
+          section_id: string
+          test_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["listening_question_type"]
+          section_id: string
+          test_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          prompt?: string
+          q_no?: number
+          q_type?: Database["public"]["Enums"]["listening_question_type"]
+          section_id?: string
+          test_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_questions_section_id_test_id_fkey"
+            columns: ["section_id", "test_id"]
+            isOneToOne: false
+            referencedRelation: "listening_sections"
+            referencedColumns: ["id", "test_id"]
+          },
+        ]
+      }
+      listening_sections: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          duration_sec: number | null
+          id: string
+          order_no: number
+          test_id: string
+          title: string
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          order_no: number
+          test_id: string
+          title: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          order_no?: number
+          test_id?: string
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_sections_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "listening_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listening_tests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          min_plan: Database["public"]["Enums"]["plan_tier"]
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plans: {
         Row: {
           id: Database["public"]["Enums"]["plan_tier"]
@@ -724,6 +854,20 @@ export type Database = {
       credit_source: "monthly" | "welcome" | "exam_pack" | "topup" | "admin"
       ielts_test_type: "academic" | "general"
       launch_status: "enabled" | "waitlist"
+      listening_question_type:
+        | "mcq"
+        | "tfng"
+        | "ynng"
+        | "matching_headings"
+        | "matching_information"
+        | "matching_features"
+        | "sentence_completion"
+        | "summary_completion"
+        | "note_table_completion"
+        | "flowchart_completion"
+        | "short_answer"
+        | "map_labelling"
+        | "diagram_labelling"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
       plan_tier: "free" | "gold" | "platinum"
       reading_question_type:
@@ -879,6 +1023,21 @@ export const Constants = {
       credit_source: ["monthly", "welcome", "exam_pack", "topup", "admin"],
       ielts_test_type: ["academic", "general"],
       launch_status: ["enabled", "waitlist"],
+      listening_question_type: [
+        "mcq",
+        "tfng",
+        "ynng",
+        "matching_headings",
+        "matching_information",
+        "matching_features",
+        "sentence_completion",
+        "summary_completion",
+        "note_table_completion",
+        "flowchart_completion",
+        "short_answer",
+        "map_labelling",
+        "diagram_labelling",
+      ],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
       plan_tier: ["free", "gold", "platinum"],
       reading_question_type: [

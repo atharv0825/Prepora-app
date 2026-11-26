@@ -1,9 +1,11 @@
 // One real Groq Whisper call (M7-B1): checks the key, the multipart request and the verbose_json
 // reply shape. Skipped unless run with GROQ_API_KEY and network access (never in CI). Sends a
 // generated 2-second WAV (a tone, so there may be no words): bills the 10-second minimum (~$0.0001).
+// Also transcribes the two browser-format fixtures (M7-B4: Chrome WebM/Opus, Safari MP4/AAC), about
+// 12 s of synthetic speech each, to confirm Whisper reads both with word timings (~$0.0002 more).
 // Run from supabase/functions (Deno 2):
-//   deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/stt_live_test.ts
-import { transcribe } from "./stt.ts";
+//   deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com --allow-read=_eval _shared/stt_live_test.ts
+import { sniffAudioType, transcribe } from "./stt.ts";
 
 function ready(): boolean {
   const env = Deno.permissions.querySync({ name: "env", variable: "GROQ_API_KEY" }).state === "granted";
@@ -42,3 +44,19 @@ Deno.test({
     console.log(JSON.stringify({ text: t.text, words: t.words.length, segments: t.segments.length, usage: t.usage }));
   },
 });
+
+for (const file of ["chrome-opus.webm", "safari-aac.mp4"]) {
+  Deno.test({
+    name: `live (M7-B4): Whisper reads ${file} with word timings`,
+    ignore: !ready() || Deno.permissions.querySync({ name: "read", path: "_eval" }).state !== "granted",
+    fn: async () => {
+      const bytes = await Deno.readFile(new URL(`../_eval/speaking/fixtures/${file}`, import.meta.url));
+      const type = sniffAudioType(bytes)!;
+      const t = await transcribe({ audio: new Blob([bytes], { type }), mimeType: type, timeoutMs: 30_000 });
+      const text = t.text.toLowerCase();
+      for (const w of ["beach", "hometown", "volleyball", "peaceful"]) if (!text.includes(w)) throw new Error(`"${w}" missing: ${t.text}`);
+      if (t.words.length < 20 || !(t.words.at(-1)!.end > 5)) throw new Error(`words: ${t.words.length}, last ends ${t.words.at(-1)?.end}`);
+      console.log(file, JSON.stringify({ text: t.text, words: t.words.length, duration: t.duration_sec, kept_um: /um/i.test(t.text) }));
+    },
+  });
+}

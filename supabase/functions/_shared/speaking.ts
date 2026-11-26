@@ -122,3 +122,47 @@ export function speakingSignals(input: {
     },
   };
 }
+
+// ── Feedback (as score-speaking stores and returns it, M7-C2) ───────────────────────────────
+export type BetterPhrase = { original: string; better: string; why: string };
+export type ScoredSpeaking = {
+  scores: SpeakingScores;
+  summary: string;
+  better_phrases: BetterPhrase[];
+  strengths: string[];
+  improvements: string[];
+  model_answer: string;
+};
+export type SpeakingFeedback =
+  | { detail: "full"; summary: string; better_phrases: BetterPhrase[]; strengths: string[]; improvements: string[]; model_answer: string }
+  | { detail: "summary"; summary: string; better_phrases_count: number };
+
+/** Better phrases the screen can highlight: `original` quoted exactly from the transcript, once each. */
+export function keepFoundPhrases(transcript: string, phrases: readonly BetterPhrase[]): BetterPhrase[] {
+  const seen = new Set<string>();
+  return phrases.filter((p) => {
+    if (!p.original.trim() || p.original === p.better || seen.has(p.original) || !transcript.includes(p.original)) return false;
+    seen.add(p.original);
+    return true;
+  });
+}
+
+export function toSpeakingSummary(scored: Pick<ScoredSpeaking, "summary" | "better_phrases">): Extract<SpeakingFeedback, { detail: "summary" }> {
+  return { detail: "summary", summary: scored.summary, better_phrases_count: scored.better_phrases.length };
+}
+
+/** Full feedback with the plan's detailed_feedback flag, else the Free summary. */
+export function speakingFeedbackFor(scored: ScoredSpeaking, detailedFeedback: boolean): SpeakingFeedback {
+  if (!detailedFeedback) return toSpeakingSummary(scored);
+  return {
+    detail: "full",
+    summary: scored.summary,
+    better_phrases: scored.better_phrases,
+    strengths: scored.strengths,
+    improvements: scored.improvements,
+    model_answer: scored.model_answer,
+  };
+}
+
+/** Fewer words than this isn't an answer to score (silence, a mis-start): refused, credits refunded. */
+export const MIN_SCORABLE_WORDS = 20;

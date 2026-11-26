@@ -3279,3 +3279,78 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 1. Create a Groq API key, then put `GROQ_API_KEY=…` in `supabase/functions/.env` (locally) and run `supabase secrets set GROQ_API_KEY=…` on staging.
 2. Run the live check once (about $0.0001): `deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/stt_live_test.ts`. It prints the reply's shape; tell me if `words` or `duration` look different.
 3. Before real students record: check Groq's data policy and name it in the privacy policy.
+
+## 2026-11-26 — M7-B3..B5: score-speaking; browser audio formats; accent-diverse Speaking eval (harness)
+
+**Stacked on M7-B1/B2 (#67, open).** M7-C1/C2 (#66) are merged.
+
+**M7-B3: `score-speaking`** (`supabase/functions/score-speaking/index.ts`), Part 2 now; Parts 1 and 3 come in M8 (400 until then).
+- **Checks before spending:**
+  - **the session:** the caller's (else 404); in progress (else 409); a mode with this part (else 400); this part not yet scored (409);
+  - **the topic:** a published Part 2 card (else 404);
+  - **the recording:** in the caller's folder (else 400); it exists (404); ≤ 15 MB; **real audio by its first bytes** (else 400);
+  - the plan's `detailed_feedback`; **both keys** (Groq, the AI): a missing one gives 500 with nothing charged.
+- **Inside `withCredits('speaking_p2')`:**
+  1. Groq transcribes with word timings.
+  2. **Under 20 words is refused with 400 "couldn't hear enough", and refunded.**
+  3. The signals are measured.
+  4. The AI scores, via `generateJson`, with **`prompts/speaking-part2.v1.ts` (`s2-v1`)**; the reply is validated with `ScoredSpeaking`.
+  5. **Better phrases that don't quote the transcript are dropped** (`keepFoundPhrases`), and **the band is recomputed**.
+  6. The response is inserted with the plan's feedback (Free: the summary).
+  7. **The session gets `part2_band`. A single-part session is completed, with `overall_band` = that band.**
+  - A failed or duplicate insert throws `AiCallError`, so the credits are refunded.
+- **One `ai_usage` row for both providers:** the AI's model and tokens, Whisper's `audio_seconds`, and **the cost summed**. Also on failure: the AI's `AiCallError` usage gets Whisper's seconds and cost added.
+- **Prompts:**
+  - `speaking-rubric.v1.ts`: FC, LR, GRA and Pron descriptors **paraphrased, not verbatim**;
+  - **Pronunciation without audio:** judged on intelligibility from the transcript and `transcript_confidence`; **"NEVER lower Pronunciation for an accent"**; kept between 5 and 8 unless the evidence is strong;
+  - fluency uses the measured rate, pauses and fillers; transcription slips aren't counted as errors;
+  - feedback rules: better phrases quoted exactly, a spoken-style model answer of 250–300 words;
+  - the transcript is fenced in `<transcript>`, and instructions inside it are ignored.
+- **`prompts/speaking.ts`:** `buildPart2Request` sends the card, the signals as JSON with a short-turn note under 60 s, and the transcript (with `</transcript>` escaped).
+- `_shared/speaking.ts` gains `keepFoundPhrases`, `speakingFeedbackFor`, `toSpeakingSummary` and `MIN_SCORABLE_WORDS` (parity-tested); `_shared/speaking_schemas.ts` holds the Deno Zod copies.
+- **The stub** answers **Groq transcriptions** (multipart) with a fixed, timed Part 2 transcript (≈ 70 s, one 2.8 s pause; `stub-short` / `stub-fail` file names select the edge cases) and **Speaking scoring**. CI sets `GROQ_API_KEY=e2e-stub` and `GROQ_API_URL=…/ai-stub`.
+
+**M7-B4: browser formats**
+- **`_shared/audio.ts` `sniffAudioType`** reads the container from the first bytes: WebM (EBML), MP4 (`ftyp`), Ogg, WAV, MP3/ID3, ADTS AAC. The function uses it rather than the upload's label, so Chrome's WebM/Opus goes as `.webm` and **Safari's fragmented MP4/AAC as `.m4a`**.
+- **No transcoding:** Groq's docs list webm, m4a and mp4.
+- **Fixtures** in `_eval/speaking/fixtures/` (50 KB and 105 KB): synthetic speech (espeak-ng, ~12 s), encoded with ffmpeg like each browser: **Opus in WebM, 48 kHz mono (Chrome)**, and **AAC in fragmented MP4 (Safari: `frag_keyframe+empty_moov+default_base_moof`)**. Made in Docker (alpine:3.20).
+- `stt_live_test.ts` now also transcribes both fixtures, expecting the key words and timings, and logs whether "um" was kept.
+
+**M7-B5: the accent-diverse Speaking eval (harness)**
+- **`_eval/speaking_eval.ts`:** each recording goes through exactly what score-speaking does (sniff → Whisper → signals → prompt → AI). It's compared with a human reference: **word error rate**, **filler retention**, **band within ±0.5**, **Pronunciation bias** (AI minus teacher), and cost, **per accent**.
+- **Fairness flags (`accentFlags`):**
+  - an accent whose Pronunciation bias is **≥ 0.5 band below** the overall;
+  - an accent whose WER is **≥ 10 points above** the overall.
+  - It exits 1 on any flag.
+- **Recordings stay local** (`_eval/speaking/recordings/` and `recordings.local.json`, gitignored). Without them, it runs the two synthetic fixtures (a pipeline check only). `--dry-run` needs no key.
+- **`_eval/speaking/README.md`:** what to collect (the plan's 4 accents and more; ≥ 3–5 speakers each, across levels; verbatim transcripts with fillers; a qualified teacher's bands), **consent and privacy** (written consent, local only, sent to Groq and DeepSeek, delete afterwards), the manifest format, how to run it, and **"any flag blocks releasing the prompt"**.
+- **I can't produce real accented recordings.** Synthetic voices wouldn't test accents, and real ones need consenting speakers. That part is yours.
+
+**Tests**
+- Deno (+8):
+  - `ai_stub_test.ts` (+3): the Speaking chain via the stubs (transcript, signals: 1 pause of 2.8 s, confidence 0.89, fillers um/uh/you know; `s2-v1`; a valid `ScoredSpeaking` with scores 6/6/6/6.5 and band 6; 3 phrases found); the stub hooks; the Part 2 request (card, short-turn note, signals, fenced transcript, the accent and no-audio rules);
+  - `stt_test.ts` (+1): `sniffAudioType` for every container;
+  - `_eval/speaking_eval_test.ts` (+4): WER cases, the group summary, the fairness flags, the manifest check (fixtures valid).
+- vitest (+5): `speaking-signals.test.ts` (+2: feedback parity, `keepFoundPhrases`, the Deno schema's path rule); **`speaking-formats.test.ts` (+3: the real Chrome and Safari fixtures sniffed correctly, the MP4 is fragmented, truncated and non-audio files)**.
+- e2e **`speaking-ai.spec.ts`** (API):
+  - **always:** 401; a bad path; Part 1 (400); another student's session (404); an unpublished card (404); a missing recording (404); another student's folder (400); **a non-audio file (400)**; no credits spent.
+  - **with the stub (CI):**
+    - Gold gets the full feedback (band 6, transcript, pauses, confidence, fillers, 3 phrases, 4 credits);
+    - Free gets the summary;
+    - **the session is completed with `part2_band` and `overall_band` 6**; `s2-v1` is stored;
+    - **`ai_usage` has deepseek-flash, `speaking_p2`, audio_seconds > 60 and a cost**;
+    - a second scoring gives 409;
+    - **a too-short recording (400) and an AI failure (500) are both refunded**, and the failure row keeps Whisper's seconds.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions (score-speaking included), `_shared`, `prompts` and `_eval` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** (the live tests) ✓. Speaking eval `--dry-run`: 2/2 fixtures readable ✓.
+- `pnpm test`: **567 passed** (61 files) ✓; typecheck ✓ (shared, web); lint ✓.
+- **Not verified:**
+  - **the e2e spec** (no local Storage; your runtime predates score-speaking): **CI runs it with the stubs**;
+  - **any real Groq or DeepSeek Speaking call**: the fixtures through Groq (live test), the real score of a real answer;
+  - **whether Pronunciation from text alone is good enough, and fair across accents**: that's the eval with real recordings.
+
+**Manual steps for you** (details in `docs/ai.md` and `_eval/speaking/README.md`)
+1. With `GROQ_API_KEY` set: run `stt_live_test.ts` with `--allow-read=_eval`. It confirms Groq reads **both Chrome WebM and Safari MP4** with timings, and whether "um" survives.
+2. Collect accent-diverse recordings with consent (≥ 3–5 speakers each for Indian, Nepali, Filipino and Vietnamese English, plus a teacher's bands and verbatim transcripts). Run `_eval/speaking_eval.ts`. **Any fairness flag blocks releasing `s2-v1`.**
+3. On staging: `supabase secrets set GROQ_API_KEY=…`, and check `GROQ_API_URL` and `AI_STUB` are **not** set there.

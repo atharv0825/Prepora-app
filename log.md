@@ -3355,7 +3355,6 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 2. Collect accent-diverse recordings with consent (≥ 3–5 speakers each for Indian, Nepali, Filipino and Vietnamese English, plus a teacher's bands and verbatim transcripts). Run `_eval/speaking_eval.ts`. **Any fairness flag blocks releasing `s2-v1`.**
 3. On staging: `supabase secrets set GROQ_API_KEY=…`, and check `GROQ_API_URL` and `AI_STUB` are **not** set there.
 
-<<<<<<< HEAD
 ## 2026-11-26 — M7-F1..F3: Speaking screens (mic check, cue card and recorder, upload, feedback)
 
 **Stacked on M7-B3..B5 (#68, open).** M7-B1/B2 (#67) are merged.
@@ -3421,7 +3420,6 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
   - **a real phone:** Safari's MP4 recording on an iPhone, Android Chrome, the iOS permission flow and the help steps (M7-I1);
   - the stubbed-AI scoring path and the recording playback via signed URL (Storage isn't running locally; CI);
   - the Free mobile feedback and dark mode by eye.
-=======
 ## 2026-11-26 — Fix (PR #68): the stub's too-short / AI-failure hooks never fired in CI
 
 **What CI showed** (job 139802130052, Playwright): `speaking-ai.spec.ts` "a too-short recording and an AI failure are refunded" expected **400 validation_failed** but got **200**: the answer was scored normally. 150 passed, 57 skipped, 1 failed (also on retry).
@@ -3437,5 +3435,4 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 **Verified**
 - Deno 2.9.8: `deno check` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** ✓ (the hook test now goes through the real request path); web typecheck ✓.
 - **Not verified locally:** the e2e itself (it needs Storage and the stub-served functions, which CI has). The re-run on this push is the check.
-- Merged into PR #69's branch (stacked on #68) with a normal merge, so #69 runs with the fix too.
->>>>>>> 42178fd (fix(functions): AI stub reads its test markers from the audio, not the file name)
+- **Landed through its own PR:** #68 and #69 were merged into `develop` (09:12 and 09:33 UTC) before this fix was pushed, so `develop`'s E2E run failed the same way (job 139816552034: 160 passed, 57 skipped, 1 failed, status 200). The fix commit was cherry-picked onto `fix/speaking-stub-markers` from `develop`.

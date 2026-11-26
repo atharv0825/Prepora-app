@@ -192,3 +192,42 @@ Done once by an account owner after the M6 PRs are merged and deployed. Each run
      `success = true`;
    - `writing_submissions.prompt_version` is `t2-v1` / `t1a-v1`.
 7. Note the band you'd expect against the AI band, the time each call took and the cost, in `log.md`.
+
+## Speech to text for Speaking: Groq Whisper (M7-B1)
+
+DeepSeek takes no audio, so Speaking answers are transcribed by **Groq Whisper**
+(`whisper-large-v3-turbo`) in `supabase/functions/_shared/stt.ts`, with **word timings** for the
+signals (M7-B2). The transcript and signals then go to the AI (`ai.ts`) for scoring.
+
+| | |
+|---|---|
+| Endpoint | `POST https://api.groq.com/openai/v1/audio/transcriptions` (multipart; `verbose_json`, word + segment timestamps) |
+| Key secret | `GROQ_API_KEY` (console.groq.com → API keys) |
+| Price | $0.04 per hour of audio, at least 10 s billed: a 2-minute answer ≈ $0.0013 |
+| Formats | webm (Chrome/Android), m4a/mp4 (Safari/iOS), ogg, mp3, wav, flac; 25 MB per file (free tier) |
+| Limits | per organisation; check console.groq.com/settings/limits (audio seconds per hour/day) |
+
+- **Fillers:** Whisper tends to leave out "um" and "uh", so the request's `prompt` is written with fillers to
+  keep them. The Speaking eval (M7-B5) checks it.
+- Retried: 429 (Retry-After), 498, 500, 502, 503, network errors and timeouts. Not retried: 400, 401, 413, 422.
+  Groq doesn't charge for server errors.
+- `GROQ_API_URL` overrides the endpoint (for a stub in CI, as `DEEPSEEK_API_URL`).
+- Data: check Groq's data policy (console.groq.com/docs/your-data) before real students' recordings are sent,
+  and name it in the privacy policy, as for DeepSeek.
+
+Setup: `supabase secrets set GROQ_API_KEY=<key>` per environment; locally, `GROQ_API_KEY=…` in
+`supabase/functions/.env`. Live check (one ~2 s generated WAV, ≈ $0.0001):
+
+```sh
+deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/stt_live_test.ts
+```
+
+### Speaking signals (M7-B2)
+
+`supabase/functions/_shared/speaking.ts` measures, from the transcript and Whisper's timings:
+
+- **words per minute** over the speech itself (first word to last), not the silence around it;
+- **pauses**: silences of 1 s or more between words, and the longest one;
+- **fillers**: um, uh, er, erm, ah, hmm, "you know", "I mean" (whole words; "like" and "so" are left to the AI);
+- **transcript confidence** (0–1): how sure Whisper was, a hint about intelligibility for Pronunciation. It's
+  never a judgement of accent.

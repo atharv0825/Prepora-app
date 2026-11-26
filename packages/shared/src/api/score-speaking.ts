@@ -67,6 +67,11 @@ export const SpeakingSignals = z
     pauses: z.number().int().min(0).nullable(),
     longest_pause_sec: z.number().min(0).nullable(),
     filler_count: z.number().int().min(0),
+    /**
+     * How sure the speech-to-text model was (0–1, M7-B2): a hint about intelligibility for the
+     * Pronunciation criterion, never about accent. Null when the model gave no confidence.
+     */
+    transcript_confidence: z.number().min(0).max(1).nullable(),
   })
   .strict();
 export type SpeakingSignals = z.infer<typeof SpeakingSignals>;

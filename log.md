@@ -3217,3 +3217,65 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 - `supabase migration up` locally ✓. The grant fix was applied to the local DB by hand, because the migration had already run; CI's "Apply migrations to a fresh DB" checks the file from scratch. `supabase test db`: **629 passed** (23 files) ✓; `db lint`: no errors ✓; types regenerated, `--check` ✓.
 - `pnpm test`: **557 passed** (59 files) ✓; typecheck ✓ (shared, web, admin).
 - **Not verified:** the bucket's audio types and size through the Storage API (local Storage isn't running; covered when M7-F2 uploads in CI); CI.
+
+## 2026-11-26 — M7-B1 + M7-B2: Groq Whisper client with word timings; Speaking audio signals
+
+**Stacked on M7-C1/C2 (#66, open):** the signals use and extend its contract.
+
+**Checked against Groq's docs** (console.groq.com, read 2026-11-26)
+- `POST https://api.groq.com/openai/v1/audio/transcriptions` (multipart, Bearer key).
+- Request fields: `model`, `file`, `response_format=verbose_json`, `timestamp_granularities[]` (word and segment), `language`, `prompt` (≤ 224 tokens), `temperature`.
+- `whisper-large-v3-turbo` costs **$0.04 per hour**, with a 10 s minimum billed.
+- Formats: webm, m4a, mp4, ogg, mp3, wav, flac; 25 MB on the free tier.
+- Retry 429 (Retry-After) and 5xx; **server errors aren't charged**.
+- **Not documented:** the full `verbose_json` top-level shape (`duration`, the key of the `words` array). The client reads it leniently. Also not stated: data retention.
+
+**M7-B1: `_shared/stt.ts`**
+- **`transcribe({ audio, mimeType, language="en", prompt, … })`** sends the multipart request with **word and segment timings**. It returns the text, language, duration, `words` (`word`, `start`, `end`, trimmed), `segments` (`start`, `end`, `text`, `avg_logprob`, `no_speech_prob`) and `usage` (`audio_seconds`, `cost_usd`).
+- **The filler prompt:** Whisper tends to drop "um" and "uh", so the request's `prompt` is written with fillers to keep them. Whether it works is checked by the eval (M7-B5).
+- **Formats:** Safari's `audio/mp4` and AAC are sent as `.m4a`; codec parameters like `;codecs=opus` are ignored when picking the extension. **Unsupported types fail before any call.**
+- **Retries**, like `ai.ts`: 429 (Retry-After), 498, 500, 502, 503, network errors, timeouts and unreadable replies. Not retried: 400, 401, 413, 422. Per-attempt timeout 60 s, deadline 90 s, a fresh form body per attempt.
+- **Usage and cost:**
+  - **`sttCost`:** the 10 s minimum; zero seconds costs nothing; a 2-minute answer ≈ $0.0013.
+  - **Failures throw `AiCallError` with zero cost** (Groq doesn't bill them), so `withCredits` logs and refunds as for the AI.
+- **Config:** `GROQ_API_KEY` (a missing key fails before any call); a `GROQ_API_URL` override (for a CI stub later); `sttConfigured()`.
+- **`stt_live_test.ts`:** one real call with a generated 2 s WAV tone, checking the key, request and reply shape (about $0.0001). Skipped without the key and network permission.
+
+**M7-B2: `_shared/speaking.ts`** (no imports; vitest loads the exact file)
+- Copies of the shared rules: `speakingPartBand`, `FILLERS`, `countFillers`, `countSpokenWords`, `wordsPerMinute`.
+- **`speakingSignals({ transcript, durationSec, words?, segments? })`** returns the signals plus the fillers:
+  - **words per minute over the speech itself** (first word's start to last word's end), so silence before or after doesn't lower it; the whole recording without timings;
+  - **pauses:** gaps of **1 s or more** between consecutive words (sorted by start), and the longest, to 0.1 s;
+  - **filler count**;
+  - **transcript confidence** (0–1): the time-weighted mean of exp(`avg_logprob`) over segments with `no_speech_prob` < 0.5, capped at 1. **It hints at intelligibility for Pronunciation** (DeepSeek only sees text), and is **never about accent**.
+- **Contract change (M7-C2):** `SpeakingSignals` gains **`transcript_confidence`** (0–1, nullable); the mock sends 0.86.
+
+**Docs `docs/ai.md`:** a Groq section (endpoint, `GROQ_API_KEY`, price, formats, limits, the filler prompt, retries, the URL override, the data-policy note, the live test) and how each signal is measured.
+
+**Tests**
+- Deno **`_shared/stt_test.ts`** (+8, fake fetch):
+  - the multipart fields (model, `verbose_json`, `timestamp_granularities[]` = word and segment, `en`, `0`, the filler prompt, `answer.webm` even with `;codecs=opus`); MP4 sent as `.m4a`;
+  - reading the reply (trimmed text and words, segments, duration, language); the cost with the 10 s minimum; 2 minutes ≈ $0.0013; zero costs nothing;
+  - a reply without words or segments;
+  - retries: 429 then 503 then network → backoffs [3000, 1500, 3000]; timeout then 498;
+  - no retry for 400/401/413/422, with zero cost; an unreadable reply retried; the deadline;
+  - an unsupported type and a missing key fail without any call.
+- vitest **`tests/speaking-signals.test.ts`** (+5):
+  - **parity with the shared rules** (fillers, word counts, wpm, part bands);
+  - the signals: 65 wpm over the speech, not the recording; pauses (1.2 s and 3.2 s); confidence 0.88 with the silent segment skipped;
+  - without timings: no pauses or confidence;
+  - the pause threshold and sorting; the confidence cap and skips;
+  - the signals fit the contract's `SpeakingSignals`.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions, `_shared`, `prompts` and `_eval` ✓; `deno test`: **48 passed, 5 ignored** (the live tests) ✓.
+- `pnpm test`: **562 passed** (60 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:**
+  - **a real Groq call** (no key here): the exact `verbose_json` shape (top-level `words` and `duration`), whether word timings come back with the turbo model, and whether the filler prompt keeps "um" in practice;
+  - real recordings from Chrome (WebM/Opus) and Safari (MP4/AAC): M7-B4;
+  - CI.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. Create a Groq API key, then put `GROQ_API_KEY=…` in `supabase/functions/.env` (locally) and run `supabase secrets set GROQ_API_KEY=…` on staging.
+2. Run the live check once (about $0.0001): `deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/stt_live_test.ts`. It prints the reply's shape; tell me if `words` or `duration` look different.
+3. Before real students record: check Groq's data policy and name it in the privacy policy.

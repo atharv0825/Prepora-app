@@ -12,8 +12,10 @@
 //   * Speaking scoring (the system prompt is the Speaking rubric, M7-B3): bands from the signals,
 //     better phrases quoted from the transcript.
 //   * Groq transcription (a multipart request, M7-B1; GROQ_API_URL points here in CI): a fixed
-//     Part 2 transcript with word and segment timings. The file name picks a case: "stub-short"
-//     → too few words; "stub-fail" → a transcript the scoring stub answers with HTTP 500.
+//     Part 2 transcript with word and segment timings. A marker in the AUDIO BYTES picks a case
+//     (score-speaking always sends the file as "answer.<ext>", so the upload's name never reaches
+//     here): "STUB_SHORT" → too few words; "STUB_FAIL" → a transcript the scoring stub answers
+//     with HTTP 500. Tests put the marker after a real container header (e.g. WebM's 1A 45 DF A3).
 // Test hooks, written in the answer: STUB_FAIL → HTTP 500 (exercises the refund path);
 // STUB_BAD_JSON → a reply that isn't JSON (exercises retries, then the refund).
 
@@ -68,9 +70,13 @@ export const STUB_TRANSCRIPT =
   "especially in summer. Usually I go with my friends, you know, and we swim and play volleyball, and the food in the small restaurant is very delicious. " +
   "Uh, I like it because it is very peaceful and I feel very relax there, so it is a special place for me.";
 
+/** Markers a test can put in a recording's bytes to pick the stub's transcription. */
+export const STUB_SHORT_MARKER = "STUB_SHORT";
+export const STUB_FAIL_MARKER = "STUB_FAIL";
+
 /** A verbose_json transcription, words timed one every 0.8 s (≈ 70 s in all), with one 2.5 s pause. */
-function transcription(fileName: string): Response {
-  const text = fileName.includes("stub-short") ? "Um, the beach." : fileName.includes("stub-fail") ? `${STUB_TRANSCRIPT} STUB_FAIL` : STUB_TRANSCRIPT;
+function transcription(audio: string): Response {
+  const text = audio.includes(STUB_SHORT_MARKER) ? "Um, the beach." : audio.includes(STUB_FAIL_MARKER) ? `${STUB_TRANSCRIPT} STUB_FAIL` : STUB_TRANSCRIPT;
   let t = 0.3;
   const words = text.split(/\s+/).map((word, i) => {
     if (i === 20) t += 2.5;
@@ -120,7 +126,8 @@ export async function handleStub(req: Request, enabled: boolean): Promise<Respon
   if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
     const form = await req.formData();
     const file = form.get("file");
-    return transcription(file instanceof File ? file.name : "");
+    // The markers are ASCII, so a lossy decode of the audio bytes finds them.
+    return transcription(file instanceof Blob ? new TextDecoder().decode(await file.arrayBuffer()) : "");
   }
   let body: ChatBody;
   try {

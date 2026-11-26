@@ -2998,3 +2998,91 @@ User decision: "instead of using GEMINI we are going to use deepseek first". Com
   - **no real DeepSeek call yet** (no key here), so JSON mode with our schema-in-prompt, image input, the usage fields and the blank-reply behaviour are untested live;
   - the functions end to end (the runtime needs restarting with your key);
   - the eval; CI.
+
+## 2026-11-26 — M6-F1..F4: Writing screens (editor, photo upload, feedback, history with band trend)
+
+On a branch from `develop` (M6-B1..B5 and the DeepSeek switch merged in #62 and #63).
+
+**Pages** (`apps/web/src/app/(app)/app/writing/`)
+- **`/app/writing`** (F1 + F4):
+  - the Academic / General / All filter (the student's own test first, as in Reading);
+  - **Task 1 follows the filter (report or letter); Task 2 essays for both always show**;
+  - the cost from `credit_costs` ("Scoring costs 4 credits");
+  - task cards ("Written 2 times · best band 6.5");
+  - **the band trend and the history list**.
+- **`/app/writing/[taskId]`** (F1/F2): the editor. `?photo=1` opens the photo upload (the QR code's link). Only published tasks, read through RLS; a bad id gives 404.
+- **`/app/writing/submissions/[id]`** (F3): one scored answer from `writing_submissions`, through RLS. **Another student gets the 404 page**, and the content never reaches them.
+- The dashboard's Writing tile is now open (`/app/writing`). New routes: `routes.writing`, `writingTaskPath`, `writingSubmissionPath`.
+
+**F1: the editor** (`components/writing/writing-editor.tsx`)
+- The task, and the chart for Task 1 Academic.
+- **Live word count** against the minimum (150 or 250), using the shared `countEssayWords`, the same counter score-writing uses.
+- **The exam timer:** 20 or 40 minutes, **starting with the first word**.
+  - **Over time it counts up** ("+01:14") and shows "Time's up: in the exam you'd stop here".
+  - **It never submits by itself, because scoring costs credits.**
+- **No spell check**, as in the exam (`spellCheck=false`).
+- **Autosave** to localStorage (`prepora:writing:<taskId>`, after 400 ms), with "Saved" and "Your draft from this device is back". The draft is cleared once the answer is scored.
+- A fixed bottom bar: words, timer, saved, **"Get my band score"**.
+- Bug found by the e2e and fixed: the timer showed 40:01 just after the first word, because it compared against a `now` read before typing. Elapsed time is now clamped at 0, and the clock resets when it starts.
+
+**F2: the photo flow** (`photo-flow.tsx`, `lib/writing/photos.ts`, `phone-qr.tsx`)
+- **Free** sees what photo upload does, with "See Gold" (locked).
+- **Gold and Platinum:**
+  - "Take a photo" (camera) or "Choose photos", up to 2 pages, with previews and remove buttons;
+  - "Read my handwriting" confirms 1 credit, then "Reading your handwriting…";
+  - the text goes into the editor in photo mode, with a note to check it ("especially words marked [?]" when legibility is partial), plus "I'll type it instead".
+- **Each photo is re-encoded on the device** (canvas, JPEG, at most 2000 px, EXIF orientation applied, a white background) before upload to `writing-photos/{uid}/{uuid}.jpg`.
+  - This keeps both pages far under ocr-writing's 14 MB limit, and **turns iPhone HEIC into JPEG, which DeepSeek needs**.
+  - Browsers that can't decode a photo (HEIC outside Safari) get a clear message.
+- **Desktop QR code** ("Scan with your phone"): it opens `…/[taskId]?photo=1` on the phone, signed in as the same student, who finishes the flow there.
+  - Drawn as an SVG from `qrcode-generator` 2.0.4 (new dependency: no dependencies of its own, published Aug 2025, types included). Hidden on small screens.
+
+**F3: scoring and feedback** (`writing-editor.tsx`, `writing-feedback.tsx`)
+- `CostConfirm` ("This costs 4 credits", with balance before and after). **Under the minimum length it warns** before spending.
+- Progress state: four steps and the seconds so far, with "If you leave, your feedback will still be in your Writing history" (score-writing finishes regardless).
+- Credit refusals open the existing dialog (`useCredits().run`). Other errors keep the draft and say no credits were kept.
+- **The feedback screen:**
+  - the band, with a note that it's an AI estimate for practice;
+  - the task kind, words (red when under length), date, "From a photo";
+  - **the four criteria with bars** (Task Achievement or Task Response by task);
+  - the summary;
+  - **the answer with numbered inline highlights linking to the corrections** (`correctionSegments`: first non-overlapping occurrence, in priority order);
+  - the corrections list (category, ~~original~~ → suggestion, why); strengths; improvements; the model answer (collapsible).
+- **Free:** the bands, summary and answer, then **three locked cards** ("3 corrections found", "Strengths and next steps", "Model answer") and "Upgrade to Gold". The page shows what's stored, and a Free row never holds more.
+- **Mock mode** (`NEXT_PUBLIC_WRITING_MOCKS=1`, from M6-C3) shows the mock feedback in place, since nothing is saved.
+
+**F4: history and band trend** (`band-trend.tsx`)
+- A list of every scored answer (task, date, task number, words, photo icon, band) and the average of the last 5.
+- **The band trend** for the last 12 answers. I loaded the dataviz skill first and followed its mark specs: a 2px line, 8px markers with a 2px surface ring, hairline gridlines at whole bands, the latest band labelled at the end, no legend for one series.
+  - **Colour validated with the skill's script:** `#1F8A70` on the light card, `#34B583` on the dark card (`#0F3B47`). The brand teals failed its chroma floor, so they weren't used.
+  - **Hover:** a crosshair snaps to the nearest point, with a tooltip.
+  - **Keyboard:** each point is a focusable link with the same tooltip.
+  - The list below is its table view.
+- Checked by eye: the tooltip first wrapped one word per line and covered the average label. Fixed: one line, kept inside the chart, below the point when near the top.
+
+**Pure helpers:** `lib/writing/writing.ts` (task filter, labels, timer, clock and tone, draft parsing, correction segments, trend, per-task summary, average) and `photos.ts` (`fitWithin`).
+
+**CI without AI:** `playwright.config.ts` builds the app with `NEXT_PUBLIC_WRITING_MOCKS=1`, unless `E2E_AI=1` (then it runs against the real functions). This is M6-I1's "stubbed AI response in CI" for the UI.
+
+**Tests**
+- Unit (+13): `writing.test.ts` (12) and `photos.test.ts` (1). `dashboard.test.ts` now has Writing open.
+- e2e **`writing-ui.spec.ts`** (8 tests × desktop and mobile):
+  - the dashboard tile leads to the list, filtered by test type, with the cost;
+  - the editor: word count, timer from the first word, no spell check, autosave and restore, the chart and 20:00 for Task 1;
+  - over time: "+01:xx", time's up, **nothing sent by itself**;
+  - **Gold (mock):** 4-credit confirm, progress, full feedback, ≥ 5 highlights linking to corrections, model answer, draft cleared;
+  - **Free (mock):** an under-length warning, then the summary, "3 corrections found" locked, the upgrade link, no corrections or model answer;
+  - **stored feedback:** Gold highlights link to `#correction-2` with the explanation; the Free summary is locked; **another student gets 404 and none of the content**;
+  - **history:** 3 rows, average 5.7, the trend's label and 3 point links, a focus tooltip, "Written 2 times · best band 6.5", a click opens the answer;
+  - **photo:** Free locked; Gold prepares, uploads and mock-reads a JPEG into the editor with the [?] note; the QR shows on desktop and is hidden on mobile.
+  - `dashboard.spec.ts`: Writing is open, Speaking still coming soon.
+
+**Verified**
+- `pnpm test`: **538 passed** (55 files) ✓; typecheck ✓ (web, admin); web lint ✓.
+- e2e, desktop and mobile, `writing-ui`, `credits-ui`, `reading-ui`, `listening-home`, `journey`, `theme` and `dashboard`: **56 passed, 2 skipped** ✓. The skips are the Gold photo-upload part, because local Supabase runs without Storage; it runs in CI.
+- **Screenshots checked by eye:** the Writing home and trend (desktop), full feedback (desktop), the Free summary (mobile) and the Task 1 editor (mobile).
+- **Not verified:**
+  - **the real AI end to end in the UI** (DeepSeek scoring and OCR from these screens, `E2E_AI=1`), because the local functions aren't served with a DeepSeek key;
+  - the Gold photo upload locally (no Storage), and a real phone camera, HEIC on an iPhone, or the QR scanned by a phone;
+  - the Writing pages in dark mode (same tokens; the trend has dark colours, but they weren't screenshotted);
+  - CI.

@@ -12,11 +12,13 @@ import {
 } from "./dashboard";
 
 describe("modules", () => {
-  it("lists the four IELTS modules in exam order; Reading is open (M4), the rest coming soon", () => {
+  it("lists the four IELTS modules in exam order; Reading, Listening and Writing are open, Speaking coming soon", () => {
     expect(dashboardModules.map((m) => m.key)).toEqual(["reading", "listening", "writing", "speaking"]);
     expect(dashboardModules[0]).toMatchObject({ status: "available", href: "/app/reading" });
     expect(dashboardModules[1]).toMatchObject({ status: "available", href: "/app/listening" });
-    expect(dashboardModules.slice(2).every((m) => m.status === "soon" && !m.href)).toBe(true);
+    expect(dashboardModules[2]).toMatchObject({ key: "writing", status: "available", href: "/app/writing" });
+    expect(dashboardModules[3]).toMatchObject({ key: "speaking", status: "soon" });
+    expect(dashboardModules[3]!.href).toBeUndefined();
   });
 
   it("recommends the first available module, none while all are coming soon", () => {

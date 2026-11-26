@@ -11,18 +11,19 @@ import { formatDateTime } from "@/lib/users";
 
 export const metadata: Metadata = { title: "Speaking" };
 
-// M7-A1: Part 2 cue cards, every status, with how many Part 3 discussions follow each, and a form
-// to start a new card. Staff only (the layout checks; RLS lets staff read drafts). Part 1 question
-// sets come with M8-A1.
+// Speaking topics, every status: Part 1 question sets on a theme (M8-A1) and Part 2 cue cards with
+// how many Part 3 discussions follow each (M7-A1), with forms to start each. Staff only (the layout
+// checks; RLS lets staff read drafts).
 export default async function SpeakingTopicsPage() {
   const supabase = await createClient();
   const { data: topics, error } = await supabase
     .from("speaking_topics")
-    .select("id, part, title, status, source, parent_topic_id, cue_card_points, updated_at")
-    .in("part", [2, 3])
+    .select("id, part, title, status, source, parent_topic_id, cue_card_points, questions, updated_at")
+    .in("part", [1, 2, 3])
     .order("updated_at", { ascending: false });
   if (error) throw new Error(`speaking_topics failed: ${error.code}`);
   const cards = (topics ?? []).filter((t) => t.part === 2);
+  const sets = (topics ?? []).filter((t) => t.part === 1);
   const part3 = new Map<string, { total: number; published: number }>();
   for (const t of (topics ?? []).filter((t) => t.part === 3 && t.parent_topic_id)) {
     const c = part3.get(t.parent_topic_id!) ?? { total: 0, published: 0 };
@@ -37,9 +38,49 @@ export default async function SpeakingTopicsPage() {
         </span>
         <div>
           <h1 className="text-h2">Speaking</h1>
-          <p className="mt-1 text-muted-foreground">Part 2 cue cards, and the Part 3 discussions that follow each one. Part 1 question sets arrive with the examiner (M8).</p>
+          <p className="mt-1 text-muted-foreground">Part 1 question sets, Part 2 cue cards, and the Part 3 discussions that follow each card.</p>
         </div>
       </div>
+
+      <section aria-labelledby="sets-heading" className="flex flex-col gap-4">
+        <h2 id="sets-heading" className="text-h3">
+          Part 1 question sets
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          A theme the examiner asks about (work or studies, hometown, hobbies…) and its questions. The examiner asks 4–5 of them, read aloud, and may add one follow-up. The full test needs at least one published set.
+        </p>
+        {sets.length === 0 ? (
+          <p className="text-muted-foreground">No question sets yet.</p>
+        ) : (
+          <ul className="divide-y divide-border rounded-2xl border border-border" data-testid="speaking-sets">
+            {sets.map((t) => (
+              <li key={t.id}>
+                <Link href={`/speaking/${t.id}`} className="flex flex-col gap-1.5 px-4 py-4 hover:bg-secondary/40 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-medium">{t.title}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {t.questions?.length ?? 0} questions · updated {formatDateTime(t.updated_at)}
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap gap-2">
+                    {t.source === "ai" && <Badge variant="outline">AI</Badge>}
+                    <Badge variant={statusBadge(t.status as ContentStatus)}>{contentStatusLabels[t.status as ContentStatus]}</Badge>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>New question set</CardTitle>
+            <CardDescription>It starts as a draft. Students see it only once you publish it.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TopicForm kind="part1" />
+          </CardContent>
+        </Card>
+      </section>
 
       <Card>
         <CardHeader>

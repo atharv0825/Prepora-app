@@ -55,7 +55,7 @@ export const navGroups: NavGroup[] = [
         label: "Speaking",
         icon: Mic,
         milestone: "M7–M8",
-        built: true, // M7-A1: Part 2 cue cards and linked Part 3 discussions (Part 1 sets: M8-A1)
+        built: true, // M7-A1: Part 2 cue cards and linked Part 3 discussions; M8-A1: Part 1 question sets
         summary: "Part 1 question sets, Part 2 cue cards and linked Part 3 discussions.",
         features: [
           "Part 1 question sets",

@@ -1,6 +1,7 @@
 // M7-B2: the Speaking rules and audio signals score-speaking runs (supabase/functions/_shared/
 // speaking.ts, no imports, so vitest loads the exact file), and their parity with the shared
 // contract in packages/shared/src/ielts/speaking.ts.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import * as shared from "../packages/shared/src/ielts/speaking";
 import { MOCK_PART2_TRANSCRIPT } from "../packages/shared/src/mocks/speaking";
@@ -69,5 +70,25 @@ describe("speakingSignals", () => {
     const { SpeakingSignals } = await import("../packages/shared/src/api/score-speaking");
     const { signals } = fn.speakingSignals({ transcript: "Um, I like the beach. It's quiet.", durationSec: 9, words, segments });
     expect(SpeakingSignals.parse(signals)).toEqual(signals);
+  });
+});
+
+describe("feedback helpers ↔ shared contract (M7-B3)", () => {
+  it("trimming for Free and the full shape match; better phrases must quote the transcript", async () => {
+    const sharedApi = await import("../packages/shared/src/api/score-speaking");
+    const { mockScoredSpeaking } = await import("../packages/shared/src/mocks/speaking");
+    const scored = mockScoredSpeaking(MOCK_PART2_TRANSCRIPT, 110, 2);
+    expect(fn.speakingFeedbackFor(scored, true)).toEqual(sharedApi.speakingFeedbackFor(scored, true));
+    expect(fn.speakingFeedbackFor(scored, false)).toEqual(sharedApi.speakingFeedbackFor(scored, false));
+    const p = (original: string, better = "x") => ({ original, better, why: "Because." });
+    expect(fn.keepFoundPhrases("I feel very relax there.", [p("feel very relax"), p("feel very relax"), p("not said"), p("there", "there"), p(" ")])).toEqual([p("feel very relax")]);
+    expect(fn.MIN_SCORABLE_WORDS).toBe(20);
+  });
+
+  it("the Deno schema keeps the contract's path rule", () => {
+    const read = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
+    const pathRe = (src: string) => src.match(/SpeakingAudioPath = z\s*\.string\(\)\s*\.regex\(\s*(\/.+\/),/)?.[1];
+    expect(pathRe(read("../supabase/functions/_shared/speaking_schemas.ts"))).toBeTruthy();
+    expect(pathRe(read("../supabase/functions/_shared/speaking_schemas.ts"))).toBe(pathRe(read("../packages/shared/src/api/score-speaking.ts")));
   });
 });

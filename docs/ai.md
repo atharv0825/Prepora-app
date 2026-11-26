@@ -231,3 +231,36 @@ deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/
 - **fillers**: um, uh, er, erm, ah, hmm, "you know", "I mean" (whole words; "like" and "so" are left to the AI);
 - **transcript confidence** (0–1): how sure Whisper was, a hint about intelligibility for Pronunciation. It's
   never a judgement of accent.
+
+## Speaking scoring (M7-B3..B5)
+
+`score-speaking` (Part 2 now; Parts 1 and 3 with the examiner in M8):
+
+- **Checks before spending:** the session (the caller's, in progress, a mode with this part, not yet scored:
+  409), the published cue card, the recording (own folder, ≤ 15 MB, **real audio by its first bytes**), the
+  plan and both keys (`GROQ_API_KEY`, the AI's).
+- **Inside `withCredits('speaking_p2')`**, 4 credits:
+  1. Groq transcribes with word timings.
+  2. Under 20 words is refused (400) and refunded.
+  3. The signals are measured.
+  4. The AI scores the transcript and signals with `prompts/speaking-part2.v1.ts` (`s2-v1`).
+  5. Better phrases that don't quote the transcript are dropped, and the band is recomputed.
+  6. The response is saved with the plan's feedback, and a single-part session is completed with its band.
+- **One `ai_usage` row** per scoring: the AI model and tokens, Whisper's `audio_seconds`, and **the cost of both**
+  (≈ $0.0013 Whisper + ≈ $0.004 DeepSeek for 2 minutes).
+- **Pronunciation without audio:** DeepSeek reads text, so Pronunciation is judged on intelligibility from the
+  transcript and `transcript_confidence`, never accent. The prompt keeps it between 5 and 8 unless the evidence
+  is strong. If the Speaking eval shows this isn't good enough, the plan's fallback is Gemini with audio for
+  this step.
+
+**Formats (M7-B4):** the function reads the container from the file's first bytes (`_shared/audio.ts`), so
+Chrome's WebM/Opus and Safari's fragmented MP4/AAC both reach Whisper with the right extension, whatever type
+the upload was labelled with. Groq accepts both, so there's no transcoding. The fixtures in
+`_eval/speaking/fixtures/` are synthetic speech encoded like each browser. `_shared/stt_live_test.ts` sends both
+to Groq (add `--allow-read=_eval`).
+
+**CI:** `GROQ_API_URL` also points at the ai-stub, which answers transcriptions with a fixed, timed transcript.
+`stub-short`/`stub-fail` in the file name exercise the too-short and AI-failure paths.
+
+**Accent evaluation (M7-B5):** see `supabase/functions/_eval/speaking/README.md`. The eval needs real recordings
+from consenting speakers, kept local.

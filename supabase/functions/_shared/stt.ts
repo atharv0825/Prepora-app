@@ -19,6 +19,7 @@
 
 import { z } from "./deps.ts";
 import { AiCallError, type AiUsage } from "./credits.ts";
+export { sniffAudioType } from "./audio.ts";
 
 export const GROQ_TRANSCRIPTIONS_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 export const STT_MODEL = "whisper-large-v3-turbo";
@@ -211,3 +212,4 @@ export async function transcribe(o: TranscribeOptions, deps?: Partial<SttDeps>):
   }
   throw new AiCallError(`groq ${model}: deadline reached (last: ${last})`, usage(0));
 }
+

@@ -158,3 +158,18 @@ Deno.test("unsupported audio types and a missing key fail before any call", asyn
   }
   assertEquals(calls, 0);
 });
+
+import { sniffAudioType } from "./stt.ts";
+
+Deno.test("sniffAudioType: the container from the first bytes (M7-B4)", () => {
+  const b = (...x: (number | string)[]) => new Uint8Array(x.flatMap((v) => (typeof v === "string" ? [...v].map((c) => c.charCodeAt(0)) : [v])));
+  assertEquals(sniffAudioType(b(0x1a, 0x45, 0xdf, 0xa3, 0x9f)), "audio/webm"); // Chrome, Edge, Android
+  assertEquals(sniffAudioType(b(0, 0, 0, 0x1c, "ftyp", "iso5")), "audio/mp4"); // Safari, iOS (fragmented MP4)
+  assertEquals(sniffAudioType(b("OggS", 0)), "audio/ogg");
+  assertEquals(sniffAudioType(b("RIFF", 0, 0, 0, 0, "WAVE")), "audio/wav");
+  assertEquals(sniffAudioType(b("ID3", 3, 0)), "audio/mpeg");
+  assertEquals(sniffAudioType(b(0xff, 0xf1, 0x50, 0x80)), "audio/aac");
+  assertEquals(sniffAudioType(b(0xff, 0xfb, 0x90, 0x00)), "audio/mpeg");
+  assertEquals(sniffAudioType(b("%PDF-1.4")), null);
+  assertEquals(sniffAudioType(b(1, 2)), null);
+});

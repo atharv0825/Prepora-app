@@ -74,3 +74,30 @@ export function readingBand(testType: TestType, raw: number, total: number = FUL
   const row = READING_BANDS[testType].find(([min]) => scaled >= min);
   return row ? row[1] : 0;
 }
+
+// ── IELTS rounding (M8-C2) ──────────────────────────────────────────────────────────────────
+/**
+ * Rounds an average to a reported IELTS band, the way IELTS rounds an overall band: to the nearest
+ * half band, with the quarters going UP. The fraction decides:
+ *   < .25 → down to the whole band (6.1 → 6, 6.24 → 6)
+ *   .25 to < .75 → .5               (6.25 → 6.5, 6.5 → 6.5, 6.74 → 6.5)
+ *   ≥ .75 → up to the next band     (6.75 → 7)
+ * Used for the Speaking test's overall band (the average of Parts 1–3, M8-B3) and any overall band.
+ * Averages of half bands are exact in binary, but a mean like (6.5+6+6.5)/3 isn't, so the value is
+ * snapped to 1e-9 first: 6.2499999999 counts as 6.25.
+ */
+export function ieltsRound(average: number): number {
+  if (!Number.isFinite(average) || average < 0 || average > 9) throw new RangeError(`not a band average: ${average}`);
+  const v = Math.round(average * 1e9) / 1e9;
+  const whole = Math.floor(v);
+  const frac = v - whole;
+  if (frac < 0.25) return whole;
+  if (frac < 0.75) return whole + 0.5;
+  return whole + 1;
+}
+
+/** The IELTS-rounded mean of several bands (e.g. the three Speaking parts). */
+export function overallBand(bands: readonly number[]): number {
+  if (!bands.length) throw new RangeError("no bands to average");
+  return ieltsRound(bands.reduce((a, b) => a + b, 0) / bands.length);
+}

@@ -3436,3 +3436,41 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 - Deno 2.9.8: `deno check` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** ✓ (the hook test now goes through the real request path); web typecheck ✓.
 - **Not verified locally:** the e2e itself (it needs Storage and the stub-served functions, which CI has). The re-run on this push is the check.
 - **Landed through its own PR:** #68 and #69 were merged into `develop` (09:12 and 09:33 UTC) before this fix was pushed, so `develop`'s E2E run failed the same way (job 139816552034: 160 passed, 57 skipped, 1 failed, status 200). The fix commit was cherry-picked onto `fix/speaking-stub-markers` from `develop`.
+
+## 2026-11-26 — M8-C1 + M8-C2: examiner-turn contract and Speaking session state machine; IELTS band rounding
+
+On a branch from `develop` (the stub-marker fix, #70, merged; M7-A1 #71 is open and independent).
+
+**M8-C2: IELTS rounding** (`packages/shared/src/ielts/bands.ts`)
+- **`ieltsRound(average)`:** to the nearest half band, **with the quarters going up**: under .25 goes down (6.24 → 6); .25 to under .75 becomes .5 (6.25 → 6.5, 6.74 → 6.5); .75 and over goes to the next band (6.75 → 7).
+  - **The value is snapped to 1e-9 first**, so floating-point averages such as 6.2499999999 count as 6.25.
+  - It refuses values outside 0–9, NaN and infinity.
+- **`overallBand(bands)`:** the IELTS-rounded mean, for the Speaking test's three parts and also the 4-module overall band.
+
+**M8-C1: the session state machine** (`ielts/speaking-session.ts`)
+- **The stage is derived from which parts are already scored** (`speaking_responses`, one per part, M7-C1), so there's **no stage column to keep in sync**.
+  - `full_test`: part1 → part2 → part3 → finished;
+  - `partN`: that part → finished.
+- `partsOf`, `sessionStage`, **`canAnswer`** (only the current part: no skipping ahead or going back), `stageAfter` (throws for the wrong part).
+- **`sessionOverallBand`:** a single part's own band, or the IELTS-rounded mean of Parts 1–3; null until finished.
+- **Examiner turns:** `QUESTIONS_PER_PART` (Parts 1 and 3: 4–5); **`examinerDone`** never stops before 4 and always stops at 5. Between those, the AI decides.
+
+**M8-C1: the `examiner-turn` contract** (`api/examiner-turn.ts`)
+- **Request:** `session_id`, `part` (**1 or 3 only**: Part 2 is the cue card), `topic_id` (a Part 1 set, or a Part 3 discussion), and `turns[]`. Each turn is `question` plus `audio_path` and/or `transcript`, with an optional `duration_sec`.
+  - **The newest answer may be a recording only; earlier ones must have their transcript.**
+  - At most 5 turns; an empty `turns` asks for the opening question.
+- **Design:** examiner-turn **transcribes the newest answer itself** (Groq, M7-B1) and returns it, so the client builds the whole Q&A without a separate speech-to-text call.
+  - **No credits per turn:** the turns are included in the part's scoring price (`speaking_p1` 5, `speaking_p3` 6), charged once by score-speaking at the end of the part (M8-B2).
+- **Response:** `transcribed` ({index, transcript} or null), **`next_question`**, `source` (`set` or `follow_up`), `question_no`, **`done`**.
+  - A refine requires: **done means no next question; open means exactly one**.
+- The errors are documented (400, 401, 404, **409 when the session isn't at this part**, 500 with nothing charged).
+- **`mocks/examiner.ts`:** five Part 1 questions; `mockExaminerTurn` asks them in order, **transcribes the newest recording**, **adds one follow-up after a long second answer**, and stops at the count. It's parsed by the contract.
+
+**Tests** (+9 unit)
+- `rounding.test.ts` (5): the quarters, both sides of each boundary, floating-point averages (6.2499999999 → 6.5, 6.2499 → 6), invalid values, `overallBand` for 3 parts and 4 modules.
+- `speaking-session.test.ts` (5): the full-test order (scored in any order), no skipping or going back, single-part sessions, the overall band, the examiner's 4–5.
+- `examiner-turn.test.ts` (5): request (first call; a recording as the newest answer; Part 2, too many turns, an untranscribed older answer, an empty answer and a foreign path all refused); response (done vs open); **the mock driven through a whole 5-question conversation**; errors.
+
+**Verified**
+- `pnpm test`: **594 passed** (66 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:** nothing runs on it yet (M8-B1 examiner-turn, M8-B2/B3 scoring, M8-F screens).

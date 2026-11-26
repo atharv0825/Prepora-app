@@ -3524,3 +3524,53 @@ On a branch from `develop` (the stub-marker fix, #70, merged; M7-A1 #71 is open 
 **Verified**
 - `pnpm test`: **594 passed** (66 files) ✓; typecheck ✓ (shared, web).
 - **Not verified:** nothing runs on it yet (M8-B1 examiner-turn, M8-B2/B3 scoring, M8-F screens).
+
+## 2026-11-26 — M8-B1..B3: examiner-turn; scoring Parts 1 and 3; the session's overall band
+
+On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
+
+**M8-B1: `examiner-turn`** (`supabase/functions/examiner-turn/index.ts`), Parts 1 and 3, **no credits**
+- **Checks:**
+  - the session is the caller's and **at this part** (the state machine, from the parts already scored), else 409 (finished / "at Part N");
+  - the topic is a published set (Part 1) or discussion (Part 3), for that part;
+  - **in a full test, the Part 3 must follow the student's own Part 2 card** (400 otherwise);
+  - the recordings are in the caller's folder.
+- **The newest answer**, if it came as a recording only, is downloaded, **sniffed** and **transcribed** (Groq), then returned as `transcribed`.
+- **The next question:** `deepseek-flash` with **thinking off**, using `prompts/examiner.v1.ts` (`examiner-v1`). It chooses `set` (an index into the remaining set questions), `follow_up` (its own question on the last answer) or `stop`.
+  - **The function enforces the limits, whatever the AI says:** 4–5 questions (`examinerDone`); **follow-ups capped (`MAX_FOLLOW_UPS`: Part 1 1, Part 3 3)**; no repeats; no stopping before 4; the set index clamped.
+  - **If the AI fails or isn't configured, the next set question is asked, so the conversation never stalls.** If the set runs out before the minimum, a neutral follow-up is used.
+- **The prompt:** one question under 25 words, natural British English; Part 1 personal and simple, Part 3 abstract (explain, compare, speculate) and linked to the Part 2 card; **never comments on or corrects the answer**; answers are fenced in `<answer>`.
+- **`ai_usage`:** one row per turn under the part's action key, **`credits_charged` 0**, with the AI's tokens and Whisper's seconds and cost, so a part's real cost is visible.
+
+**M8-B2: scoring Parts 1 and 3** (`score-speaking`)
+- **Contract change:** `ScoreSpeakingRequest` is now a union. **Part 2** sends one `audio_path`; **Parts 1 and 3** send **`answers`** (4–5 × `{question, audio_path, duration_sec?}`). The shared contract, the Deno copy, the mock and the tests are updated; the web app's Part 2 call is unchanged.
+- **Every recording is transcribed again here, in parallel.** A score never rests on a transcript the browser could change, at about $0.003 extra per part. If one fails, the Whisper cost already spent is still logged with the refund.
+- **Signals:** `combineSignals` adds durations, words, pauses and fillers; computes **wpm over the total speech** (from each answer's own rate); takes the longest pause of any answer; weights confidence by length.
+- **Stored transcript:** `Examiner: …\nYou: …` per question (`conversationTranscript`). Under **30 words** in all is refused and refunded.
+- **New versioned prompts:** `speaking-part1.v1.ts` (`s1-v1`: short, direct, extended a little) and `speaking-part3.v1.ts` (`s3-v1`: developed, abstract answers), both on the shared rubric (Pronunciation: intelligibility, never accent). `buildConversationRequest` sends the topic (+ the Part 2 card for Part 3), the combined signals and the Q&A.
+- **Credits:** `speaking_p1` 5, `speaking_p2` 4, `speaking_p3` 6, so **15 for a full test**.
+- **The state machine is now enforced for Part 2 too:** in a full test, Part 2 only after Part 1 (409).
+
+**M8-B3: the session's band**
+- After each part, `partN_band` is saved. **When the state machine says the session is finished**, it's `completed` with `completed_at` and **`overall_band` = `sessionOverallBand`**: a single part's own band, or **the IELTS-rounded mean of Parts 1–3** (`ieltsRound`, M8-C2).
+- `_shared/speaking.ts` gains the Deno copies (parity-tested): `ieltsRound`, `overallBand`, `partsOf`, `sessionStage`, `sessionOverallBand`, `QUESTIONS_PER_PART`, `examinerDone`, plus the new `MAX_FOLLOW_UPS`, `combineSignals`, `conversationTranscript` and `MIN_SCORABLE_WORDS_CONVERSATION`.
+
+**The stub:** the examiner gets the next set question, **or a follow-up when the answer's audio carries `STUB_FOLLOW_UP`** (passed through the transcription stub like the other markers).
+
+**Tests**
+- vitest (+5): parity of rounding (every 0.05 from 0 to 9), the state machine and the examiner limits; `combineSignals` (107 wpm over 1.5 min of speech, 4 pauses, longest 3.2 s, confidence 0.7, fillers merged); answers without timings; the stored transcript. Shared contract (+1): Parts 1/3 `answers` (4–5, paths) vs Part 2. The mock now takes the union.
+- Deno (+2): **the examiner through the real client into the stub** (opening question; follow-up on a marked answer; `examiner-v1`, thinking off; the prompt's rules); **Part 1/3 scoring through the stub** (`s1-v1`/`s3-v1`, combined signals, band 6); the follow-up marker's transcript.
+- e2e **`speaking-ai.spec.ts`**, new: **a whole test through the API with the stubs.**
+  - **Part 3 and Part 2 first are refused with 409.**
+  - **Part 1:** 6 examiner calls (the opening, then 5 answers uploaded and transcribed) → done → scored, **5 credits**, transcript `Examiner: … You: …`.
+  - Part 2 (4).
+  - **Part 3:** 4 set questions + **1 follow-up** on the marked answer → done → **6 credits**.
+  - **The session is completed with bands 6/6/6 and overall 6**; **the balance drops by 15**; `ai_usage` has the 4/5/6 charges plus ≥ 10 uncharged examiner rows; a finished session gives 409.
+
+**Verified**
+- Deno 2.9.8: `deno check --frozen` on all functions (examiner-turn included), `_shared`, `prompts` and `_eval` ✓; `deno test`: **58 passed, 7 ignored** ✓.
+- `pnpm test`: **606 passed** (67 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:**
+  - **the e2e** (no local Storage; **CI runs the whole-test flow with the stubs**);
+  - a real examiner conversation with DeepSeek (the follow-up quality, the 25-word questions);
+  - the M8 screens that will use it (M8-F1..F3).

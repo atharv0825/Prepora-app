@@ -9,8 +9,10 @@
 //     corrections that quote real mistakes in the answer (so the screen can highlight them), and
 //     feedback marked "(Stub AI)";
 //   * OCR (the system prompt starts "You transcribe photos"): one fixed page of text per image.
-//   * Speaking scoring (the system prompt is the Speaking rubric, M7-B3): bands from the signals,
-//     better phrases quoted from the transcript.
+//   * Speaking scoring (the system prompt is the Speaking rubric, M7-B3, M8-B2): bands from the
+//     signals, better phrases quoted from the transcript.
+//   * The examiner's turn (M8-B1): the next set question, or a follow-up when the last answer
+//     contains STUB_FOLLOW_UP.
 //   * Groq transcription (a multipart request, M7-B1; GROQ_API_URL points here in CI): a fixed
 //     Part 2 transcript with word and segment timings. A marker in the AUDIO BYTES picks a case
 //     (score-speaking always sends the file as "answer.<ext>", so the upload's name never reaches
@@ -73,10 +75,18 @@ export const STUB_TRANSCRIPT =
 /** Markers a test can put in a recording's bytes to pick the stub's transcription. */
 export const STUB_SHORT_MARKER = "STUB_SHORT";
 export const STUB_FAIL_MARKER = "STUB_FAIL";
+/** In an examiner-turn answer: the examiner stub asks a follow-up (M8-B1). */
+export const STUB_FOLLOW_UP_MARKER = "STUB_FOLLOW_UP";
 
 /** A verbose_json transcription, words timed one every 0.8 s (≈ 70 s in all), with one 2.5 s pause. */
 function transcription(audio: string): Response {
-  const text = audio.includes(STUB_SHORT_MARKER) ? "Um, the beach." : audio.includes(STUB_FAIL_MARKER) ? `${STUB_TRANSCRIPT} STUB_FAIL` : STUB_TRANSCRIPT;
+  const text = audio.includes(STUB_SHORT_MARKER)
+    ? "Um, the beach."
+    : audio.includes(STUB_FAIL_MARKER)
+    ? `${STUB_TRANSCRIPT} STUB_FAIL`
+    : audio.includes(STUB_FOLLOW_UP_MARKER)
+    ? `${STUB_TRANSCRIPT} STUB_FOLLOW_UP`
+    : STUB_TRANSCRIPT;
   let t = 0.3;
   const words = text.split(/\s+/).map((word, i) => {
     if (i === 20) t += 2.5;
@@ -144,6 +154,15 @@ export async function handleStub(req: Request, enabled: boolean): Promise<Respon
   if (system.startsWith("You transcribe photos")) {
     const pages = parts.filter((p) => p.type === "image_url").map(() => ({ text: STUB_OCR_PAGE, legibility: "partial" }));
     return reply(JSON.stringify({ pages }), promptChars + pages.length * 4000);
+  }
+
+  // examiner-turn (M8-B1): the next set question; a follow-up when the last answer says STUB_FOLLOW_UP.
+  if (system.startsWith("You conduct a part of an IELTS Speaking test")) {
+    const lastAnswer = [...text.matchAll(/<answer>\n([\s\S]*?)\n<\/answer>/g)].at(-1)?.[1] ?? "";
+    const choice = lastAnswer.includes("STUB_FOLLOW_UP")
+      ? { action: "follow_up", set_index: null, follow_up: "Why do you feel that way?" }
+      : { action: "set", set_index: 0, follow_up: null };
+    return reply(JSON.stringify(choice), promptChars);
   }
 
   if (system.includes("IELTS Speaking examiner")) {

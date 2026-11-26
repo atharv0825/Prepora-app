@@ -92,3 +92,48 @@ describe("feedback helpers ↔ shared contract (M7-B3)", () => {
     expect(pathRe(read("../supabase/functions/_shared/speaking_schemas.ts"))).toBe(pathRe(read("../packages/shared/src/api/score-speaking.ts")));
   });
 });
+
+describe("sessions, rounding and examiner limits ↔ shared (M8-B1..B3)", async () => {
+  const bands = await import("../packages/shared/src/ielts/bands");
+  const session = await import("../packages/shared/src/ielts/speaking-session");
+  it("ieltsRound and overallBand match", () => {
+    for (let x = 0; x <= 9; x += 0.05) {
+      const v = Math.round(x * 100) / 100;
+      expect(fn.ieltsRound(v)).toBe(bands.ieltsRound(v));
+    }
+    for (const bs of [[6, 6.5, 6.5], [6, 6, 6.5], [7, 6.5, 7], [5]]) expect(fn.overallBand(bs)).toBe(bands.overallBand(bs));
+  });
+  it("the state machine and the examiner's limits match", () => {
+    for (const mode of ["part1", "part2", "part3", "full_test"] as const) {
+      expect(fn.partsOf(mode)).toEqual(session.partsOf(mode));
+      for (const scored of [[], [1], [1, 2], [2], [1, 2, 3], [3]]) expect(fn.sessionStage(mode, scored)).toBe(session.sessionStage(mode, scored));
+    }
+    expect(fn.sessionOverallBand("full_test", { 1: 6, 2: 6.5, 3: 6.5 })).toBe(session.sessionOverallBand("full_test", { 1: 6, 2: 6.5, 3: 6.5 }));
+    expect(fn.QUESTIONS_PER_PART).toEqual(session.QUESTIONS_PER_PART);
+    for (const asked of [0, 3, 4, 5]) for (const stop of [true, false]) expect(fn.examinerDone(1, asked, stop)).toBe(session.examinerDone(1, asked, stop));
+  });
+});
+
+describe("combineSignals (Parts 1 and 3)", () => {
+  const sig = (over: Partial<ReturnType<typeof fn.speakingSignals>["signals"]>) => ({
+    duration_sec: 30, words: 60, words_per_minute: 120, pauses: 1, longest_pause_sec: 1.5, filler_count: 1, transcript_confidence: 0.9, ...over,
+  });
+  it("adds durations, words, pauses and fillers; rate over the total speech; confidence weighted by length", () => {
+    const { signals, fillers } = fn.combineSignals([
+      { signals: sig({}), fillers: [{ word: "um", count: 1 }] },
+      { signals: sig({ duration_sec: 60, words: 100, words_per_minute: 100, pauses: 3, longest_pause_sec: 3.2, filler_count: 2, transcript_confidence: 0.6 }), fillers: [{ word: "um", count: 1 }, { word: "uh", count: 1 }] },
+    ]);
+    // Speech: 60/120 min + 100/100 min = 1.5 min → 160 words / 1.5 = 107 wpm.
+    expect(signals).toEqual({ duration_sec: 90, words: 160, words_per_minute: 107, pauses: 4, longest_pause_sec: 3.2, filler_count: 3, transcript_confidence: 0.7 });
+    expect(fillers).toEqual([{ word: "um", count: 2 }, { word: "uh", count: 1 }]);
+  });
+  it("answers without timings or confidence", () => {
+    const { signals } = fn.combineSignals([{ signals: sig({ pauses: null, longest_pause_sec: null, transcript_confidence: null, words_per_minute: null }), fillers: [] }]);
+    expect([signals.pauses, signals.longest_pause_sec, signals.transcript_confidence, signals.words_per_minute]).toEqual([null, null, null, 120]);
+  });
+  it("the stored conversation transcript", () => {
+    expect(fn.conversationTranscript([{ question: " Where are you from? ", answer: "Um, Pune. " }, { question: "Why?", answer: "It's home." }])).toBe(
+      "Examiner: Where are you from?\nYou: Um, Pune.\n\nExaminer: Why?\nYou: It's home.",
+    );
+  });
+});

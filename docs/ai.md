@@ -264,3 +264,22 @@ A `STUB_SHORT` / `STUB_FAIL` marker in the recording's bytes (after its containe
 
 **Accent evaluation (M7-B5):** see `supabase/functions/_eval/speaking/README.md`. The eval needs real recordings
 from consenting speakers, kept local.
+
+## The examiner and the full Speaking test (M8-B1..B3)
+
+- **`examiner-turn`** (Parts 1 and 3, **no credits**):
+  - It checks the session is at this part (the state machine: Part 1 → 2 → 3; 409 otherwise).
+  - It transcribes the newest answer (Groq).
+  - `deepseek-flash` with **no thinking** (`prompts/examiner.v1.ts`) then picks the next question from the set, a follow-up on the last answer, or stop.
+  - The function enforces the limits: **4–5 questions**, follow-ups capped (Part 1: 1, Part 3: 3), no repeats.
+  - If the AI fails or isn't configured, it asks the next set question, so the conversation never stalls.
+  - Each turn logs one `ai_usage` row (`speaking_p1`/`speaking_p3`, `credits_charged` 0), so a part's real cost is visible.
+- **`score-speaking`**:
+  - Part 2: 4 credits. **Parts 1 and 3: 5 and 6 credits**, with the answers' recordings.
+  - **Every recording is transcribed again here**, so a score never rests on a transcript the browser could change.
+  - The signals are combined over the answers. Prompts: `s1-v1`, `s2-v1`, `s3-v1`.
+- **Session band (M8-B3):**
+  - after each part, `partN_band` is saved;
+  - when the state machine says the session is finished, it's `completed`, with **`overall_band` = the IELTS-rounded mean of Parts 1–3** (x.25 → x.5, x.75 → the next band), or a single part's own band;
+  - a full test costs **15 credits**.
+- **The stub:** the examiner gets the next set question, or a follow-up when an answer's audio carries `STUB_FOLLOW_UP`.

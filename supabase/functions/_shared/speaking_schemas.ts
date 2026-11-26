@@ -12,15 +12,33 @@ export const SpeakingAudioPath = z
     "Not a speaking-audio recording path",
   );
 
-export const ScoreSpeakingInput = z
+const SpeakingAnswer = z
   .object({
-    session_id: z.uuid(),
-    topic_id: z.uuid(),
-    part: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    question: z.string().trim().min(1).max(300),
     audio_path: SpeakingAudioPath,
-    duration_sec: z.number().int().min(1).max(1800).optional(),
+    duration_sec: z.number().int().min(1).max(300).optional(),
   })
   .strict();
+
+export const ScoreSpeakingInput = z.discriminatedUnion("part", [
+  z
+    .object({
+      session_id: z.uuid(),
+      topic_id: z.uuid(),
+      part: z.literal(2),
+      audio_path: SpeakingAudioPath,
+      duration_sec: z.number().int().min(1).max(1800).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      session_id: z.uuid(),
+      topic_id: z.uuid(),
+      part: z.union([z.literal(1), z.literal(3)]),
+      answers: z.array(SpeakingAnswer).min(4).max(5),
+    })
+    .strict(),
+]);
 export type ScoreSpeakingInput = z.infer<typeof ScoreSpeakingInput>;
 
 const paragraph = z.string().min(1).max(1500);
@@ -40,3 +58,43 @@ export const ScoredSpeaking = z
   })
   .strict();
 export type ScoredSpeakingOutput = z.infer<typeof ScoredSpeaking>;
+
+// ── examiner-turn (M8-B1) = ExaminerTurnRequest in packages/shared/src/api/examiner-turn.ts ─────
+const ExaminerTurn = z
+  .object({
+    question: z.string().trim().min(1).max(300),
+    audio_path: SpeakingAudioPath.optional(),
+    transcript: z.string().max(5000).optional(),
+    duration_sec: z.number().int().min(1).max(300).optional(),
+  })
+  .strict()
+  .refine((t) => t.audio_path !== undefined || t.transcript !== undefined, { message: "An answer needs a recording or a transcript" });
+
+export const ExaminerTurnInput = z
+  .object({
+    session_id: z.uuid(),
+    part: z.union([z.literal(1), z.literal(3)]),
+    topic_id: z.uuid(),
+    turns: z.array(ExaminerTurn).max(5),
+  })
+  .strict()
+  .superRefine((r, ctx) => {
+    r.turns.slice(0, -1).forEach((t, i) => {
+      if (t.transcript === undefined) ctx.addIssue({ code: "custom", path: ["turns", i, "transcript"], message: "Earlier answers need their transcript" });
+    });
+  });
+export type ExaminerTurnInput = z.infer<typeof ExaminerTurnInput>;
+
+/**
+ * What the examiner AI returns: the next question from the set (by its index in the remaining
+ * questions), a follow-up of its own, or stop. examiner-turn enforces the limits (QUESTIONS_PER_PART,
+ * follow-up caps), whatever the AI says.
+ */
+export const ExaminerChoice = z
+  .object({
+    action: z.enum(["set", "follow_up", "stop"]),
+    set_index: z.number().int().min(0).nullable(),
+    follow_up: z.string().trim().min(5).max(200).nullable(),
+  })
+  .strict();
+export type ExaminerChoice = z.infer<typeof ExaminerChoice>;

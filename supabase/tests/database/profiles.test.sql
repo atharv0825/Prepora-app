@@ -2,15 +2,15 @@
 begin;
 select plan(26);
 
--- Two users. Profiles are inserted as the table owner; once M1-B2's trigger exists it creates
--- them first, hence "on conflict do nothing".
+-- Two users. M1-B2's trigger creates their profile rows (no name: the test users have no
+-- metadata); the names are then set as the table owner.
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'a@example.com'),
   ('22222222-2222-2222-2222-222222222222', 'b@example.com');
 insert into public.profiles (id, full_name) values
   ('11111111-1111-1111-1111-111111111111', 'User A'),
   ('22222222-2222-2222-2222-222222222222', 'User B')
-on conflict (id) do nothing;
+on conflict (id) do update set full_name = excluded.full_name;
 update public.profiles set full_name = 'User B'
   where id = '22222222-2222-2222-2222-222222222222';
 -- Backdate so the updated_at check below can see a change (now() is fixed inside a transaction).

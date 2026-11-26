@@ -2763,3 +2763,66 @@ On one branch from `develop`. It doesn't need M6-C1's code (PR #60, still open).
   - no screen uses these yet (M6-F1..F3), so the mocks haven't been seen in a browser;
   - the Edge Functions will need Deno copies of `ScoredWriting` and `writingTaskBand` (as `_shared/reading.ts`), to add in M6-B3;
   - CI.
+
+## 2026-11-26 — M6-B1: Gemini client for Edge Functions
+
+On a branch from `develop` (M6-C1 #60 and M6-C2/C3 #61 merged).
+
+**`supabase/functions/_shared/gemini.ts`**
+- **`generateJson({ model, system, parts, schema, … })`**: one call that must return JSON, meant to run inside `withCredits` (M3-B6).
+  - Plain REST, no SDK, so there's no new dependency: `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, with the key in the `x-goog-api-key` header.
+  - **JSON mode:** `generationConfig.responseMimeType = "application/json"` and **`responseJsonSchema`**, generated from the Zod schema (`toGeminiJsonSchema`, without the `$schema` key).
+  - **The reply is validated with the same Zod schema.** Gemini ignores some JSON Schema constraints (lengths, refinements), so validation is what makes the output safe to use.
+  - Options: `thinkingLevel` (sent as `thinkingConfig.thinkingLevel`), `maxOutputTokens`, `timeoutMs` (default 60 s per attempt), `deadlineMs` (default 120 s in total; Edge Functions stop at 150 s), `maxAttempts` (default 3), `signal`.
+  - Parts: text, or inline images (`inlineData`) for Task 1 charts and OCR.
+  - Thought parts are skipped when reading the reply.
+- **Retried**, with exponential backoff and jitter, honouring `Retry-After` (capped at 8 s):
+  - 408, 429, 500, 502 and 503; network errors; timeouts;
+  - replies that aren't valid JSON or fail the schema.
+- **Not retried:**
+  - 400/401/403/404 (request, key or model problems);
+  - **504** (the call was slow, and a second one doubles the bill);
+  - a blocked prompt; a SAFETY or other stop; **MAX_TOKENS** (a reply cut off by the token cap will be cut off again).
+  - A retry is also skipped when its backoff wouldn't fit before the deadline.
+- **Usage and cost:**
+  - input = prompt tokens; **output = reply tokens + thinking tokens** (thinking is billed as output);
+  - summed over all attempts and returned as `AiUsage` with `cost_usd`;
+  - **every failure throws `AiCallError` with that usage**, so `ai_usage` records what failed attempts cost before the refund.
+- **Models and prices** (`GEMINI_MODELS`, `GEMINI_PRICES`): `gemini-3.8-flash` for scoring at $1.50 in / $7.50 out per 1M tokens; `gemini-3.5-flash-lite` for OCR at $0.30 / $2.50. The prices come from the plan's cost table (§2.6).
+- **No temperature, topP or topK.** Google's docs say Gemini 3.6+ ignores them and will soon reject them.
+- **Prompts and replies are never logged.** Errors show the HTTP status and Google's reason, never the request.
+- I checked the API against Google's current docs, which moved to aistudio.google.com:
+  - confirmed: the field names, Flash/Flash-Lite model ids and thinking levels, that thinking is billed, and which errors to retry;
+  - **couldn't confirm verbatim:** the generateContent request page. The live test exists to settle that.
+
+**`_shared/gemini_live_test.ts`**: one real call per model, checking the reply is schema-valid JSON with usage.
+- It's **ignored unless run with a key and network permission**, so CI (no permissions, no key) never calls Gemini.
+
+**`docs/gemini.md`**: setup.
+- Use a paid-tier key for real users (plan §2.6, privacy), restricted to the Generative Language API, with a budget alert.
+- You run `supabase secrets set GEMINI_API_KEY=…`; the local env file is gitignored.
+- Also covers how to run the live test and how calls behave.
+
+**Tests: `_shared/gemini_test.ts`** (+14, fake fetch, fake clock)
+- The request: endpoint, key header, system instruction, JSON mode with the schema (`required`, `additionalProperties: false`, no `$schema`), thinking level, max tokens, no temperature.
+- Success: data, usage with thinking counted as output, cost ($0.00525 for 1000 in / 500 out).
+- Thought parts are skipped and text parts joined.
+- Retries:
+  - 429 with Retry-After and then 503 → backoffs of [2000, 1500] ms;
+  - bad JSON and a schema mismatch are retried, and their tokens counted;
+  - giving up after the last attempt → `AiCallError` with all the usage and the failing field.
+- No retry for 400, 403, a blocked prompt, SAFETY, MAX_TOKENS or 504.
+- Network errors and timeouts are retried; the last timeout's reason is kept; the deadline stops retries; cancelling stops at once.
+- Inline image parts; Flash-Lite cost ≈ the plan's $0.003 per OCR; an unknown model's cost is 0; enum schemas convert; a missing key fails before any call.
+
+**Manual steps for you** (details in `docs/gemini.md`)
+1. **Create a paid-tier Gemini key** for anything with real users. On the free tier Google may use prompts to improve its products, which conflicts with the privacy policy. Restrict it to the Generative Language API and set a budget alert (docs/gemini.md).
+2. **Set the secret in each environment** (staging, then production): `supabase secrets set GEMINI_API_KEY=…`. For local functions, put it in the gitignored env file passed to `supabase functions serve --env-file`.
+3. **Run the live test once with a dev key.** It costs a fraction of a cent, and the command is in docs/gemini.md. It confirms the model ids, JSON mode and usage fields against the real API.
+
+**Verified**
+- **Deno 2.9.8** in Docker (`denoland/deno:latest`), with CI's commands: `deno check --frozen _shared/*.ts` ✓; `deno test --frozen _shared/`: **23 passed, 2 ignored** (the live tests) ✓. `deno.lock` unchanged.
+- **Not verified:**
+  - **a real Gemini call.** There's no key here, so the model ids, the uppercase `thinkingLevel` values, `responseJsonSchema` acceptance and the usage field names haven't been checked against the live API. Run the live test with a dev key (docs/gemini.md).
+  - No function uses the client yet (M6-B3).
+  - CI.

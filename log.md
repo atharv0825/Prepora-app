@@ -3574,3 +3574,6 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
   - **the e2e** (no local Storage; **CI runs the whole-test flow with the stubs**);
   - a real examiner conversation with DeepSeek (the follow-up quality, the 25-word questions);
   - the M8 screens that will use it (M8-F1..F3).
+
+**Fix (same PR, after CI):** the full-test e2e got **402 insufficient_credits on Part 3** (balance 5, needs 6). The system behaved correctly; my test didn't plan its credits. The Gold test student starts with the 18 sign-up credits (setting the plan doesn't grant Gold's 100), and the earlier tests in the file had already spent some. The test now grants 20 top-up credits first (`grant_credits`, as `credits-concurrency.spec.ts` does) and measures the balance after that. Gold's daily cap (40) allows the day's 19.
+- **Landed through its own PR:** #73 was merged into `develop` at 11:27 UTC, before its E2E run finished and before this fix was pushed, so `develop` had the test without the top-up. The fix commit was cherry-picked onto `fix/speaking-full-test-credits` from `develop`.

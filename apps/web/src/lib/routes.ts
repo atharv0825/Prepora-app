@@ -28,6 +28,7 @@ export const routes = {
   topUp: "/app/plans#top-up",
   reading: "/app/reading", // M4-F1: test list (+ ?type=academic|general|all)
   listening: "/app/listening", // Listening home: test list, allowance, attempts
+  writing: "/app/writing", // M6-F1/F4: task list (+ ?type=academic|general|all), history and band trend
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)
@@ -41,6 +42,10 @@ export const readingAttemptPath = (attemptId: string) => `/app/reading/attempts/
 /** Listening pages with an id: the test (M5-I1) and one past attempt's results. */
 export const listeningTestPath = (testId: string) => `/app/listening/${testId}`;
 export const listeningAttemptPath = (attemptId: string) => `/app/listening/attempts/${attemptId}`;
+
+/** Writing pages with an id: the editor (M6-F1/F2; ?photo=1 opens the photo flow) and one submission's feedback (M6-F3). */
+export const writingTaskPath = (taskId: string, opts: { photo?: boolean } = {}) => `/app/writing/${taskId}${opts.photo ? "?photo=1" : ""}`;
+export const writingSubmissionPath = (submissionId: string) => `/app/writing/submissions/${submissionId}`;
 
 export const mainNav = [
   { label: "Home", href: routes.home },

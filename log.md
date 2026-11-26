@@ -3470,3 +3470,19 @@ On a branch from `develop` (#68 and #69 merged; the stub-marker fix is in PR #70
 - `speaking-admin.spec.ts`: **2 passed**, run with a temporary Playwright config without the web build, because the machine had 1.6 GB free and `next build` ran out of memory earlier. The config was removed afterwards.
 - **The admin screens in a browser:** a temporary admin dev server on :3301 and a temporary spec (both removed). It covered: a new card with a blank row and a reorder → the student preview in order → a Part 3 from the card page, with **Publish disabled ("Publish its Part 2 cue card first")** → publish the card → the discussion listed → publish the discussion → "1 Part 3 (1 published)". The screenshot was checked by eye.
 - **Not verified:** M7-I1 itself (the real-device run); CI.
+## 2026-11-26 — Fix (PR #68): the stub's too-short / AI-failure hooks never fired in CI
+
+**What CI showed** (job 139802130052, Playwright): `speaking-ai.spec.ts` "a too-short recording and an AI failure are refunded" expected **400 validation_failed** but got **200**: the answer was scored normally. 150 passed, 57 skipped, 1 failed (also on retry).
+
+**Cause:** the ai-stub picked its transcript from the **uploaded file's name** (`stub-short.webm`, `stub-fail.webm`). But **score-speaking always sends the recording to Groq as `answer.<ext>`** (`stt.ts transcriptionForm`), so the stub never saw that name and returned the normal transcript.
+- **My Deno unit test hid it:** it renamed the multipart file to `stub-short.webm` itself before calling the stub, which production never does. My test design was wrong, not score-speaking.
+
+**Fix:**
+- **The markers moved into the recording's bytes:** `STUB_SHORT` / `STUB_FAIL` after a real container header. The stub decodes the uploaded audio and looks for them (exported `STUB_SHORT_MARKER`, `STUB_FAIL_MARKER`). They reach it whatever the file is called, and the WebM header still makes `sniffAudioType` accept the file.
+- **The Deno test now drives the stub exactly as score-speaking does** (`transcribe()` with the marked bytes, named `answer.webm`), for both hooks, with no renaming.
+- The e2e uploads `WebM header + "STUB_SHORT"` / `"STUB_FAIL"`; `docs/ai.md` is updated.
+
+**Verified**
+- Deno 2.9.8: `deno check` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** ✓ (the hook test now goes through the real request path); web typecheck ✓.
+- **Not verified locally:** the e2e itself (it needs Storage and the stub-served functions, which CI has). The re-run on this push is the check.
+- **Landed through its own PR:** #68 and #69 were merged into `develop` (09:12 and 09:33 UTC) before this fix was pushed, so `develop`'s E2E run failed the same way (job 139816552034: 160 passed, 57 skipped, 1 failed, status 200). The fix commit was cherry-picked onto `fix/speaking-stub-markers` from `develop`.

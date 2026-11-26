@@ -4,14 +4,14 @@
 //   1. The session is the caller's and AT this part (the state machine, M8-C1: 409 otherwise). The
 //      topic is a published question set (Part 1) or discussion (Part 3); in a full test, a Part 3
 //      must follow the student's own Part 2 card. Recordings are in the caller's folder.
-//   2. The newest answer, if it came as a recording only, is transcribed (Groq Whisper) and returned.
+//   2. The newest answer, if it came as a recording only, is transcribed (Gemini, stt.ts) and returned.
 //   3. The next question: the AI (deepseek-flash, no thinking: prompts/examiner.v1.ts) chooses the
 //      next question from the set, a follow-up of its own on the last answer, or to stop. The
 //      limits are enforced here, whatever it says: 4–5 questions (QUESTIONS_PER_PART), follow-ups
 //      capped (MAX_FOLLOW_UPS: Part 1 1, Part 3 3), no repeats, no stopping before 4. If the AI
 //      fails or isn't configured, the next set question is asked: a conversation never stalls.
 // No credits: the turns are included in the part's price, charged once by score-speaking. The AI's
-// tokens and Whisper's seconds are still logged in ai_usage (credits_charged 0) under the part's
+// tokens and the transcription's seconds are still logged in ai_usage (credits_charged 0) under the part's
 // action key, so the real cost of a part is visible.
 
 import { errors } from "../_shared/errors.ts";
@@ -19,7 +19,7 @@ import type { DbClient } from "../_shared/auth.ts";
 import { createHandler } from "../_shared/handler.ts";
 import type { AiUsage } from "../_shared/credits.ts";
 import { aiConfigured, aiModel, generateJson } from "../_shared/ai.ts";
-import { sniffAudioType, sttConfigured, transcribe } from "../_shared/stt.ts";
+import { sniffAudioType, STT_MODEL, sttConfigured, transcribe } from "../_shared/stt.ts";
 import { buildExaminerRequest, EXAMINER_SETTINGS } from "../_shared/prompts/speaking.ts";
 import { ExaminerChoice, ExaminerTurnInput } from "../_shared/speaking_schemas.ts";
 import { isOwnPhotoPath as isOwnPath } from "../_shared/writing.ts";
@@ -86,7 +86,7 @@ Deno.serve(
       if (foreign.length) throw errors.validation([{ path: "turns", message: "Not one of your recordings", code: "custom" }]);
 
       // 2. Transcribe the newest answer if it came as a recording only.
-      const usage: AiUsage = { model: "whisper-large-v3-turbo", input_tokens: 0, output_tokens: 0, audio_seconds: 0, cost_usd: 0 };
+      const usage: AiUsage = { model: STT_MODEL, input_tokens: 0, output_tokens: 0, audio_seconds: 0, cost_usd: 0 };
       let transcribed: ExaminerTurnResponse["transcribed"] = null;
       const turns = input.turns.map((t) => ({ question: t.question, answer: t.transcript ?? "" }));
       const newest = input.turns.at(-1);
@@ -96,12 +96,11 @@ Deno.serve(
         const bytes = new Uint8Array(await file.arrayBuffer());
         const type = sniffAudioType(bytes);
         if (!type) throw errors.validation([{ path: "turns", message: "That file isn't a recording we can read", code: "custom" }]);
-        if (!sttConfigured()) throw new Error("GROQ_API_KEY is not set (docs/ai.md)");
+        if (!sttConfigured()) throw new Error("GEMINI_API_KEY is not set: speech to text (docs/ai.md)");
         const heard = await transcribe({ audio: new Blob([bytes], { type }), mimeType: type });
         transcribed = { index: input.turns.length - 1, transcript: heard.text };
         turns[turns.length - 1]!.answer = heard.text;
-        usage.audio_seconds = heard.usage.audio_seconds;
-        usage.cost_usd = heard.usage.cost_usd;
+        Object.assign(usage, heard.usage); // Gemini's model, tokens, seconds and cost
       }
 
       // 3. The next question, within the limits.
@@ -125,6 +124,7 @@ Deno.serve(
           try {
             const out = await generateJson({ model, system: req.system, parts: req.parts, schema: ExaminerChoice, ...EXAMINER_SETTINGS, timeoutMs: 20_000, deadlineMs: 30_000, maxAttempts: 2 });
             choice = out.data;
+            // One row for the turn: the examiner model's tokens (as score-speaking), both calls' cost.
             Object.assign(usage, { model: out.usage.model, input_tokens: out.usage.input_tokens, output_tokens: out.usage.output_tokens, cost_usd: (usage.cost_usd ?? 0) + out.usage.cost_usd });
           } catch (err) {
             console.error("[examiner-turn] AI failed; asking the next set question", err instanceof Error ? err.message : err);

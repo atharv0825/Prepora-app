@@ -1,4 +1,6 @@
-// Gemini adapter for ai.ts (M6-B1): the alternative provider (AI_PROVIDER=gemini).
+// Gemini adapter for ai.ts (M6-B1). Gemini does everything with images, audio or voice (DeepSeek
+// takes text only): OCR of Writing photos (ocr-writing, pinned to Gemini) and speech to text
+// (stt.ts). Text jobs can be moved to it with AI_PROVIDER=gemini.
 //
 // REST generateContent: POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
 // with the key in x-goog-api-key, generationConfig.responseMimeType = "application/json" and
@@ -11,6 +13,15 @@
 import type { GenerateJsonOptions, ParsedReply, ProviderAdapter, TokenUsage } from "./ai.ts";
 
 export const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+/** Where requests go: Gemini, or the GEMINI_API_URL secret when set (CI points it at the ai-stub). */
+export function geminiApiBase(): string {
+  try {
+    return Deno.env.get("GEMINI_API_URL") || GEMINI_API_BASE;
+  } catch {
+    return GEMINI_API_BASE; // no env permission (unit tests)
+  }
+}
 
 export const GEMINI_PRICES: Record<string, { input: number; output: number }> = {
   "gemini-3.8-flash": { input: 1.5, output: 7.5 },
@@ -55,7 +66,7 @@ export const gemini: ProviderAdapter = {
       generationConfig,
     };
     return {
-      url: `${GEMINI_API_BASE}/models/${encodeURIComponent(opts.model.model)}:generateContent`,
+      url: `${geminiApiBase()}/models/${encodeURIComponent(opts.model.model)}:generateContent`,
       init: {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": apiKey },

@@ -9,7 +9,7 @@
 //      Part 3 must follow the student's Part 2 card); every recording is in the caller's folder,
 //      exists, is ≤ 15 MB and is real audio by its first bytes (M7-B4). Then the plan and both keys.
 //   2. withCredits(the part's action):
-//      a. Groq Whisper transcribes EVERY recording here (in parallel), so the score never rests on a
+//      a. Gemini (stt.ts) transcribes EVERY recording here (in parallel), so the score never rests on a
 //         transcript the browser could change. Too few words is refused (400) and refunded.
 //      b. Signals: one recording's, or the answers' combined (combineSignals).
 //      c. The AI scores with the part's versioned prompt (s1-v1, s2-v1, s3-v1). Pronunciation is
@@ -19,7 +19,7 @@
 //      e. M8-B3: the session gets the part's band; once the state machine says it's finished, it's
 //         completed with its overall band: a single part's own band, or the IELTS-rounded mean of
 //         Parts 1–3 (x.25 → x.5, x.75 → the next band).
-//      Any failure refunds the credits. ai_usage gets one row: the AI's tokens, Whisper's seconds,
+//      Any failure refunds the credits. ai_usage gets one row: the AI's tokens, the audio's seconds,
 //      and the cost of both (also on failure).
 //   3. Returns the feedback with the credits charged and the new balance.
 
@@ -29,7 +29,7 @@ import type { Json } from "../_shared/db.ts";
 import { createHandler } from "../_shared/handler.ts";
 import { AiCallError, type AiUsage, withCredits } from "../_shared/credits.ts";
 import { aiConfigured, aiModel, generateJson } from "../_shared/ai.ts";
-import { sniffAudioType, sttConfigured, transcribe } from "../_shared/stt.ts";
+import { sniffAudioType, STT_MODEL, sttConfigured, transcribe } from "../_shared/stt.ts";
 import { buildConversationRequest, buildPart2Request, SPEAKING_SETTINGS } from "../_shared/prompts/speaking.ts";
 import { ScoredSpeaking, ScoreSpeakingInput } from "../_shared/speaking_schemas.ts";
 import { isOwnPhotoPath as isOwnPath } from "../_shared/writing.ts";
@@ -81,7 +81,7 @@ async function detailedFeedback(db: DbClient, userId: string): Promise<boolean> 
 /** Sum the transcription into the AI call's usage: one ai_usage row for the whole scoring. */
 function combined(ai: AiUsage | undefined, sttSeconds: number, sttCost: number): AiUsage {
   return {
-    model: ai?.model ?? "whisper-large-v3-turbo",
+    model: ai?.model ?? STT_MODEL,
     input_tokens: ai?.input_tokens ?? 0,
     output_tokens: ai?.output_tokens ?? 0,
     audio_seconds: sttSeconds,
@@ -151,7 +151,7 @@ Deno.serve(
       );
 
       const model = aiModel("scoring");
-      if (!sttConfigured()) throw new Error("GROQ_API_KEY is not set (docs/ai.md)");
+      if (!sttConfigured()) throw new Error("GEMINI_API_KEY is not set: speech to text (docs/ai.md)");
       if (!aiConfigured(model)) throw new Error(`${model.provider} API key is not set (docs/ai.md)`);
       const detailed = await detailedFeedback(db, userId);
       const responseId = crypto.randomUUID();
@@ -180,13 +180,13 @@ Deno.serve(
             const heard = ok[0]!;
             transcript = heard.text;
             duration = heard.duration_sec || input.duration_sec || 0;
-            measured = speakingSignals({ transcript, durationSec: duration, words: heard.words, segments: heard.segments });
+            measured = speakingSignals({ transcript, durationSec: duration, silences: heard.silences });
             if (measured.signals.words < MIN_SCORABLE_WORDS) throw tooShort(measured.signals.words);
             request = buildPart2Request({ title: topic.title, points: topic.cue_card_points ?? [] }, transcript, measured.signals);
           } else {
             const turns = ok.map((h, i) => ({ question: audio[i]!.question, answer: h.text }));
             transcript = conversationTranscript(turns);
-            measured = combineSignals(ok.map((h) => speakingSignals({ transcript: h.text, durationSec: h.duration_sec, words: h.words, segments: h.segments })));
+            measured = combineSignals(ok.map((h) => speakingSignals({ transcript: h.text, durationSec: h.duration_sec, silences: h.silences })));
             duration = measured.signals.duration_sec;
             if (measured.signals.words < MIN_SCORABLE_WORDS_CONVERSATION) throw tooShort(measured.signals.words);
             request = buildConversationRequest(input.part, { title: topic.title, card }, turns, measured.signals);

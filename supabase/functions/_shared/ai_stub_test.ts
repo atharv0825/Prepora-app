@@ -1,5 +1,5 @@
-// The AI stub (M6-I1) driven through the real client and DeepSeek adapter, as score-writing and
-// ocr-writing use them in CI: the replies validate against the production schemas. No network.
+// The AI stub (M6-I1) driven through the real clients (DeepSeek and Gemini adapters, stt.ts), as the
+// functions use them in CI: the replies validate against the production schemas. No network.
 // Run (Deno 2, from supabase/functions): deno test --frozen _shared/
 import { AiCallError } from "./credits.ts";
 import { aiModel, generateJson } from "./ai.ts";
@@ -43,11 +43,19 @@ Deno.test("stub scoring: under length lowers Task Response", async () => {
   assert(out.data.summary.includes("under the 150-word minimum"), out.data.summary);
 });
 
-Deno.test("stub OCR: one page per photo, valid OcrModelOutput", async () => {
-  const photos = [{ mimeType: "image/jpeg", data: "AAAA" }, { mimeType: "image/jpeg", data: "BBBB" }];
+Deno.test("stub OCR through Gemini (as ocr-writing calls it): one page per photo, valid OcrModelOutput", async () => {
+  const photos = [{ mimeType: "image/jpeg", data: "AAAA" }, { mimeType: "image/heic", data: "BBBB" }];
   const req = buildOcrRequest(photos);
-  const out = await generateJson({ model: aiModel("lite", "deepseek"), system: req.system, parts: req.parts, schema: OcrModelOutput, ...OCR_SETTINGS }, stub());
+  const out = await generateJson({ model: aiModel("lite", "gemini"), system: req.system, parts: req.parts, schema: OcrModelOutput, ...OCR_SETTINGS }, stub());
   assertEquals(out.data.pages, [{ text: STUB_OCR_PAGE, legibility: "partial" }, { text: STUB_OCR_PAGE, legibility: "partial" }]);
+  assertEquals(out.usage.model, "gemini-3.5-flash-lite");
+  assert(out.usage.input_tokens > 2000 && out.usage.cost_usd > 0, JSON.stringify(out.usage));
+});
+
+Deno.test("stub answers Gemini text jobs too (AI_PROVIDER=gemini): Writing scoring", async () => {
+  const req = buildScoringRequest({ taskNo: 2, testType: null, prompt: "Discuss remote work." }, ESSAY);
+  const out = await generateJson({ model: aiModel("scoring", "gemini"), system: req.system, parts: req.parts, schema: ScoredWriting, ...SCORING_SETTINGS }, stub());
+  assertEquals(out.data.scores, { ta: 6.5, cc: 6, lr: 6, gra: 6 });
 });
 
 Deno.test("stub hooks: STUB_FAIL and STUB_BAD_JSON fail the call (after retries), with usage", async () => {
@@ -74,17 +82,19 @@ import { transcribe } from "./stt.ts";
 import { buildPart2Request, SPEAKING_SETTINGS } from "./prompts/speaking.ts";
 import { ScoredSpeaking } from "./speaking_schemas.ts";
 
-const sttStub = { ...stub(), url: "http://stub/ai-stub" };
+const sttStub = { ...stub(), base: "http://stub/ai-stub" };
 const CARD = { title: "Describe a place you like to visit", points: ["where it is", "how often you go", "what you do there", "and explain why you like it"] };
 
-Deno.test("speaking via the stubs: transcript with timings → signals → a valid ScoredSpeaking", async () => {
+Deno.test("speaking via the stubs: Gemini transcript with silences → signals → a valid ScoredSpeaking", async () => {
   const heard = await transcribe({ audio: new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])]), mimeType: "audio/webm" }, sttStub);
   assertEquals(heard.text, STUB_TRANSCRIPT);
-  assert(heard.words.length > MIN_SCORABLE_WORDS && heard.duration_sec > 60, `${heard.words.length} words, ${heard.duration_sec}s`);
-  const { signals, fillers } = speakingSignals({ transcript: heard.text, durationSec: heard.duration_sec, words: heard.words, segments: heard.segments });
+  assert(heard.duration_sec > 60 && heard.usage.audio_seconds === heard.duration_sec && heard.usage.cost_usd > 0, JSON.stringify(heard));
+  assertEquals(heard.usage.model, "gemini-3.5-flash-lite");
+  const { signals, fillers } = speakingSignals({ transcript: heard.text, durationSec: heard.duration_sec, silences: heard.silences });
+  assert(signals.words > MIN_SCORABLE_WORDS, `${signals.words} words`);
   assertEquals([signals.pauses, signals.longest_pause_sec], [1, 2.8]);
   assertEquals(fillers.map((f) => f.word).sort(), ["uh", "um", "you know"]);
-  assertEquals(signals.transcript_confidence, 0.89);
+  assertEquals(signals.transcript_confidence, null);
 
   const req = buildPart2Request(CARD, heard.text, signals);
   assertEquals(req.version, "s2-v1");
@@ -95,10 +105,10 @@ Deno.test("speaking via the stubs: transcript with timings → signals → a val
 });
 
 Deno.test("speaking stub hooks: a short recording, and an AI failure", async () => {
-  // As score-speaking sends it: the recording's bytes (a WebM header + the marker), named answer.webm.
+  // As score-speaking sends it: the recording's bytes (a WebM header + the marker), base64 inline.
   const marked = (marker: string) => new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]), marker], { type: "audio/webm" });
   const short = await transcribe({ audio: marked(STUB_SHORT_MARKER), mimeType: "audio/webm" }, sttStub);
-  assert(short.words.length < MIN_SCORABLE_WORDS, `${short.words.length} words`);
+  assert(short.text.split(/\s+/).length < MIN_SCORABLE_WORDS && short.silences.length === 0, short.text);
   const failing = await transcribe({ audio: marked(STUB_FAIL_MARKER), mimeType: "audio/webm" }, sttStub);
   assert(failing.text.endsWith("STUB_FAIL"), failing.text);
   const following = await transcribe({ audio: marked(STUB_FOLLOW_UP_MARKER), mimeType: "audio/webm" }, sttStub);

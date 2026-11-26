@@ -3,10 +3,10 @@
 //   1. The photos must be in the student's own writing-photos folder (400). Free plans get
 //      403 feature_not_in_plan straight away (the plan's ocr flag; spend_credits checks it again).
 //   2. Before any credit is spent: the optional task (404 if it isn't published), the photos
-//      (404 if missing; 400 if a type the model can't read, e.g. HEIC on DeepSeek, or if together
-//      they're too big to send inline) and the AI provider's key.
-//   3. withCredits('ocr', 1 credit): the "lite" model (_shared/ai.ts: deepseek-flash by default)
-//      transcribes each page exactly, mistakes
+//      (404 if missing; 400 if a type Gemini can't read, or if together they're too big to send
+//      inline) and GEMINI_API_KEY.
+//   3. withCredits('ocr', 1 credit): Gemini's "lite" model (images always go to Gemini, whatever
+//      AI_PROVIDER says: DeepSeek takes text only) transcribes each page exactly, mistakes
 //      included, marking unsure words [?]; the reply must have one page per photo. A failure
 //      refunds the credit.
 //   4. Return the pages and the joined text for the editor. Nothing is saved: the student checks
@@ -87,7 +87,7 @@ Deno.serve(
       if (total > PHOTOS_MAX_BYTES) {
         throw errors.validation([{ path: "photo_paths", message: "The photos are too large together (14 MB at most). Retake them at a lower resolution.", code: "too_big" }]);
       }
-      const model = aiModel("lite");
+      const model = aiModel("lite", "gemini"); // images: always Gemini (docs/ai.md, the provider split)
       const unreadable = photos.filter((p) => !ADAPTERS[model.provider].imageTypes.has(p.mimeType));
       if (unreadable.length) {
         // M6-F2 converts photos to JPEG on the device, so this only catches old or direct uploads.

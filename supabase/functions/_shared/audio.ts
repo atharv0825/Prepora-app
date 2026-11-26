@@ -3,7 +3,7 @@
 /**
  * The real container of a recording, from its first bytes (M7-B4), whatever type it was uploaded
  * with: browsers label MediaRecorder output inconsistently ("audio/webm;codecs=opus", "video/mp4",
- * or nothing), and Whisper reads the format from the file name we give it.
+ * or nothing), and Gemini is told the type we read here.
  *   WebM/Matroska 1A 45 DF A3 (Chrome, Edge, Firefox, Android) · MP4 "ftyp" at byte 4 (Safari, iOS:
  *   fragmented MP4 with AAC) · Ogg "OggS" · WAV "RIFF…WAVE" · MP3 "ID3" or an MPEG frame sync ·
  *   AAC ADTS FF F1/F9. Null when it's none of these.

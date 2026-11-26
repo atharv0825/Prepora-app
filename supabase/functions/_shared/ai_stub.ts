@@ -1,24 +1,26 @@
-// A stand-in for DeepSeek's chat completions API (M6-I1), served by the ai-stub function. CI points
-// DEEPSEEK_API_URL at it, so score-writing and ocr-writing run for real (auth, credits, storage,
-// saving, refunds) while no AI is called. It is OFF unless AI_STUB=1 (set only in CI's and a
-// developer's local functions env): deployed elsewhere it answers 404.
+// A stand-in for the AI providers (M6-I1), served by the ai-stub function. CI points
+// DEEPSEEK_API_URL and GEMINI_API_URL at it, so score-writing, ocr-writing, score-speaking and
+// examiner-turn run for real (auth, credits, storage, saving, refunds) while no AI is called. It is
+// OFF unless AI_STUB=1 (set only in CI's and a developer's local functions env): deployed
+// elsewhere it answers 404.
 //
-// It answers in DeepSeek's shape (choices[0].message.content + usage) with JSON matching what the
-// prompt's schema asks for:
-//   * scoring (the system prompt is a Writing rubric): deterministic bands from the word count,
-//     corrections that quote real mistakes in the answer (so the screen can highlight them), and
-//     feedback marked "(Stub AI)";
-//   * OCR (the system prompt starts "You transcribe photos"): one fixed page of text per image.
-//   * Speaking scoring (the system prompt is the Speaking rubric, M7-B3, M8-B2): bands from the
-//     signals, better phrases quoted from the transcript.
-//   * The examiner's turn (M8-B1): the next set question, or a follow-up when the last answer
-//     contains STUB_FOLLOW_UP.
-//   * Groq transcription (a multipart request, M7-B1; GROQ_API_URL points here in CI): a fixed
-//     Part 2 transcript with word and segment timings. A marker in the AUDIO BYTES picks a case
-//     (score-speaking always sends the file as "answer.<ext>", so the upload's name never reaches
-//     here): "STUB_SHORT" → too few words; "STUB_FAIL" → a transcript the scoring stub answers
-//     with HTTP 500. Tests put the marker after a real container header (e.g. WebM's 1A 45 DF A3).
-// Test hooks, written in the answer: STUB_FAIL → HTTP 500 (exercises the refund path);
+// It answers DeepSeek's chat completions (choices[0].message.content + usage) and Gemini's
+// generateContent (candidates[0].content.parts + usageMetadata, a ":generateContent" path), with
+// JSON matching what the prompt's schema asks for:
+//   * Writing scoring (the system prompt is a Writing rubric): deterministic bands from the word
+//     count, corrections that quote real mistakes in the answer (so the screen can highlight
+//     them), and feedback marked "(Stub AI)";
+//   * OCR (Gemini; the system prompt starts "You transcribe photos"): one fixed page per image;
+//   * Speaking scoring (the Speaking rubric, M7-B3, M8-B2): bands from the signals, better phrases
+//     quoted from the transcript;
+//   * the examiner's turn (M8-B1): the next set question, or a follow-up when the last answer
+//     contains STUB_FOLLOW_UP;
+//   * speech to text (Gemini with an audio part, stt.ts): a fixed Part 2 transcript, about 70 s
+//     long (as audio tokens) with one 2.8 s silence. A marker in the AUDIO BYTES picks a case
+//     (score-speaking never sends the upload's name): "STUB_SHORT" → too few words; "STUB_FAIL"
+//     → a transcript the scoring stub answers with HTTP 500; "STUB_FOLLOW_UP" → the examiner
+//     stub asks a follow-up. Tests put the marker after a real container header (WebM's 1A 45 DF A3).
+// Test hooks, written in a Writing answer: STUB_FAIL → HTTP 500 (exercises the refund path);
 // STUB_BAD_JSON → a reply that isn't JSON (exercises retries, then the refund).
 
 type ChatBody = {
@@ -38,14 +40,6 @@ export const STUB_OCR_PAGE =
   "Working from home saves time and money for many employees, and alot of companies now allow it. However, some peoples feel lonely [?] without colleagues.";
 
 const words = (s: string) => s.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
-
-function reply(content: string, promptChars: number, status = 200): Response {
-  const usage = { prompt_tokens: Math.ceil(promptChars / 4), prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: Math.ceil(promptChars / 4), completion_tokens: Math.ceil(content.length / 4) + 200 };
-  return new Response(
-    JSON.stringify({ id: "stub", object: "chat.completion", model: "deepseek-flash", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }], usage }),
-    { status, headers: { "content-type": "application/json" } },
-  );
-}
 
 function scoring(answer: string, minWords: number) {
   const n = words(answer);
@@ -78,8 +72,8 @@ export const STUB_FAIL_MARKER = "STUB_FAIL";
 /** In an examiner-turn answer: the examiner stub asks a follow-up (M8-B1). */
 export const STUB_FOLLOW_UP_MARKER = "STUB_FOLLOW_UP";
 
-/** A verbose_json transcription, words timed one every 0.8 s (≈ 70 s in all), with one 2.5 s pause. */
-function transcription(audio: string): Response {
+/** The transcription JSON stt.ts asks for, and the recording's length (the stub's words at 0.8 s each, plus the silence). */
+function transcription(audio: string): { content: string; seconds: number } {
   const text = audio.includes(STUB_SHORT_MARKER)
     ? "Um, the beach."
     : audio.includes(STUB_FAIL_MARKER)
@@ -87,26 +81,9 @@ function transcription(audio: string): Response {
     : audio.includes(STUB_FOLLOW_UP_MARKER)
     ? `${STUB_TRANSCRIPT} STUB_FOLLOW_UP`
     : STUB_TRANSCRIPT;
-  let t = 0.3;
-  const words = text.split(/\s+/).map((word, i) => {
-    if (i === 20) t += 2.5;
-    const w = { word, start: Math.round(t * 100) / 100, end: Math.round((t + 0.5) * 100) / 100 };
-    t += 0.8;
-    return w;
-  });
-  const duration = Math.round((t + 0.5) * 10) / 10;
-  return new Response(
-    JSON.stringify({
-      task: "transcribe",
-      language: "english",
-      duration,
-      text,
-      segments: [{ id: 0, seek: 0, start: 0, end: duration, text, tokens: [], temperature: 0, avg_logprob: -0.12, compression_ratio: 1.4, no_speech_prob: 0.01 }],
-      words,
-      x_groq: { id: "stub" },
-    }),
-    { headers: { "content-type": "application/json" } },
-  );
+  const n = text.split(/\s+/).length;
+  const silences = n > 20 ? [{ start_sec: 16.3, length_sec: 2.8 }] : [];
+  return { content: JSON.stringify({ text, silences }), seconds: Math.round((0.8 + n * 0.8 + (n > 20 ? 2.8 : 0)) * 10) / 10 };
 }
 
 function speaking(transcript: string, signals: { duration_sec?: number; filler_count?: number }) {
@@ -129,31 +106,21 @@ function speaking(transcript: string, signals: { duration_sec?: number; filler_c
   };
 }
 
-/** The ai-stub function's handler. */
-export async function handleStub(req: Request, enabled: boolean): Promise<Response> {
-  if (!enabled) return new Response("Not found", { status: 404 });
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
-    const form = await req.formData();
-    const file = form.get("file");
-    // The markers are ASCII, so a lossy decode of the audio bytes finds them.
-    return transcription(file instanceof Blob ? new TextDecoder().decode(await file.arrayBuffer()) : "");
-  }
-  let body: ChatBody;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: { message: "Invalid JSON", type: "invalid_request_error" } }), { status: 400 });
-  }
-  const system = String(body.messages?.find((m) => m.role === "system")?.content ?? "");
-  const user = body.messages?.find((m) => m.role === "user")?.content ?? [];
-  const parts = typeof user === "string" ? [{ type: "text", text: user }] : user;
-  const text = parts.map((p) => p.text ?? "").join("\n");
+type Answer = { status: number; content: string; promptChars: number; audioSeconds?: number; imageCount?: number };
+
+const failure = (promptChars: number): Answer => ({ status: 500, content: "", promptChars });
+
+/** The fake answer to one request, whichever provider's shape it came in. */
+function answer(system: string, text: string, images: number, audio: string | null): Answer {
   const promptChars = system.length + text.length;
+  if (audio !== null) {
+    const t = transcription(audio);
+    return { status: 200, content: t.content, promptChars, audioSeconds: t.seconds };
+  }
 
   if (system.startsWith("You transcribe photos")) {
-    const pages = parts.filter((p) => p.type === "image_url").map(() => ({ text: STUB_OCR_PAGE, legibility: "partial" }));
-    return reply(JSON.stringify({ pages }), promptChars + pages.length * 4000);
+    const pages = Array.from({ length: images }, () => ({ text: STUB_OCR_PAGE, legibility: "partial" }));
+    return { status: 200, content: JSON.stringify({ pages }), promptChars, imageCount: images };
   }
 
   // examiner-turn (M8-B1): the next set question; a follow-up when the last answer says STUB_FOLLOW_UP.
@@ -162,19 +129,89 @@ export async function handleStub(req: Request, enabled: boolean): Promise<Respon
     const choice = lastAnswer.includes("STUB_FOLLOW_UP")
       ? { action: "follow_up", set_index: null, follow_up: "Why do you feel that way?" }
       : { action: "set", set_index: 0, follow_up: null };
-    return reply(JSON.stringify(choice), promptChars);
+    return { status: 200, content: JSON.stringify(choice), promptChars };
   }
 
   if (system.includes("IELTS Speaking examiner")) {
     const transcript = /<transcript>\n([\s\S]*)\n<\/transcript>/.exec(text)?.[1] ?? "";
-    if (transcript.includes("STUB_FAIL")) return new Response(JSON.stringify({ error: { message: "stub failure", type: "server_error" } }), { status: 500 });
+    if (transcript.includes("STUB_FAIL")) return failure(promptChars);
     const signals = JSON.parse(/Measured signals[^\n]*\n(\{.*\})/.exec(text)?.[1] ?? "{}");
-    return reply(JSON.stringify(speaking(transcript, signals)), promptChars);
+    return { status: 200, content: JSON.stringify(speaking(transcript, signals)), promptChars };
   }
 
-  const answer = /<answer>\n([\s\S]*)\n<\/answer>/.exec(text)?.[1] ?? "";
-  if (answer.includes("STUB_FAIL")) return new Response(JSON.stringify({ error: { message: "stub failure", type: "server_error" } }), { status: 500 });
-  if (answer.includes("STUB_BAD_JSON")) return reply("not json", promptChars);
+  const essay = /<answer>\n([\s\S]*)\n<\/answer>/.exec(text)?.[1] ?? "";
+  if (essay.includes("STUB_FAIL")) return failure(promptChars);
+  if (essay.includes("STUB_BAD_JSON")) return { status: 200, content: "not json", promptChars };
   const minWords = Number(/Minimum: (\d+)\./.exec(text)?.[1] ?? 250);
-  return reply(JSON.stringify(scoring(answer, minWords)), promptChars);
+  return { status: 200, content: JSON.stringify(scoring(essay, minWords)), promptChars };
+}
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+/** DeepSeek's chat completions shape. */
+function deepseekReply(a: Answer): Response {
+  if (a.status !== 200) return json({ error: { message: "stub failure", type: "server_error" } }, a.status);
+  const prompt = Math.ceil(a.promptChars / 4) + (a.imageCount ?? 0) * 1000;
+  return json({
+    id: "stub",
+    object: "chat.completion",
+    model: "deepseek-flash",
+    choices: [{ index: 0, message: { role: "assistant", content: a.content }, finish_reason: "stop" }],
+    usage: { prompt_tokens: prompt, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: prompt, completion_tokens: Math.ceil(a.content.length / 4) + 200 },
+  });
+}
+
+/** Gemini's generateContent shape, with audio tokens counted at 32 per second. */
+function geminiReply(a: Answer): Response {
+  if (a.status !== 200) return json({ error: { code: a.status, message: "stub failure", status: "INTERNAL" } }, a.status);
+  const audio = Math.round((a.audioSeconds ?? 0) * 32);
+  const image = (a.imageCount ?? 0) * 1100;
+  const text = Math.ceil(a.promptChars / 4);
+  const details = [{ modality: "TEXT", tokenCount: text }, ...(audio ? [{ modality: "AUDIO", tokenCount: audio }] : []), ...(image ? [{ modality: "IMAGE", tokenCount: image }] : [])];
+  return json({
+    candidates: [{ content: { role: "model", parts: [{ text: a.content }] }, finishReason: "STOP", index: 0 }],
+    usageMetadata: { promptTokenCount: text + audio + image, candidatesTokenCount: Math.ceil(a.content.length / 4) + 50, promptTokensDetails: details },
+    modelVersion: "stub",
+  });
+}
+
+type GeminiBody = {
+  systemInstruction?: { parts?: { text?: string }[] };
+  contents?: { parts?: { text?: string; inlineData?: { mimeType: string; data: string } }[] }[];
+};
+
+/** The markers are ASCII, so a lossy decode of the audio bytes finds them. */
+function decodeAudio(base64: string): string {
+  try {
+    return new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+  } catch {
+    return "";
+  }
+}
+
+/** The ai-stub function's handler. */
+export async function handleStub(req: Request, enabled: boolean): Promise<Response> {
+  if (!enabled) return new Response("Not found", { status: 404 });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+  let body: ChatBody & GeminiBody;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: { message: "Invalid JSON", type: "invalid_request_error" } }, 400);
+  }
+
+  if (new URL(req.url).pathname.endsWith(":generateContent") || body.contents) {
+    const system = (body.systemInstruction?.parts ?? []).map((p) => p.text ?? "").join("\n");
+    const parts = (body.contents ?? []).flatMap((c) => c.parts ?? []);
+    const text = parts.map((p) => p.text ?? "").join("\n");
+    const media = parts.flatMap((p) => (p.inlineData ? [p.inlineData] : []));
+    const audio = media.find((m) => m.mimeType.startsWith("audio/"));
+    return geminiReply(answer(system, text, media.filter((m) => m.mimeType.startsWith("image/")).length, audio ? decodeAudio(audio.data) : null));
+  }
+
+  const system = String(body.messages?.find((m) => m.role === "system")?.content ?? "");
+  const user = body.messages?.find((m) => m.role === "user")?.content ?? [];
+  const parts = typeof user === "string" ? [{ type: "text", text: user }] : user;
+  const text = parts.map((p) => p.text ?? "").join("\n");
+  return deepseekReply(answer(system, text, parts.filter((p) => p.type === "image_url").length, null));
 }

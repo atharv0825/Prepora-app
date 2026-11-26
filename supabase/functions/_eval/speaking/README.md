@@ -2,7 +2,7 @@
 
 The Speaking eval (`../speaking_eval.ts`) checks two things on real, accent-diverse speech:
 
-1. **Transcription:** does Whisper understand each accent as well as the others, and keep the fillers?
+1. **Transcription:** does the speech-to-text model (Gemini) understand each accent as well as the others, and keep the fillers?
 2. **Scoring:** does the AI's band, and especially its **Pronunciation** band, match an IELTS teacher's,
    with **no accent scored lower** (plan §5.1: judge intelligibility, never accent)?
 
@@ -28,7 +28,7 @@ Voices are personal data.
   and that it's deleted afterwards. Speakers can withdraw at any time.
 - Keep recordings **only on the evaluating machine**, in `recordings/` (gitignored), never in the repo
   or a shared drive.
-- They are sent to Groq and DeepSeek when the eval runs: say so in the consent.
+- They are sent to Google (Gemini) and DeepSeek when the eval runs: say so in the consent.
 - Delete them when the evaluation is done.
 
 ## Manifest
@@ -57,7 +57,7 @@ metric is skipped. Any audio the app accepts works (WebM, MP4/M4A, OGG, MP3, WAV
 From `supabase/functions`, with Deno 2 and both keys in `.env` (≈ US$0.005 per recording):
 
 ```sh
-deno run --frozen --env-file=.env --allow-env --allow-net=api.groq.com,api.deepseek.com \
+deno run --frozen --env-file=.env --allow-env --allow-net=generativelanguage.googleapis.com,api.deepseek.com \
   --allow-read=_eval --allow-write=_eval/results _eval/speaking_eval.ts
 ```
 

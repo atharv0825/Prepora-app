@@ -1095,6 +1095,7 @@ export type Database = {
       }
       refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
       run_credit_maintenance: { Args: never; Returns: Json }
+      signup_full_name: { Args: { meta: Json }; Returns: string }
       spend_credits: {
         Args: { p_action_key: string; p_ref_id?: string; p_user_id: string }
         Returns: Json

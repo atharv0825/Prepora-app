@@ -3706,6 +3706,54 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 - **Check Gemini's audio input price** for `gemini-3.5-flash-lite` and correct `GEMINI_AUDIO_PRICES` in `stt.ts` if it differs.
 - **Privacy policy:** name Google (Gemini) as the processor of Speaking recordings and Writing photos.
 
+## 2026-11-26 — Fix: M1-B2 was never built — profiles for new sign-ups (trigger + backfill)
+
+**What you saw:** on staging, `auth.users` had 3 Google accounts but `profiles` only 1 (your admin, made by hand). The admin Users page showed 1 user.
+
+**Cause:** **M1-B2** (a `profiles` row for every new auth user) was **never built**. No migration creates the trigger, and earlier log entries say "M1-B2 not built" in many places. `plan.agent.md` marked it ✅ Done by mistake (corrected now).
+
+**What that broke for every Google sign-up so far:**
+- they don't appear in the admin panel;
+- onboarding and the country from sign-up (M2-B3) aren't saved, since the update only fills an existing row;
+- the profile page says "still being set up";
+- the credits engine treats them as Free;
+- an admin can't give them a plan.
+
+**Fix:** migration `20261128090000_profile_on_signup.sql`
+- **Trigger `create_profile_on_signup`** (after insert on `auth.users`, security definer, empty `search_path`):
+  - inserts `profiles (id, full_name)` with role `user` and plan `free` (the column defaults);
+  - **`on conflict do nothing`**, so a row made another way is never overwritten.
+- **The name:** `signup_full_name(metadata)` takes Google's `full_name`, else `name`, trimmed, cut to the column's 100 characters, and null if blank.
+- **Not wrapped in an exception handler:** a missing profile breaks everything, so a failure should fail the sign-up visibly rather than leave a half-made account.
+- **Order:** same-event triggers fire by name, so it runs **before** `grant_credits_on_signup` (M3-B4), which then sees the profile.
+- **Backfill:** every existing auth user without a profile gets one. On staging that's your two newer accounts (`…044`, `…022`).
+- **Not set by the backfill:** country and time zone. Country comes from the auth callback at the next sign-in (M2-B3); onboarding asks the rest.
+- Execute is revoked from public, anon and authenticated on both functions.
+- **DB types:** `signup_full_name` added to both `db.ts` copies **by hand**. Docker couldn't start the generator's container locally (low memory; `pg_prove` and `postgres-meta` stayed in "Created"). CI's `gen-db-types --check` will confirm it matches.
+
+**Tests**
+- **pgTAP `profile_on_signup.test.sql` (13):**
+  - the trigger exists and fires before the credit grant;
+  - a Google user gets a trimmed name, role `user` and plan `free`;
+  - `name` is the fallback; blank or no metadata gives null; a 150-character name is cut to 100;
+  - one row per user; sign-up credits are still granted;
+  - the helper; no API access to either function.
+- **`profiles.test.sql`:** its setup now updates the names the trigger left empty (`on conflict do update`). With "do nothing", User A kept the trigger's null name and 1 test failed.
+
+**Verified**
+- Migration applied locally (`supabase migration up --local`): 1 auth user, 0 without a profile, the trigger present ✓.
+- **All 24 pgTAP files pass**, run file by file with `psql` in the DB container (`supabase test db` hung: its `pg_prove` container never started). Including the new 13 and `profiles` 26/26 ✓.
+- `speaking-admin.spec.ts` (editor role over the trigger's default row) 2/2 ✓. `pnpm test` 618 ✓; shared typecheck ✓.
+- **Not verified:**
+  - a real Google sign-up with the trigger (needs staging);
+  - the types `--check` (CI).
+
+**Manual steps for you**
+- **After it merges** (the "Push migrations to staging" action runs it), check in the staging SQL editor:
+  `select count(*) from auth.users u where not exists (select 1 from public.profiles p where p.id = u.id);` → **0**.
+  The admin Users page should show all 3 accounts.
+- Sign in once more with each of the two newer accounts: the callback then saves their country (or onboarding asks for it).
+- Sign up a fresh Google account on staging: it should appear in admin → Users at once, as Free / user.
 ## 2026-11-26 — M8-A1: Part 1 question sets (admin); M8-I1: the full test on staging (checklist)
 
 **M8-A1: Part 1 question sets in the admin panel**

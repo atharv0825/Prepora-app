@@ -1,5 +1,6 @@
-// Mock score-writing and ocr-writing responses (M6-C3), so the Writing screens (M6-F1..F4) can be
-// built before the AI works (M6-B3/B4). Removed from the app in M6-I1; the fixtures stay for tests.
+// Mock score-writing and ocr-writing responses (M6-C3), used to build the Writing screens before
+// the AI worked. Since M6-I1 the app always calls the real functions (CI points them at the
+// ai-stub function); these fixtures and handlers remain for unit and e2e tests.
 //
 // The handlers answer like the real functions: the response is built from the request (word
 // count, under-length penalty, corrections that really occur in the text), shaped for the plan

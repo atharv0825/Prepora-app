@@ -15,6 +15,7 @@ import {
 import { toast } from "@prepora/ui/components/sonner";
 import { deleteListeningTest, setListeningTestStatus } from "@/lib/listening-actions";
 import { deleteReadingTest, setReadingTestStatus } from "@/lib/reading-actions";
+import { deleteWritingTask, setWritingTaskStatus } from "@/lib/writing-actions";
 
 type Confirm = { kind: "status"; to: ContentStatus } | { kind: "delete" };
 
@@ -29,13 +30,14 @@ export function StatusActions({
   status,
   check,
 }: {
-  module?: "reading" | "listening";
+  module?: "reading" | "listening" | "writing";
   testId: string;
   status: ContentStatus;
   check: PublishCheck;
 }) {
-  const setStatus = module === "reading" ? setReadingTestStatus : setListeningTestStatus;
-  const remove = module === "reading" ? deleteReadingTest : deleteListeningTest;
+  const setStatus = module === "reading" ? setReadingTestStatus : module === "listening" ? setListeningTestStatus : setWritingTaskStatus;
+  const remove = module === "reading" ? deleteReadingTest : module === "listening" ? deleteListeningTest : deleteWritingTask;
+  const thing = module === "writing" ? "task" : "test";
   const [pending, start] = useTransition();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
@@ -51,23 +53,29 @@ export function StatusActions({
   const canPublish = check.blocking.length === 0;
   const text: Record<string, { title: string; body: string; action: string }> = {
     published: {
-      title: "Publish this test?",
-      body: "Students on the chosen plan can take it straight away. You can still edit it, and edits go live immediately.",
+      title: `Publish this ${thing}?`,
+      body:
+        module === "writing"
+          ? "Students see it straight away. You can still edit it, and edits go live immediately."
+          : "Students on the chosen plan can take it straight away. You can still edit it, and edits go live immediately.",
       action: "Publish",
     },
     draft: {
       title: "Move back to draft?",
-      body: "Students can't open it any more; anyone partway through loses access. Their past results are kept.",
+      body: `Students can't open it any more; anyone partway through loses access. Their past ${module === "writing" ? "feedback is" : "results are"} kept.`,
       action: "Move to draft",
     },
     archived: {
-      title: "Archive this test?",
-      body: "Students can't see it any more. Their past results are kept. You can publish it again later.",
+      title: `Archive this ${thing}?`,
+      body: `Students can't see it any more. Their past ${module === "writing" ? "feedback is" : "results are"} kept. You can publish it again later.`,
       action: "Archive",
     },
     delete: {
       title: "Delete this draft?",
-      body: `The test, its ${module === "reading" ? "passages" : "sections"} and questions are deleted for good.`,
+      body:
+        module === "writing"
+          ? "The task is deleted for good (its chart image stays in storage)."
+          : `The test, its ${module === "reading" ? "passages" : "sections"} and questions are deleted for good.`,
       action: "Delete",
     },
   };

@@ -54,7 +54,9 @@ jobs:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       # r2-upload-url (M5-B1) only signs URLs (no network call), so placeholder R2 settings let
       # listening-backend.spec.ts check it end to end. Nothing is uploaded; these aren't secrets.
-      - name: Placeholder R2 settings for the edge runtime
+      # M6-I1: score-writing and ocr-writing call the ai-stub function instead of DeepSeek (no AI
+      # calls in CI): DEEPSEEK_API_URL points at it through the local gateway, AI_STUB=1 turns it on.
+      - name: Placeholder R2 and AI settings for the edge runtime
         run: |
           cat > supabase/functions/.env <<'ENV'
           R2_ACCOUNT_ID=e2e00000000000000000000000000000
@@ -62,6 +64,9 @@ jobs:
           R2_SECRET_ACCESS_KEY=e2e-secret-key
           R2_BUCKET=prepora-audio-e2e
           R2_PUBLIC_URL=https://audio.e2e.invalid
+          DEEPSEEK_API_KEY=e2e-stub
+          DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub
+          AI_STUB=1
           ENV
       # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, Storage (the M5-B3 image
       # bucket), the Kong gateway and the edge runtime, which serves supabase/functions
@@ -80,6 +85,10 @@ jobs:
       # local Supabase and serves it on :3200.
       - name: Run Playwright
         run: pnpm --filter @prepora/web e2e
+        env:
+          # The functions have an AI (the stub): Writing scoring/OCR tests run end to end.
+          E2E_AI: "1"
+          E2E_AI_STUB: "1"
 
       - uses: actions/upload-artifact@v4
         if: failure()

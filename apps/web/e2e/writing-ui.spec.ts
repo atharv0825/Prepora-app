@@ -6,16 +6,18 @@ import { ONBOARDED, adminClient, createTestUser, deleteTestUser, localSupabase, 
 //   * F1: the dashboard tile → the task list (Task 1 by test type, Task 2 for both); the editor with
 //     live word count, the 20/40-minute timer (starts with the first word, never submits by
 //     itself) and autosave on this device.
-//   * F3: "Get my band score" → credit confirm (with an under-length warning) → progress → feedback.
-//     The app is built with NEXT_PUBLIC_WRITING_MOCKS=1 (playwright.config.ts), so CI makes no AI
-//     calls; stored feedback pages are checked with rows written as score-writing writes them:
-//     Gold gets the full feedback, Free the summary with locked sections, others the 404 page.
-//   * F2: photo upload is locked on Free; on Gold a photo is prepared, uploaded and read (mock OCR)
-//     into the editor; the desktop QR code opens the photo flow on a phone.
+//   * F3: "Get my band score" → credit confirm (with an under-length warning) → progress → the
+//     real score-writing → the saved feedback page. Needs functions with an AI: E2E_AI=1 (CI points
+//     DEEPSEEK_API_URL at the ai-stub function, so no AI is called there, M6-I1). Stored feedback
+//     pages are also checked with rows written as score-writing writes them: Gold gets the full
+//     feedback, Free the summary with locked sections, others the 404 page.
+//   * F2: photo upload is locked on Free; on Gold a photo is prepared, uploaded and read by the
+//     real ocr-writing into the editor; the desktop QR code opens the photo flow on a phone.
 //   * F4: the history list and the band trend.
 
 const BASE = "http://localhost:3200"; // playwright.config.ts
-const mocked = process.env.E2E_AI !== "1";
+const aiReady = process.env.E2E_AI === "1";
+const NEEDS_AI = "needs functions with an AI (E2E_AI=1: the ai-stub in CI, or a DeepSeek key locally)";
 const stamp = Math.random().toString(36).slice(2, 8);
 const tasks = { academic: "", general: "", essay: "" };
 let users: TestUser[] = [];
@@ -164,8 +166,9 @@ test("F1: over time — the clock counts up and nothing is sent by itself", asyn
   await expect(page.getByTestId("answer")).toHaveValue(/Dear neighbour/);
 });
 
-test("F3 (mock AI): Gold — confirm 4 credits, progress, full feedback with inline corrections", async ({ page, context, baseURL }) => {
-  test.skip(!mocked, "built against the real functions (E2E_AI=1): see writing-ai.spec.ts");
+test("F3: Gold — confirm 4 credits, progress, then the saved full feedback with inline corrections", async ({ page, context, baseURL }) => {
+  test.skip(!aiReady, NEEDS_AI);
+  test.setTimeout(180_000);
   await student(context, baseURL!, "Gil Gold", "gold");
   await page.goto(`/app/writing/${tasks.essay}`);
   await typeAnswer(page, MOCK_TASK2_ESSAY);
@@ -176,15 +179,17 @@ test("F3 (mock AI): Gold — confirm 4 credits, progress, full feedback with inl
   await dialog.getByRole("button", { name: "Score my answer" }).click();
   await expect(page.getByTestId("scoring-progress")).toBeVisible();
 
+  // score-writing saved it: the feedback opens on its own page.
+  await expect(page).toHaveURL(/\/app\/writing\/submissions\/[0-9a-f-]{36}$/, { timeout: 120_000 });
   const feedback = page.getByTestId("writing-feedback");
-  await expect(feedback).toBeVisible({ timeout: 15_000 });
+  await expect(feedback).toBeVisible();
   await expect(page.getByTestId("band")).toHaveText(/^[4-7]\.[05]$/);
   await expect(page.getByTestId("criterion-ta")).toContainText("Task Response");
   await expect(page.getByTestId("criterion-gra")).toContainText("Grammatical Range and Accuracy");
   // Each highlighted mistake links to its numbered correction.
   // Each highlight links to its numbered correction (in text order, so not necessarily 1 first).
   const marks = page.getByTestId("answer-text").getByRole("link");
-  expect(await marks.count()).toBeGreaterThanOrEqual(5);
+  expect(await marks.count()).toBeGreaterThanOrEqual(2);
   await expect(marks.first()).toHaveAttribute("href", /^#correction-\d+$/);
   await expect(page.getByTestId("answer-text").locator('a[href="#correction-1"]')).toHaveCount(1);
   await expect(page.getByTestId("correction").first()).toBeVisible();
@@ -196,18 +201,19 @@ test("F3 (mock AI): Gold — confirm 4 credits, progress, full feedback with inl
   await page.screenshot({ path: test.info().outputPath("feedback-full-mock.png"), fullPage: true });
 });
 
-test("F3 (mock AI): Free — under-length warning, summary with locked sections", async ({ page, context, baseURL }) => {
-  test.skip(!mocked, "built against the real functions (E2E_AI=1)");
+test("F3: Free — under-length warning, then the saved summary with locked sections", async ({ page, context, baseURL }) => {
+  test.skip(!aiReady, NEEDS_AI);
+  test.setTimeout(180_000);
   await student(context, baseURL!, "Fay Free");
   await page.goto(`/app/writing/${tasks.essay}`);
   await typeAnswer(page, "Working from home is good because peoples save time. But alot of managers dont like it.");
   await page.getByRole("button", { name: "Get my band score" }).click();
   await expect(page.getByRole("dialog")).toContainText("under the 250-word minimum");
   await page.getByRole("dialog").getByRole("button", { name: "Score my answer" }).click();
-  await expect(page.getByTestId("writing-feedback")).toBeVisible({ timeout: 15_000 });
+  await expect(page).toHaveURL(/\/app\/writing\/submissions\/[0-9a-f-]{36}$/, { timeout: 120_000 });
   await expect(page.getByTestId("word-count")).toContainText("under the 250-word minimum");
   const locked = page.getByTestId("locked-feedback");
-  await expect(locked).toContainText("3 corrections found");
+  await expect(locked).toContainText(/\d+ corrections? found/);
   await expect(locked.getByRole("link", { name: "Upgrade to Gold" })).toHaveAttribute("href", "/app/plans");
   await expect(page.getByTestId("correction")).toHaveCount(0);
   await expect(page.getByTestId("model-answer")).toHaveCount(0);
@@ -270,7 +276,7 @@ test("F2: photo upload — locked on Free; Gold reads a photo into the editor; Q
   await expect(page.getByRole("tab", { name: "Upload a photo" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("photo-locked")).toContainText("Photo upload is part of Gold");
 
-  test.skip(!mocked, "real OCR is covered by writing-ai.spec.ts");
+  test.skip(!aiReady, NEEDS_AI);
   const { url } = localSupabase();
   const storageUp = (await fetch(`${url}/storage/v1/version`).catch(() => null))?.ok ?? false;
   if (!storageUp && process.env.CI) throw new Error("Storage is not running");
@@ -283,7 +289,6 @@ test("F2: photo upload — locked on Free; Gold reads a photo into the editor; Q
   if (isMobile) await expect(page.getByTestId("phone-qr")).toBeHidden(); // …shown on desktop only
   else await expect(page.getByTestId("phone-qr").getByRole("img")).toBeVisible();
 
-  // A small JPEG made in the page (the browser prepares it, uploads it, mock OCR reads it).
   const jpeg = await page.evaluate(async () => {
     const c = document.createElement("canvas");
     c.width = 60;
@@ -292,12 +297,13 @@ test("F2: photo upload — locked on Free; Gold reads a photo into the editor; Q
     const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/jpeg"));
     return Array.from(new Uint8Array(await blob.arrayBuffer()));
   });
+  // A small JPEG made in the page (the browser prepares it, uploads it, ocr-writing reads it).
   await page.getByTestId("photo-input").setInputFiles({ name: "page1.jpg", mimeType: "image/jpeg", buffer: Buffer.from(jpeg) });
   await expect(page.getByRole("img", { name: "Page 1" })).toBeVisible();
   await page.getByRole("button", { name: "Read my handwriting" }).click();
   await expect(page.getByRole("dialog").getByRole("heading")).toHaveText("This costs 1 credit");
   await page.getByRole("dialog").getByRole("button", { name: "Read my handwriting" }).click();
-  await expect(page.getByTestId("answer")).toHaveValue(/working from home/i, { timeout: 15_000 });
-  await expect(page.getByRole("status").filter({ hasText: "words marked [?]" })).toBeVisible();
+  await expect(page.getByTestId("answer")).not.toHaveValue("", { timeout: 90_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Text read from your photos" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Type your answer" })).toHaveAttribute("aria-selected", "true");
 });

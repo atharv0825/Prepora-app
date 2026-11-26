@@ -29,6 +29,7 @@ describe("admin navigation", () => {
     expect(findModule("credits")?.built).toBe(true);
     expect(findModule("reading")?.built).toBe(true);
     expect(findModule("listening")?.built).toBe(true);
+    expect(findModule("writing")?.built).toBe(true);
     expect(placeholderModules.some((m) => m.slug === "users")).toBe(false);
     expect(placeholderModules.every((m) => !m.built)).toBe(true);
   });

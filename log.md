@@ -3086,3 +3086,68 @@ On a branch from `develop` (M6-B1..B5 and the DeepSeek switch merged in #62 and 
   - the Gold photo upload locally (no Storage), and a real phone camera, HEIC on an iPhone, or the QR scanned by a phone;
   - the Writing pages in dark mode (same tokens; the trend has dark colours, but they weren't screenshotted);
   - CI.
+
+## 2026-11-26 — M6-A1 + M6-I1: Writing task manager; real functions everywhere, AI stub in CI
+
+On one branch from `develop` (M6-F1..F4 merged in #64).
+
+**M6-A1: the Writing task manager (admin)**
+- **Migration `20261127090000_writing_admin.sql`:**
+  - `writing_tasks.image_alt` (≤ 300): the Task 1 Academic visual's description for screen readers;
+  - a public **`writing-images`** bucket (5 MB; PNG, JPEG or WebP, no SVG), staff-only writes, like `listening-images`.
+- **Contract `packages/shared/src/api/admin-writing.ts`:**
+  - three kinds (`t1_academic`, `t1_general`, `t2`), mapped to `task_no` and `test_type`; Task 2 is "both tests" (null) or one test;
+  - `WritingTaskForm` (title, prompt ≥ 20 characters, http(s) image only for Task 1 Academic, alt text) and `writingTaskRow`;
+  - **`writingPublishCheck`:** blocks a Task 1 Academic task without its image; warns about a missing image description, a letter without bullet points, or a very short task.
+- **Server Functions `apps/admin/src/lib/writing-actions.ts`** (editor's own session, staff RLS):
+  - create (draft, then opens it), update, status (publish runs the checklist again), delete;
+  - **delete of a task students have answered: "Archive it instead"** (the database's `on delete restrict`, 23503).
+- **Pages:**
+  - `/writing`: tasks grouped by kind, with status, "Both tests", and "No image yet"; plus a new-task form.
+  - `/writing/[id]`: status and workflow (`StatusActions` now also takes `module="writing"`), the publish checklist, the details form, and **a "What students see" preview** with the timer and word limit.
+- **The form** (`components/writing/task-form.tsx`): the kind decides the fields. Task 1 Academic gets an image upload to writing-images or a URL, a preview and a description.
+- The admin nav marks Writing as built. The student editor now uses `image_alt` as the chart's alt text.
+
+**M6-I1: swap mocks for real functions; stubbed AI in CI**
+- **The app always calls the real functions.** `lib/writing/api.ts` lost the mock switch, the editor lost its in-place mock feedback, and `NEXT_PUBLIC_WRITING_MOCKS` is gone from `.env.example` and `playwright.config.ts`. The shared mock fixtures stay for tests.
+- **`ai-stub` function** (`supabase/functions/ai-stub` + `_shared/ai_stub.ts`): answers like DeepSeek's chat completions.
+  - Scoring: bands from the word count; corrections quoting real mistakes in the answer; "(Stub AI)" feedback.
+  - OCR: one page per photo.
+  - Hooks: `STUB_FAIL` gives HTTP 500; `STUB_BAD_JSON` gives an invalid reply.
+  - **Off unless `AI_STUB=1`** (404 otherwise), so deploying it is harmless. `verify_jwt = false` in `config.toml`, because functions call it with the stub key.
+- **`DEEPSEEK_API_URL` override** in the DeepSeek adapter (`deepseekUrl()`).
+- **CI (`e2e.yml`):**
+  - the functions get `DEEPSEEK_API_KEY=e2e-stub`, `DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub` and `AI_STUB=1`;
+  - Playwright runs with **`E2E_AI=1 E2E_AI_STUB=1`**;
+  - so CI runs score-writing and ocr-writing end to end (credits, Storage, saved rows, `ai_usage`, refunds) **without any AI call**.
+- **e2e changes:**
+  - `writing-ui`: scoring now goes through the real function to **the saved submission page**; OCR is the real function.
+  - `writing-ai`: **a new refund test** (STUB_FAIL gives 500, the balance is unchanged, ledger spend + refund, `ai_usage.success = false`, nothing saved).
+  - **The "no AI key" test is now opt-in (`E2E_AI=0`).** I found locally that your functions are served with a DeepSeek key, so that test would otherwise make a paid call. It was skipped in my run (serial mode stopped after an earlier failure), so nothing was spent.
+- **Docs `docs/ai.md`:** the stub (how CI and a laptop use it), and **the manual staging run checklist**: secrets, deploy, content, Free and Gold students including a phone photo, the database checks.
+
+**Tests**
+- pgTAP `writing_admin.test.sql` (+9): the column and its length; the bucket's settings; staff upload and list; a student can't upload or delete.
+- Unit (+6 net): `admin-writing.test.ts` (7); `lib/writing/api.test.ts` rewritten for the real-only API (2); nav marks Writing as built.
+- Deno `_shared/ai_stub_test.ts` (+5): **the stub through the real client and DeepSeek adapter validates against `ScoredWriting` and `OcrModelOutput`**; corrections quote the answer; under length lowers TA; one page per photo; the failure hooks throw `AiCallError`; off unless enabled.
+- e2e `writing-admin.spec.ts` (API, 2):
+  - an editor creates a Task 1 Academic draft from the form contract; publishing without the chart is blocked (checklist and 23514); the chart is uploaded to writing-images (when Storage runs: public URL 200, a student and an SVG are refused); then it publishes;
+  - a student reads it with its description, can't update or insert;
+  - a task with an answer gives 23503 on delete, then archives and disappears for students.
+
+**Verified**
+- `supabase migration up` ✓; `supabase test db`: **578 passed** (22 files) ✓; DB types regenerated and `--check` ✓.
+- `pnpm test`: **544 passed** (56 files) ✓; typecheck ✓ (shared, web, admin); lint ✓ (web, admin).
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions (ai-stub included), `_shared`, `prompts` and `_eval` ✓; `deno test`: **40 passed, 4 ignored** ✓.
+- e2e (desktop + mobile) `writing-admin`, `writing-ui`, `writing-schema` and `dashboard`: **17 passed, 11 skipped**. The skips are the AI-dependent tests (no `E2E_AI` here) and Storage-dependent parts. `writing-ai` non-AI tests: 3 passed.
+- **The admin task manager checked in a browser:** I ran a temporary admin dev server on :3301 against local Supabase with a temporary spec (both removed afterwards). It covered create → checklist blocks publish → add the image URL and description → save → publish, and the list shows it published. I looked at the screenshot.
+- **Not verified:**
+  - **the stub through the real edge runtime.** That needs `supabase functions serve` with the stub env, and your runtime is serving your DeepSeek key, so I didn't touch it. It's proven through the real adapter in Deno, and CI runs it for real.
+  - The image upload to writing-images locally (no Storage).
+  - **The manual staging run with real AI** (yours; checklist in docs/ai.md).
+  - CI.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. After merging: `supabase secrets set DEEPSEEK_API_KEY=…` on staging, and check `AI_STUB` and `DEEPSEEK_API_URL` are **not** set there.
+2. Do the **staging run with real AI** from the checklist: admin publishes a Task 2 and a Task 1 Academic task with a chart; a Free and a Gold student score; a phone photo (iPhone HEIC); check `ai_usage` and `prompt_version`.
+3. Optional, locally: `E2E_AI=1 pnpm exec playwright test writing-ai writing-ui --project=desktop` against your DeepSeek key (about US$0.03), or with the stub env lines for free.

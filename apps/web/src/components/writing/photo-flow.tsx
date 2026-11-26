@@ -85,7 +85,7 @@ export function PhotoFlow({
       const prepared = await Promise.all(pages.map((p) => preparePhoto(p.file)));
       const supabase = createClient();
       const paths = await uploadPhotos(supabase, userId, prepared);
-      const result = await run(() => ocrWriting(supabase, { photo_paths: paths, task_id: taskId }, { mock: { plan, balance: credits?.balance } }));
+      const result = await run(() => ocrWriting(supabase, { photo_paths: paths, task_id: taskId }));
       if (result.data) {
         onRead(result.data);
         return;

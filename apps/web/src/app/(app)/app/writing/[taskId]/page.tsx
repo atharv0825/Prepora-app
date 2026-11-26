@@ -18,7 +18,7 @@ export default async function WritingTaskPage({ params, searchParams }: PageProp
   const supabase = await createClient();
   const { data: task } = await supabase
     .from("writing_tasks")
-    .select("id, task_no, test_type, title, prompt, image_url")
+    .select("id, task_no, test_type, title, prompt, image_url, image_alt")
     .eq("id", taskId)
     .eq("status", "published")
     .maybeSingle();

@@ -42,9 +42,6 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: supabase.url,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabase.publishableKey,
       NEXT_TELEMETRY_DISABLED: "1",
-      // Writing (M6-I1): stubbed AI feedback in CI (no AI calls there); E2E_AI=1 builds against the
-      // real functions instead (needs DEEPSEEK_API_KEY in the local functions' env).
-      NEXT_PUBLIC_WRITING_MOCKS: process.env.E2E_AI === "1" ? "" : "1",
     },
   },
 });

@@ -6,9 +6,9 @@ import { adminClient, createTestUser, deleteTestUser, localSupabase, type TestUs
 //   * Always (CI too): sign-in, validation, another student's session or recording, a part the
 //     session doesn't have, an unpublished topic, a missing recording, a file that isn't audio.
 //     These fail before any credit is spent.
-//   * With E2E_AI=1 E2E_AI_STUB=1 (CI: Groq and DeepSeek both point at the ai-stub function, so no
+//   * With E2E_AI=1 E2E_AI_STUB=1 (CI: Gemini and DeepSeek both point at the ai-stub function, so no
 //     AI is called): the whole chain. Gold gets the full feedback, Free the summary; the session
-//     completes with its band; ai_usage has the AI's tokens and Whisper's seconds; a part can't be
+//     completes with its band; ai_usage has the AI's tokens and the transcribed seconds; a part can't be
 //     scored twice; a too-short recording is refused and refunded; an AI failure is refunded.
 // Needs the Edge Functions and Storage: skipped locally without them, fails in CI.
 
@@ -116,7 +116,7 @@ test.describe("score-speaking (API)", () => {
   });
 
   test("stubbed AI: Gold full feedback, Free summary, session completed, usage with audio seconds", async () => {
-    test.skip(!stubAi, "needs E2E_AI=1 E2E_AI_STUB=1 (Groq and DeepSeek pointed at the ai-stub)");
+    test.skip(!stubAi, "needs E2E_AI=1 E2E_AI_STUB=1 (Gemini and DeepSeek pointed at the ai-stub)");
     const db = adminClient();
     const goldBefore = await balance(gold);
     const g = await call(gold, await prepare(gold));
@@ -125,7 +125,8 @@ test.describe("score-speaking (API)", () => {
     if (full.detail !== "full") throw new Error("expected full");
     expect(full).toMatchObject({ part: 2, band: 6, credits_charged: 4, balance_after: goldBefore - 4 });
     expect(full.transcript).toContain("small beach near my hometown");
-    expect(full.signals).toMatchObject({ pauses: 1, longest_pause_sec: 2.8, transcript_confidence: 0.89 });
+    // Gemini (stt.ts): pauses from the silences it reports; no confidence.
+    expect(full.signals).toMatchObject({ pauses: 1, longest_pause_sec: 2.8, transcript_confidence: null });
     expect(full.fillers.map((f) => f.word).sort()).toEqual(["uh", "um", "you know"]);
     expect(full.better_phrases.map((p) => p.original)).toEqual(["very delicious", "feel very relax", "two or three times in a month"]);
 
@@ -163,7 +164,7 @@ test.describe("score-speaking (API)", () => {
     expect(await balance(gold)).toBe(before);
     const { data: usage } = await db.from("ai_usage").select("success, audio_seconds").eq("user_id", gold.id).eq("success", false);
     expect(usage!.length).toBeGreaterThanOrEqual(2);
-    expect(usage!.some((u) => Number(u.audio_seconds) > 0)).toBe(true); // the failed AI call still logs Whisper's seconds
+    expect(usage!.some((u) => Number(u.audio_seconds) > 0)).toBe(true); // the failed AI call still logs the transcribed seconds
   });
   test("stubbed AI: a full test — examiner turns, Parts 1 → 2 → 3 in order, 15 credits, the overall band", async () => {
     test.skip(!stubAi, "needs E2E_AI=1 E2E_AI_STUB=1");

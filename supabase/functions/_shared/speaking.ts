@@ -3,16 +3,18 @@
 // which checks the copied rules agree with packages/shared/src/ielts/speaking.ts:
 //   speakingPartBand, FILLERS, countFillers, countSpokenWords, wordsPerMinute.
 //
-// The signals (speakingSignals) are measured from the transcript and Whisper's word timings
+// The signals (speakingSignals) are measured from the transcript and the speech-to-text timings
 // (stt.ts, M7-B1) and given to the AI with the transcript (M7-B3):
 //   * words_per_minute: over the speech itself (first word's start to last word's end), so
 //     silence before the first word or after the last doesn't count; without timings, over the
 //     whole recording.
-//   * pauses: silences of PAUSE_SEC or more between consecutive words; longest_pause_sec.
+//   * pauses: silences of PAUSE_SEC or more between consecutive words; longest_pause_sec. Gemini
+//     (stt.ts) gives no word timings: it reports the silences it hears, which are used instead.
 //   * filler_count: hesitation fillers (um, uh, er, "you know"…), as the contract counts them.
 //   * transcript_confidence: how sure the speech model was (0–1), the time-weighted mean of
 //     exp(avg_logprob) over segments that hold speech. A low value suggests speech that was hard
 //     to understand; the AI uses it for Pronunciation alongside the transcript, never accent.
+//     Gemini gives no log-probabilities, so it's null today (the contract allows it).
 
 export type SpeakingScores = { fc: number; lr: number; gra: number; pron: number };
 export type FillerCount = { word: string; count: number };
@@ -97,18 +99,29 @@ export function transcriptConfidence(segments: readonly TimedSegment[]): number 
   return total > 0 ? Math.round((weighted / total) * 100) / 100 : null;
 }
 
-/** All the signals for one recording. Pauses and confidence need Whisper's timings. */
+/**
+ * All the signals for one recording. Pauses come from word timings when there are some, else from
+ * the silences the speech-to-text model reported (Gemini, stt.ts: approximate); with neither,
+ * null. Confidence needs per-segment log-probabilities (Gemini gives none: null).
+ */
 export function speakingSignals(input: {
   transcript: string;
   durationSec: number;
   words?: readonly TimedWord[];
   segments?: readonly TimedSegment[];
+  /** Lengths in seconds of silences between words, as reported by the speech-to-text model. */
+  silences?: readonly number[];
 }): { signals: SpeakingSignals; fillers: FillerCount[] } {
   const fillers = countFillers(input.transcript);
   const wordCount = countSpokenWords(input.transcript);
   const timed = input.words ?? [];
   const span = timed.length >= 2 ? Math.max(...timed.map((w) => w.end)) - Math.min(...timed.map((w) => w.start)) : 0;
-  const pauses = timed.length >= 2 ? pausesBetween(timed) : null;
+  const reported = input.silences?.filter((len) => len >= PAUSE_SEC);
+  const pauses = timed.length >= 2
+    ? pausesBetween(timed)
+    : reported
+    ? { count: reported.length, longest: round1(Math.max(0, ...reported)) }
+    : null;
   return {
     fillers,
     signals: {

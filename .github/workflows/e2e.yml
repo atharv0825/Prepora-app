@@ -54,9 +54,9 @@ jobs:
           version: ${{ env.SUPABASE_CLI_VERSION }}
       # r2-upload-url (M5-B1) only signs URLs (no network call), so placeholder R2 settings let
       # listening-backend.spec.ts check it end to end. Nothing is uploaded; these aren't secrets.
-      # M6-I1/M7-B3: score-writing, ocr-writing and score-speaking call the ai-stub function instead
-      # of DeepSeek and Groq (no AI calls in CI): DEEPSEEK_API_URL and GROQ_API_URL point at it
-      # through the local gateway, AI_STUB=1 turns it on.
+      # M6-I1/M7-B3: score-writing, ocr-writing, score-speaking and examiner-turn call the ai-stub
+      # function instead of DeepSeek (text) and Gemini (speech to text, OCR): no AI calls in CI.
+      # DEEPSEEK_API_URL and GEMINI_API_URL point at it through the local gateway; AI_STUB=1 turns it on.
       - name: Placeholder R2 and AI settings for the edge runtime
         run: |
           cat > supabase/functions/.env <<'ENV'
@@ -68,8 +68,8 @@ jobs:
           DEEPSEEK_API_KEY=e2e-stub
           DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub
           AI_STUB=1
-          GROQ_API_KEY=e2e-stub
-          GROQ_API_URL=http://kong:8000/functions/v1/ai-stub
+          GEMINI_API_KEY=e2e-stub
+          GEMINI_API_URL=http://kong:8000/functions/v1/ai-stub
           ENV
       # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, Storage (the M5-B3 image
       # bucket), the Kong gateway and the edge runtime, which serves supabase/functions

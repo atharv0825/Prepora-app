@@ -1,5 +1,5 @@
 // Speaking prompt evaluation (M7-B5) with accent-diverse recordings: each recording goes through
-// exactly what score-speaking does (audio type by its bytes → Groq Whisper → signals → the current
+// exactly what score-speaking does (audio type by its bytes → Gemini speech to text (stt.ts) → signals → the current
 // Part 2 prompt and AI, DeepSeek first), and is compared with a human reference:
 //   * transcription: word error rate against a verbatim reference transcript, and how many of the
 //     reference's fillers ("um", "uh"…) the transcript kept;
@@ -12,8 +12,8 @@
 // format and collection guide: _eval/speaking/README.md). Without it, the two synthetic fixtures
 // (fixtures.json) run, which checks the pipeline but says nothing about accents.
 //
-// Run from supabase/functions with Deno 2 (≈ US$0.005 per recording: Whisper + DeepSeek):
-//   deno run --frozen --env-file=.env --allow-env --allow-net=api.groq.com,api.deepseek.com \
+// Run from supabase/functions with Deno 2 (≈ US$0.005 per recording: Gemini + DeepSeek):
+//   deno run --frozen --env-file=.env --allow-env --allow-net=generativelanguage.googleapis.com,api.deepseek.com \
 //     --allow-read=_eval --allow-write=_eval/results _eval/speaking_eval.ts [--manifest path] [--dry-run]
 import { aiModel, generateJson } from "../_shared/ai.ts";
 import { sniffAudioType, transcribe } from "../_shared/stt.ts";
@@ -67,7 +67,7 @@ async function evaluate(r: Recording, dir: URL, dryRun: boolean): Promise<EvalRo
     if (!type) return { ...base, error: "not a recording we can read" };
     if (dryRun) return base;
     const heard = await transcribe({ audio: new Blob([bytes], { type }), mimeType: type });
-    const { signals } = speakingSignals({ transcript: heard.text, durationSec: heard.duration_sec, words: heard.words, segments: heard.segments });
+    const { signals } = speakingSignals({ transcript: heard.text, durationSec: heard.duration_sec, silences: heard.silences });
     const req = buildPart2Request(r.card, heard.text, signals);
     const out = await generateJson({ model: aiModel("scoring"), system: req.system, parts: req.parts, schema: ScoredSpeaking, ...SPEAKING_SETTINGS });
     return {

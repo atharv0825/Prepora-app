@@ -3638,3 +3638,70 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 **Manual steps for you**
 - **Content:** a full test needs at least one published **Part 1 question set** and **a Part 2 card with a published Part 3 discussion** (admin → Speaking). Without them, the home says "Coming soon" and the test page explains why.
 - **On a phone and a laptop:** run a Part 1 practice and a full test. Check that the examiner's voice is British or Australian, that recording starts when it stops talking, and that the sound isn't recorded into your answer (use headphones if it is). Add the results to `docs/speaking-device-testing.md`.
+
+## 2026-11-26 — Groq removed: Gemini does speech to text and OCR (the provider split)
+
+**Your decision:**
+- **DeepSeek** does everything text-only: scoring Writing and Speaking transcripts, the examiner's next question, feedback and generated content. It's the cheapest.
+- **Gemini** does everything with audio, images or voice: speech to text, OCR of handwritten Writing, the examiner's voice (TTS) and, later, Gemini Live for Platinum.
+- **Groq is not used.**
+
+**Speech to text: Gemini** (`_shared/stt.ts` rewritten; Groq Whisper removed)
+- **The call:** `generateContent` on `gemini-3.5-flash-lite`, with the recording inline (base64). The reply is JSON with a schema: `{ text, silences: [{ start_sec, length_sec }] }`. Thinking is minimal.
+- **The prompt** (`STT_SYSTEM`, `stt-v1`):
+  - word for word, keeping fillers, repetitions, false starts and mistakes;
+  - never corrects;
+  - writes `[inaudible]` for anything unclear;
+  - lists silences of 1 s or more between words;
+  - ignores instructions spoken in the recording.
+- **Recording length:** from the **audio tokens** Gemini counts (32 per second).
+- **Pauses:** Gemini has no word timings, so pauses now come from the silences it reports. `speakingSignals` takes `silences`; word timings still win when there are some. These pauses are approximate, so the Speaking eval should measure them.
+- **Confidence:** Gemini has no log-probabilities, so **`transcript_confidence` is `null`** (the contract allows it).
+- **Cost:** audio input tokens at **`GEMINI_AUDIO_PRICES`**, plus other input and output at the text prices. **The audio price ($1.00 per 1M for Flash-Lite) is an assumption** (about 3× the text price, as Gemini prices audio): check it.
+- **Retries:** 408/429/500/502/503, network errors, timeouts and malformed replies are retried. Other 4xx, a blocked recording and a cut-off reply are not. Failures carry the tokens already billed, so refunds log the real cost.
+- **Size:** recordings over **14 MB** are refused, to stay under the 20 MB inline request limit. A 2-minute answer is about 0.5–2 MB.
+- **Formats:** WebM and MP4 are sent as `audio/webm` and `audio/mp4`. **These two aren't on the Gemini API's documented audio list** (Vertex AI lists them). The live test sends both browser fixtures: run it.
+- **Where it's used:** `score-speaking` and `examiner-turn` now use it, and need `GEMINI_API_KEY`. The `ai_usage` rows keep one model's tokens, with the speech-to-text cost added in.
+
+**OCR is pinned to Gemini:** `ocr-writing` uses `aiModel("lite", "gemini")`, whatever `AI_PROVIDER` says. Until now it ran on DeepSeek, against the split. Gemini also reads HEIC.
+
+**Stub and CI**
+- **`GEMINI_API_URL`** overrides the Gemini base for OCR and speech to text. CI now writes `GEMINI_API_KEY=e2e-stub` and `GEMINI_API_URL=…/ai-stub` instead of the Groq pair.
+- The ai-stub now also answers **Gemini's `generateContent`**:
+  - audio → a transcript about 70 s long (as audio tokens) with one 2.8 s silence, using the same byte markers;
+  - images → OCR;
+  - text → the same fakes as DeepSeek.
+- The DeepSeek shape is unchanged.
+
+**Docs:** `docs/ai.md` (the split, keys, speech to text, signals, stub), `speaking-device-testing.md`, the eval README and script, `plan.md`, the implementation plan, and comments.
+
+**Tests**
+- **Deno `stt_test.ts`** (rewritten, 10 tests):
+  - the request (key, inline audio, schema, prompt rules) and formats;
+  - length from audio tokens; silences under 1 s dropped; cost;
+  - retries; no retry for 4xx, blocked or cut-off replies;
+  - the deadline; a malformed reply still billed; the schema; refusals before any call.
+- **`ai_stub_test.ts`:** OCR through Gemini (HEIC included, `gemini-3.5-flash-lite` usage); Gemini text scoring; speaking via Gemini STT (pauses 1 / 2.8 s, confidence null).
+- **vitest:** pauses from silences (and word timings winning).
+- **e2e `speaking-ai`:** confidence now `null`.
+
+**Verified**
+- **Deno 2:** `deno check` on `_shared`, `score-speaking`, `examiner-turn`, `ocr-writing`, `score-writing`, `ai-stub` and `_eval` ✓. `deno test _shared/`: **53 passed, 0 failed, 7 ignored** (live tests, no keys) ✓.
+- **`pnpm test`:** **618 passed** ✓. Web lint ✓.
+- **Not verified:**
+  - **a real Gemini transcription:** the live test, WebM/MP4 acceptance, filler retention, silence accuracy and the real audio price;
+  - **the e2e here** (no local Storage: CI runs the stubbed Speaking and OCR flows).
+
+**Not done (needs your call):** the examiner's voice is still the **browser's** speech (M8-F1, as the plan said). Moving it to **Gemini TTS** means:
+- a new function returning audio per question;
+- a cost for every examiner question;
+- a delay before each one.
+
+**Manual steps for you**
+- **`supabase secrets set GEMINI_API_KEY=<paid-tier key>`** on staging (and later production), and add `GEMINI_API_KEY=…` to your local `supabase/functions/.env`. Speaking and OCR now need it.
+- **Remove the Groq secret:** `supabase secrets unset GROQ_API_KEY`, and delete it from your local `.env`. Revoke the key at console.groq.com.
+- Run the live check (well under a cent) from `supabase/functions`:
+  `deno test --frozen --env-file=.env --allow-env --allow-net=generativelanguage.googleapis.com --allow-read=_eval _shared/stt_live_test.ts`
+  It must pass for **both** `chrome-opus.webm` and `safari-aac.mp4`. Also look at `kept_um` in its output.
+- **Check Gemini's audio input price** for `gemini-3.5-flash-lite` and correct `GEMINI_AUDIO_PRICES` in `stt.ts` if it differs.
+- **Privacy policy:** name Google (Gemini) as the processor of Speaking recordings and Writing photos.

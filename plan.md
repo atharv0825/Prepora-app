@@ -59,7 +59,7 @@ Each step has an ID for tracking it in GitHub Issues or a project board:
 | M4 | Reading | Reading tables, `grade-test`, band conversion | Reading test UI, results, history | Reading test builder | 3–4 |
 | M5 | Listening | Listening tables, R2 upload, grading | Audio player, answer sheet, results | Listening builder + R2 audio upload | 4–5 |
 | M6 | Writing + AI | `score-writing`, `ocr-writing`, AI usage logging | Writing editor, photo upload, feedback screen | Writing task manager | 5–6 |
-| M7 | Speaking Part 2 + AI | Audio storage, `score-speaking`, Whisper | Cue card, prep timer, recorder, feedback | Cue card + Part 3 manager | 6–7 |
+| M7 | Speaking Part 2 + AI | Audio storage, `score-speaking`, Gemini speech to text | Cue card, prep timer, recorder, feedback | Cue card + Part 3 manager | 6–7 |
 | M8 | Speaking Parts 1 & 3 + full test | `examiner-turn`, session band averaging | AI examiner flow, full Speaking test | Part 1 question sets | 7–8 |
 | M9 | Billing & subscriptions | Razorpay + Paddle webhooks, subscriptions, credit grants | Pricing page, checkout, manage subscription, paywalls | Revenue view, manual plan change | 8–9 |
 | M10 | Platinum extras + mock test | AI generation functions, premium voice, mock test | Generated practice, premium voice, mock test mode | AI review queue | 9 |
@@ -250,10 +250,10 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 |---|---|---|
 | M7-C1 | Contract | Migration: `speaking_topics`, `speaking_sessions`, `speaking_responses` + RLS; private storage bucket `speaking-audio`. |
 | M7-C2 | Contract | Zod: `score-speaking` request (session_id, topic_id, part, audio_path) and response (`{fc, lr, gra, pron, band, transcript, fillers[], better_phrases[], strengths[], improvements[], model_answer}`); mock response. |
-| M7-B1 | Backend | Groq Whisper client (`whisper-large-v3-turbo`) for transcripts with word timings. |
+| M7-B1 | Backend | Speech-to-text client for transcripts (Groq Whisper at first; **Gemini since 2026-11-26**: the provider split, DeepSeek for text and Gemini for audio, images and voice; no Groq). |
 | M7-B2 | Backend | Audio signals: speaking rate, pause count/length, filler words from the transcript. |
 | M7-B3 | Backend | Edge Function `score-speaking` with `withCredits('speaking_p2')`: transcribe → send audio + transcript + signals + rubric to Gemini → validate JSON → save response. Pronunciation judged on intelligibility, not accent. |
-| M7-B4 | Backend | Handle WebM/Opus (Chrome) and MP4/AAC (Safari): confirm both work with Whisper and Gemini; transcode if needed. |
+| M7-B4 | Backend | Handle WebM/Opus (Chrome) and MP4/AAC (Safari): confirm both work with Gemini (speech to text since 2026-11-26); transcode if needed. |
 | M7-B5 | Backend | Prompt evaluation with accent-diverse sample recordings (Indian, Nepali, Filipino, Vietnamese speakers). |
 | M7-F1 | Frontend | Microphone permission explainer → browser permission → mic test (level meter). Handle "permission denied" with help per browser. |
 | M7-F2 | Frontend | Cue card screen → **1-minute prep timer** with notes box → **recording up to 2 minutes** (MediaRecorder, auto-stop) → playback → submit. |
@@ -334,7 +334,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | M11-B1 | Backend | Account deletion (removes profile, audio, photos, submissions; keeps anonymised payment records) and data export (JSON download). |
 | M11-B2 | Backend | Cloudflare rate-limiting rules; per-user request limits on AI functions. |
 | M11-B3 | Backend | Scheduled cleanup: delete raw speaking audio after 30 days. |
-| M11-B4 | Backend | Security review: RLS on every table, no service key in the browser, signed URLs only, spend caps on Gemini/Groq. |
+| M11-B4 | Backend | Security review: RLS on every table, no service key in the browser, signed URLs only, spend caps on DeepSeek and Gemini. |
 | M11-B5 | Backend | Weekly cost report: real cost per credit from `ai_usage` vs the $0.01 budget. |
 | M11-F1 | Frontend | Legal pages: privacy policy, terms, refund policy, cookie notice. |
 | M11-F2 | Frontend | SEO: metadata, sitemap, Open Graph images; free content pages (Speaking topics list, band score calculator). |
@@ -394,7 +394,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | 3 | M3: credits engine · M4: reading grading | M2: home · M3: credits UI | M2: users, countries · M3: plans editor |
 | 4 | M4/M5: grading, R2 | M4: reading player | M4: reading builder |
 | 5 | M5 · M6: Gemini client, writing prompts | M5: listening player | M5: listening builder |
-| 6 | M6: score-writing, OCR · M7: Whisper | M6: editor, photo, feedback | M6: writing tasks |
+| 6 | M6: score-writing, OCR · M7: Gemini speech to text | M6: editor, photo, feedback | M6: writing tasks |
 | 7 | M7: score-speaking · M8: examiner-turn | M7: recorder, cue card flow | M7: cue cards |
 | 8 | M8: session band · M9: checkout, webhooks | M8: examiner, full test | M8: Part 1 sets |
 | 9 | M9: renewals, grants · M10: generation, voice | M9: pricing, checkout · M10: mock test | M9: revenue · M10: review queue |

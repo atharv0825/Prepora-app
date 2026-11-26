@@ -58,6 +58,15 @@ describe("speakingSignals", () => {
     expect(signals.filler_count).toBe(shared.countFillers(MOCK_PART2_TRANSCRIPT).reduce((n, f) => n + f.count, 0));
   });
 
+  it("Gemini: pauses from the silences it reports (1 s or more), no confidence; word timings win when there are some", () => {
+    const { signals } = fn.speakingSignals({ transcript: MOCK_PART2_TRANSCRIPT, durationSec: 110, silences: [2.84, 0.6, 1, 3.2] });
+    expect([signals.pauses, signals.longest_pause_sec, signals.transcript_confidence]).toEqual([3, 3.2, null]);
+    expect(signals.words_per_minute).toBe(shared.wordsPerMinute(shared.countSpokenWords(MOCK_PART2_TRANSCRIPT), 110));
+    expect(fn.speakingSignals({ transcript: "Um, hi.", durationSec: 5, silences: [] }).signals.pauses).toBe(0); // heard none
+    const timed = fn.speakingSignals({ transcript: "a b", durationSec: 5, words: [w("a", 0, 1), w("b", 2.5, 3)], silences: [4] });
+    expect([timed.signals.pauses, timed.signals.longest_pause_sec]).toEqual([1, 1.5]);
+  });
+
   it("pauses ignore gaps under a second and sort by start; confidence skips silent segments", () => {
     expect(fn.pausesBetween([w("b", 1.5, 2), w("a", 0, 0.9), w("c", 2.95, 3)])).toEqual({ count: 0, longest: 0 });
     expect(fn.pausesBetween([w("a", 0, 1), w("b", 2, 3)])).toEqual({ count: 1, longest: 1 });

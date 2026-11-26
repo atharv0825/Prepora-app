@@ -2,12 +2,12 @@
 
 Automated tests use Chromium's fake microphone (a beep) and a stand-in for the AI, so they can't
 show what students will meet on real phones: Safari's recorder and permissions, Android Chrome,
-real voices through Groq Whisper and DeepSeek. This is the one manual run, **on staging**, with
+real voices through Gemini (speech to text) and DeepSeek. This is the one manual run, **on staging**, with
 **real recordings**. It takes about 45 minutes.
 
 ## Before you start
 
-- Staging has `GROQ_API_KEY` and `DEEPSEEK_API_KEY`, and **no** `AI_STUB`, `DEEPSEEK_API_URL` or `GROQ_API_URL`
+- Staging has `GEMINI_API_KEY` and `DEEPSEEK_API_KEY`, and **no** `AI_STUB`, `DEEPSEEK_API_URL` or `GEMINI_API_URL`
   (`supabase secrets list`). The latest `develop` is deployed (functions, migrations, web).
 - In the staging admin panel → Speaking: at least one **published** cue card (for example "Describe a place
   you like to visit…").
@@ -42,7 +42,7 @@ natural "um"s.
 5. **Scoring (M7-F3):** "Get my band score" → ✅ "This costs 4 credits" → upload % → scoring steps → the feedback page.
    Note how long it took.
 6. **Feedback:** ✅ the four criteria and band; "How you spoke" (length, wpm, pauses, fillers); **your
-   recording plays**; the transcript is **what you said**, with your "um"s highlighted (if Whisper kept them);
+   recording plays**; the transcript is **what you said**, with your "um"s highlighted (if the transcription kept them);
    better phrases quote your words; the model answer.
 7. **A bad connection (once on one phone):** turn on aeroplane mode right after "Score my answer".
    - ✅ "The upload failed… saved on this device".

@@ -12,7 +12,7 @@ describe("browser recordings", () => {
   it("Chrome's WebM/Opus is read as WebM", () => {
     expect(sniffAudioType(fixture("chrome-opus.webm"))).toBe("audio/webm");
   });
-  it("Safari's fragmented MP4/AAC is read as MP4 (sent to Whisper as .m4a)", () => {
+  it("Safari's fragmented MP4/AAC is read as MP4 (sent to Gemini as audio/mp4)", () => {
     const mp4 = fixture("safari-aac.mp4");
     expect(sniffAudioType(mp4)).toBe("audio/mp4");
     // Fragmented, as Safari records: a movie fragment box after the header.

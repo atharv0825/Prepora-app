@@ -8,7 +8,7 @@
 // scored by score-speaking at the end of the part, M8-B2).
 //
 // The request carries the conversation so far. Its NEWEST answer usually has only a recording:
-// examiner-turn transcribes it (Groq Whisper, M7-B1) and returns the transcript, so the client
+// examiner-turn transcribes it (Gemini speech to text, M7-B1) and returns the transcript, so the client
 // keeps the whole Q&A without a separate speech-to-text call. Older answers send their transcript.
 // The first call of a part has no turns: it returns the opening question.
 //

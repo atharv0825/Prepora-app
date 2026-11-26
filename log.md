@@ -2693,3 +2693,73 @@ On a branch from `develop` (dark mode merged in #59).
   - the storage e2e locally: this local stack runs without the Storage service, and adding it needs `supabase stop`/`start`. In CI that test runs and fails if Storage is down. **So the bucket's type and size limits haven't been seen working yet**; the folder and plan rules are checked by pgTAP.
   - `deno check` (the installed Deno is too old for the project's config; the file is the same as the typechecked shared copy);
   - CI; staging.
+## 2026-11-26 — M6-C2 + M6-C3: Writing contract (score-writing, ocr-writing) and mock responses
+
+On one branch from `develop`. It doesn't need M6-C1's code (PR #60, still open).
+
+**Writing rules: `packages/shared/src/ielts/writing.ts`**
+- **`WRITING_TASKS`**: Task 1 is 150 words / 20 min / `writing_t1`; Task 2 is 250 words / 40 min / `writing_t2`.
+- **`writingTaskBand(scores)`**: the average of `ta`, `cc`, `lr`, `gra`, **rounded down** to a half band (6.75 → 6.5, 6.25 → 6). This is how examiners combine a task's criteria; the app shows it as a practice estimate.
+- **`countEssayWords`**: counts runs of non-space characters that contain a letter or digit. "well-known" is one word; a lone "—" or "…" is none.
+- `isUnderLength`; `criterionLabel` (Task Achievement for Task 1, Task Response for Task 2).
+
+**M6-C2: `api/score-writing.ts`**
+- **Request:**
+  - `task_id`, `text` (non-blank, at most 20,000 characters), `input_mode` (default `typed`), `time_taken_sec`.
+  - `photo_paths`: 1–2 paths matching `{uuid}/{file}`, **required for photo answers and refused for typed ones**.
+  - Beyond the plan's `(task_id, text)`, it also carries the mode and photo paths, because `writing_submissions` stores them (M6-C1).
+- **`ScoredWriting`**: what the model must return; score-writing (M6-B3) validates the model's JSON against it.
+  - scores (half bands);
+  - `summary`; up to 40 `corrections`; 1–6 strengths and improvements; `model_answer`.
+  - Each correction has `original` copied exactly from the answer, a suggestion, a category (grammar, vocabulary, spelling, punctuation, cohesion, style) and an explanation.
+  - **Corrections quote the text instead of giving character offsets**, because models get offsets wrong. The screen highlights the first match, and B3 drops quotes it can't find.
+- **Response:** a union on `detail`. Both shapes have the submission, task, word count, `min_words`, scores, band, `credits_charged` and `balance_after`.
+  - **`full`** (plans with `detailed_feedback`) adds the summary, corrections, strengths, improvements and model answer.
+  - **`summary`** (Free) adds only the summary and **`corrections_count`**, for the "12 corrections found, upgrade to see them" prompt.
+  - Both shapes are strict, so a summary can't carry the paid fields.
+  - A refine requires **`band === writingTaskBand(scores)`**.
+- **`WritingFeedback`**: the same two shapes, as stored in `writing_submissions.feedback`.
+  - `writingFeedbackFor(scored, detailedFeedback)` picks the shape; `toWritingSummary` does the trimming.
+- The header comment documents the errors: 400, 401, 404, 402/429 credit refusals, and 500 with a refund when the AI fails.
+
+**M6-C2: `api/ocr-writing.ts`**
+- **Request:** 1–2 distinct `photo_paths` in page order, plus an optional `task_id`.
+- **Response:** `pages[]` of `{ path, text, legibility }`, plus `text`, `word_count`, `credits_charged` and `balance_after`.
+  - `legibility` is `good`, `partial` (guessed words are marked `[?]` for the student to check) or `unreadable`.
+  - `text` must equal **`joinOcrPages(pages)`**: the pages trimmed and joined with a blank line.
+- Errors: 403 `feature_not_in_plan` for Free, 404 for a missing photo, and the rest as for score-writing.
+
+**M6-C3: `packages/shared/src/mocks/writing.ts`**, at the path the plan gives (`packages/shared/src/mocks/`), exported as `@prepora/shared/mocks/*`.
+- **Fixtures:** `MOCK_TASK_IDS`, `MOCK_TASK2_PROMPT`, and **`MOCK_TASK2_ESSAY`**, a believable band-6 essay (≥ 250 words) with typical mistakes.
+- **`mockScoreWriting(request, { plan, taskNo, balance })`** answers like the real function:
+  - it validates the request (400 `validation_failed`);
+  - **corrections come from rules that find real mistakes in the submitted text**, so every quote highlights;
+  - scores follow from the text: under length costs TA, and each mistake found costs a little in GRA or LR;
+  - the band comes from `writingTaskBand`; Free gets the summary shape; a low balance gets 402 `insufficient_credits` with details;
+  - every response is parsed by `ScoreWritingResponse` before it's returned.
+- **`mockOcrWriting`**:
+  - two photos return the essay split over two pages, `good`;
+  - one photo returns it with a `[?]` word, `partial`;
+  - Free gets 403 `feature_not_in_plan`.
+- Same input, same scores, so screenshots and e2e tests are stable. Submission ids differ per call.
+- **Web switch, `apps/web/src/lib/writing/api.ts`**: `scoreWriting()` and `ocrWriting()` are the only way the screens call these functions.
+  - With **`NEXT_PUBLIC_WRITING_MOCKS=1`** they answer from the mocks after 1.5 s / 1 s, so the progress states show, and errors come back in `invokeFunction`'s shape. Otherwise they call the real functions.
+  - It's off by default so a build can't serve fake bands by accident; it's documented in `apps/web/.env.example`. M6-I1 removes the mock branch.
+  - **This replaces MSW**, which the plan suggests: MSW isn't installed, and one switch in the client does the job without a service worker or a new dependency.
+
+**Tests** (+27 unit)
+- `ielts/writing.test.ts` (+5): rounding down (6.75, 6.25, 8.875), invalid criteria, word counting, task constants checked against `actionKeys`, labels.
+- `api/score-writing.test.ts` (+11):
+  - requests: typed, photo with 1–2 paths in a folder, path traversal, nested paths, photo/typed consistency, blank, too long, unknown fields;
+  - model output: off-scale, missing criterion, no strengths, empty model answer, bad category;
+  - response shapes: **a summary carrying corrections or a model answer is refused**; a wrong band is refused; the stored shapes;
+  - OCR request and response, including joining pages.
+- `mocks/writing.test.ts` (+8): Gold full feedback is valid, built from the essay, and every correction quotes it; Free gets exactly the summary keys; a short Task 1 loses TA and says why; deterministic; errors; distinct ids; both OCR cases; Free OCR refused.
+- `lib/writing/api.test.ts` (+3): calls the functions with mocks off, uses the mocks with the switch on, and mock errors come back in `invokeFunction`'s shape.
+
+**Verified**
+- `pnpm test`: **523 passed** (52 files) ✓; typecheck ✓ (shared, web, admin); web lint ✓.
+- **Not verified:**
+  - no screen uses these yet (M6-F1..F3), so the mocks haven't been seen in a browser;
+  - the Edge Functions will need Deno copies of `ScoredWriting` and `writingTaskBand` (as `_shared/reading.ts`), to add in M6-B3;
+  - CI.

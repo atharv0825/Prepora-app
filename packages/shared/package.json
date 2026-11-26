@@ -9,6 +9,7 @@
     "./api/*": "./src/api/*.ts",
     "./constants/*": "./src/constants/*.ts",
     "./ielts/*": "./src/ielts/*.ts",
+    "./mocks/*": "./src/mocks/*.ts",
     "./analytics": "./src/analytics.ts",
     "./observability": "./src/observability.ts",
     "./types/*": "./src/types/*.ts"

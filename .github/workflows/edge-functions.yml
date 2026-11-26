@@ -47,11 +47,12 @@ jobs:
       # function imports them.
       - name: deno check
         working-directory: supabase/functions
-        run: deno check --frozen $(ls */index.ts | grep -v _shared/) _shared/*.ts
-      # Unit tests next to the code (*_test.ts), no network or env needed.
+        run: deno check --frozen $(ls */index.ts | grep -v _shared/) _shared/*.ts _shared/prompts/*.ts _eval/*.ts
+      # Unit tests next to the code (*_test.ts), no network or env needed. _eval/: the Writing
+      # prompt eval's own tests (M6-B5); the eval itself calls Gemini and is run by hand.
       - name: deno test
         working-directory: supabase/functions
-        run: deno test --frozen _shared/
+        run: deno test --frozen _shared/ _eval/
 
   deploy-staging:
     name: Deploy functions to staging

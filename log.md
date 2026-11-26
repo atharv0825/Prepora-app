@@ -3577,3 +3577,64 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 
 **Fix (same PR, after CI):** the full-test e2e got **402 insufficient_credits on Part 3** (balance 5, needs 6). The system behaved correctly; my test didn't plan its credits. The Gold test student starts with the 18 sign-up credits (setting the plan doesn't grant Gold's 100), and the earlier tests in the file had already spent some. The test now grants 20 top-up credits first (`grant_credits`, as `credits-concurrency.spec.ts` does) and measures the balance after that. Gold's daily cap (40) allows the day's 19.
 - **Landed through its own PR:** #73 was merged into `develop` at 11:27 UTC, before its E2E run finished and before this fix was pushed, so `develop` had the test without the top-up. The fix commit was cherry-picked onto `fix/speaking-full-test-credits` from `develop`.
+
+## 2026-11-26 — M8-F1..F3: the AI examiner screen, the full test, session results and history
+
+**M8-F1: the examiner screen** (`components/speaking/examiner-part.tsx`, used for practice and inside the full test)
+- **Each question is shown as text and read aloud** with the browser's voice (`speechSynthesis`). `pickExaminerVoice` prefers **British English, then Australian, then any English voice**, and an on-device voice over a network one (it also reads Android's `en_GB` tags). With no English voice, the browser's default reads it with `lang en-GB`; with no speech at all, the student reads the question and taps "Start answering".
+- **Recording starts by itself when the examiner stops speaking.** There's a 15 s fallback if the browser never fires `end`, plus "Start answering" and "Hear it again" buttons. The student taps **Done**; the recorder stops at **45 s (Part 1) or 90 s (Part 3)** per answer.
+- **Each answer is uploaded on its own** (`uploadWithRetry`, `{user}/{session}-p{part}-q{n}-{nonce}.{ext}`). Then **examiner-turn** gets the conversation: older answers with their transcripts, the newest with its recording only. It returns the transcript and the next question. When it says `done`, the part is **scored** (score-speaking with the 4–5 answers, charging the part's credits) and the parent moves on.
+- **Errors keep the work done:** a failed upload retries from the clip in memory; a failed turn repeats the turn; a failed or refused scoring repeats only the scoring (the answers are already uploaded). A 409 conflict offers no retry.
+- **Practice page `/app/speaking/examiner/[topicId]`** (`examiner-practice.tsx`) for a published Part 1 set or Part 3 discussion: how it works → cost confirm (5 or 6 credits) → mic check → a `part1`/`part3` session → the examiner → the part's feedback page. A Part 3 says which cue card it follows.
+
+**M8-F2: the full test** (`/app/speaking/test`, `components/speaking/full-test-flow.tsx`)
+- **Topics:** `pickFullTest` (pure, unit-tested) chooses a Part 1 set, **a cue card that has a published Part 3 discussion**, and one of its discussions. The page **redirects to put the three ids in the URL**, so a reload asks the same questions. `?not=` avoids a card when another exists.
+- **Flow:** intro and **cost confirm for the three parts added up** (15 now, from `credit_costs`; charged part by part, nothing for a part that can't be scored) → **one mic check for the whole test** → a `full_test` session (its id is put in the URL) → **Part 1** (the examiner) → a break screen → **Part 2** (the M7 cue-card flow) → a break → **Part 3** (the discussion following the card) → the results page. A progress bar shows Parts 1–3.
+- **`SpeakingFlow` (M7) now runs inside the test:** it takes the test's `session`, the shared mic `stream` (it no longer stops a stream it doesn't own) and `onScored`. It skips the second cost dialog ("Send and continue to Part 3") and the on-device pending store. Outside the test it is unchanged.
+- **Resume:** `?session=` loads the parts already scored. The state machine (`sessionStage`) gives the part to continue at, and the scored parts keep their topics. A finished test redirects to its results.
+
+**M8-F3: session results and history**
+- **`/app/speaking/sessions/[sessionId]`:**
+  - the **overall band** (stored, or the same IELTS rule over the part bands if the session update didn't land);
+  - **each part's band, the four criteria and the summary**, with a link to the full feedback and transcript;
+  - for an unfinished test, "Continue the test";
+  - after a full test, **"Go deeper"** (another Part 3 discussion of the same card, one not done yet if there is one) and **"Next cue card"** (a new full test avoiding this card).
+- **Speaking home:**
+  - a **Full test** entry with its cost;
+  - **Part 1** question sets;
+  - cue cards with a **Part 3** button when they have a discussion;
+  - **"Your full tests"** (date, overall band, "not finished");
+  - "Your answers" now says which part.
+- **The part feedback page:**
+  - says "Part N" (and "· full test");
+  - links back to the test results;
+  - "Practise this Part N again" goes to the right screen;
+  - plays the recording only for Part 2 (Parts 1/3 have one per answer);
+  - doesn't flag Parts 1/3 as "under a minute".
+
+**Tests**
+- vitest `examiner.test.ts` (+11):
+  - voice choice (GB > AU > any English, local first, Android tags, none);
+  - recording paths;
+  - the examiner-turn and score-speaking requests are valid against the shared contracts;
+  - the full test's cost;
+  - `pickFullTest` (URL topics kept while published, scored parts locked, `not`, not enough content).
+- e2e `speaking-test-ui.spec.ts` (new; the browser's voice is replaced by a recorder):
+  - **home → full test**: topics in the URL survive a reload; "This costs 15 credits"; the mic check;
+  - **a seeded finished full test**: overall 6.5, part bands, summaries, Go deeper → the card's other discussion, Next cue card → `?not=`, the part page → back to results, history, a finished test can't be resumed;
+  - **the examiner with the functions routed in the browser**: 4 questions spoken in order, 5 turn calls (the opening, then one per answer; older answers carry transcripts), paths, the score request's 4 questions, and "Try again" repeating only the scoring;
+  - with `E2E_AI=1` (CI stubs): **Part 1 practice end to end** (a British voice, scored → the feedback page) and **a whole full test Parts 1 → 2 → 3 → results** (overall 6.0).
+- `speaking-ui.spec.ts`: the home's cost text changed.
+
+**Verified**
+- `pnpm test`: **617 passed** (68 files) ✓. Web typecheck (with `next typegen`) ✓; lint ✓; `next build` ✓ (the 3 new routes).
+- Playwright, desktop, local (production build): `speaking-test-ui` + `speaking-ui` **7 passed, 3 skipped** ✓. The 3 skipped are the stubbed-AI flows: no local Storage or functions with the stub.
+- **Not verified:**
+  - **the two stubbed-AI browser flows** (Part 1 practice and the whole full test): they run in CI;
+  - the mobile project (these tests skip mobile);
+  - **real voices on real devices** (which en-GB/en-AU voices iOS/Android/Windows offer, Chrome's network voices, whether every browser fires `end`);
+  - a real DeepSeek examiner conversation.
+
+**Manual steps for you**
+- **Content:** a full test needs at least one published **Part 1 question set** and **a Part 2 card with a published Part 3 discussion** (admin → Speaking). Without them, the home says "Coming soon" and the test page explains why.
+- **On a phone and a laptop:** run a Part 1 practice and a full test. Check that the examiner's voice is British or Australian, that recording starts when it stops talking, and that the sound isn't recorded into your answer (use headphones if it is). Add the results to `docs/speaking-device-testing.md`.

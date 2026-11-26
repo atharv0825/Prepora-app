@@ -9,6 +9,8 @@ import { mmss, transcriptPieces } from "@/lib/speaking/speaking";
 
 export type SpeakingFeedbackModel = {
   title: string;
+  /** Which part (default 2). Parts 1 and 3 are a conversation: the length is all the answers'. */
+  part?: 1 | 2 | 3;
   transcript: string;
   signals: SpeakingSignals;
   fillers: { word: string; count: number }[];
@@ -31,7 +33,7 @@ export function SpeakingFeedbackView({ model }: { model: SpeakingFeedbackModel }
   const full = feedback.detail === "full" ? feedback : null;
   const phrases: BetterPhrase[] = full?.better_phrases ?? [];
   const pieces = transcriptPieces(model.transcript, phrases);
-  const short = signals.duration_sec < PART2_MIN_SECONDS;
+  const short = (model.part ?? 2) === 2 && signals.duration_sec < PART2_MIN_SECONDS;
 
   return (
     <div className="flex flex-col gap-8" data-testid="speaking-feedback">
@@ -156,7 +158,7 @@ export function SpeakingFeedbackView({ model }: { model: SpeakingFeedbackModel }
                 body: "More natural and advanced ways to say what you said, highlighted in your transcript.",
               },
               { title: "Strengths and next steps", body: "What you did well and the changes that would raise your band most." },
-              { title: "Model answer", body: "A band 9 answer to the same cue card to practise with." },
+              { title: "Model answer", body: (model.part ?? 2) === 2 ? "A band 9 answer to the same cue card to practise with." : "Band 9 answers to the same questions to practise with." },
             ].map((l) => (
               <li key={l.title} className="flex flex-col gap-2 rounded-3xl border border-dashed border-foreground/15 bg-card p-5">
                 <span className="flex items-center gap-2 font-medium">

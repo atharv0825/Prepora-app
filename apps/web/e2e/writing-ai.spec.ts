@@ -6,16 +6,23 @@ import { adminClient, createTestUser, deleteTestUser, localSupabase, type TestUs
 // M6-B3/B4 through the real local Edge Functions: score-writing and ocr-writing.
 //   * Always (CI too): sign-in, validation, 404 for unpublished tasks, other students' photos,
 //     402 without credits, 403 for Free OCR. These fail before the AI call or before any credit.
-//   * Without an AI key (CI): a valid answer gets a 500 with NO credits spent and nothing saved.
+//   * With E2E_AI=0 (functions known to have no AI key): a valid answer gets a 500 with NO credits
+//     spent and nothing saved. Opt-in, so a machine with a real key never pays for it by accident.
 //   * With E2E_AI=1 (a laptop whose functions are served with DEEPSEEK_API_KEY, or the provider set
 //     by AI_PROVIDER): real scoring, Gold gets the full feedback, Free the summary, and both are
 //     saved and logged in ai_usage. Costs about US$0.01 on DeepSeek. No real AI calls in CI (M6-I1).
 //     E2E_AI_MODEL: the model expected in ai_usage (default deepseek-flash).
+//   * In CI (M6-I1) the functions are served with DEEPSEEK_API_URL → the ai-stub function and
+//     E2E_AI=1 E2E_AI_STUB=1: the whole chain runs, no AI is called, and STUB_FAIL checks the refund.
 // Needs the Edge Functions: skipped locally without them, fails in CI.
 
 const { url, publishableKey } = localSupabase();
 const realAi = process.env.E2E_AI === "1";
+/** E2E_AI=0: the functions are known to run WITHOUT any AI key (then a valid answer must fail safely). */
+const noAi = process.env.E2E_AI === "0";
 const expectedModel = process.env.E2E_AI_MODEL ?? "deepseek-flash";
+/** The functions call the ai-stub (CI): its STUB_FAIL hook can force an AI failure. */
+const stubAi = process.env.E2E_AI_STUB === "1";
 
 async function call(fn: "score-writing" | "ocr-writing", user: TestUser | null, body: unknown) {
   const res = await fetch(`${url}/functions/v1/${fn}`, {
@@ -113,7 +120,10 @@ test.describe("Writing AI functions (API)", () => {
       await db.from("credit_buckets").update({ remaining: 0 }).eq("user_id", broke.id);
       const r = await call("score-writing", broke, { task_id: tasks.essay, text: "My essay." });
       // Without a key the function stops before spending (500); with one, spend_credits refuses (402).
-      if (realAi) {
+      // Neither path calls the AI: no key stops before spending; with one, spend_credits refuses.
+      if (noAi) {
+        expect(r.status).toBe(500);
+      } else if (realAi || r.status === 402) {
         expect([r.status, r.body.error?.code]).toEqual([402, "insufficient_credits"]);
         expect(r.body.error).toMatchObject({ details: { action_key: "writing_t2", credits: 4 } });
       } else {
@@ -125,7 +135,8 @@ test.describe("Writing AI functions (API)", () => {
   });
 
   test("without an AI key: 500, no credits spent, nothing saved", async () => {
-    test.skip(realAi, "functions are served with an AI key");
+    // Opt-in: if the functions did have a key, this would make a real (paid) AI call.
+    test.skip(!noAi, "set E2E_AI=0 when the functions run without any AI key");
     const before = await balance(free);
     const r = await call("score-writing", free, { task_id: tasks.essay, text: MOCK_TASK2_ESSAY });
     expect([r.status, r.body.error?.code]).toEqual([500, "internal"]);
@@ -178,5 +189,18 @@ test.describe("Writing AI functions (API)", () => {
     expect(usage![0].input_tokens).toBeGreaterThan(1000);
     expect(Number(usage![0].cost_usd)).toBeGreaterThan(0);
     console.log("Usage:", JSON.stringify(usage![0]));
+  });
+  test("an AI failure inside score-writing refunds the credits and logs the failed call", async () => {
+    test.skip(!stubAi, "needs the ai-stub (E2E_AI_STUB=1): its STUB_FAIL hook forces the failure");
+    const db = adminClient();
+    const before = await balance(gold);
+    const r = await call("score-writing", gold, { task_id: tasks.essay, text: `${MOCK_TASK2_ESSAY}\nSTUB_FAIL` });
+    expect([r.status, r.body.error?.code]).toEqual([500, "internal"]);
+    expect(await balance(gold)).toBe(before);
+    const { data: ledger } = await db.from("credit_ledger").select("reason, delta").eq("user_id", gold.id).in("reason", ["spend", "refund"]).order("id", { ascending: false }).limit(2);
+    expect(ledger?.map((l) => l.reason).sort()).toEqual(["refund", "spend"]);
+    const { data: usage } = await db.from("ai_usage").select("success").eq("user_id", gold.id).order("id", { ascending: false }).limit(1);
+    expect(usage?.[0]?.success).toBe(false);
+    expect((await db.from("writing_submissions").select("id").eq("user_id", gold.id).ilike("text", "%STUB_FAIL%")).data).toEqual([]);
   });
 });

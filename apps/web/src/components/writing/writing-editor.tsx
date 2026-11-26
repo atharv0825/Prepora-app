@@ -9,14 +9,13 @@ import { Badge } from "@prepora/ui/components/badge";
 import { Button } from "@prepora/ui/components/button";
 import { Textarea } from "@prepora/ui/components/textarea";
 import type { OcrWritingResponse } from "@prepora/shared/api/ocr-writing";
-import type { ScoreWritingResponse } from "@prepora/shared/api/score-writing";
 import { countEssayWords, WRITING_TASKS, type WritingTaskNo } from "@prepora/shared/ielts/writing";
 import type { TestType } from "@prepora/shared/types/profile";
 import { CostConfirm } from "@/components/credits/cost-confirm";
 import { useCredits } from "@/components/credits/credits-provider";
 import { routes, writingSubmissionPath, writingTaskPath } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/client";
-import { scoreWriting, writingMocksEnabled } from "@/lib/writing/api";
+import { scoreWriting } from "@/lib/writing/api";
 import {
   EMPTY_DRAFT,
   parseWritingDraft,
@@ -30,7 +29,6 @@ import {
 } from "@/lib/writing/writing";
 import { PhoneQr } from "./phone-qr";
 import { PhotoFlow } from "./photo-flow";
-import { WritingFeedbackView } from "./writing-feedback";
 
 export type EditorTask = {
   id: string;
@@ -39,6 +37,8 @@ export type EditorTask = {
   title: string;
   prompt: string;
   image_url: string | null;
+  /** The visual's description for screen readers (M6-A1). */
+  image_alt: string | null;
 };
 
 const CREDIT_REFUSALS = ["insufficient_credits", "daily_cap_reached", "feature_not_in_plan"];
@@ -53,7 +53,7 @@ const SCORING_STEPS = ["Reading your answer", "Checking the four criteria", "Fin
  */
 export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; userId: string; openPhoto: boolean }) {
   const router = useRouter();
-  const { credits, run } = useCredits();
+  const { run } = useCredits();
   const key = writingDraftKey(task.id);
   const limit = taskSeconds(task.task_no);
   const { minWords, actionKey } = WRITING_TASKS[task.task_no];
@@ -65,7 +65,6 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
   const [now, setNow] = useState(() => Date.now());
   const [scoring, setScoring] = useState<number | null>(null); // when scoring started
   const [error, setError] = useState<string | null>(null);
-  const [mockResult, setMockResult] = useState<ScoreWritingResponse | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -135,26 +134,16 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
     setError(null);
     const supabase = createClient();
     const result = await run(() =>
-      scoreWriting(
-        supabase,
-        {
-          task_id: task.id,
-          text: draft.text,
-          input_mode: draft.mode,
-          ...(draft.mode === "photo" ? { photo_paths: draft.photoPaths } : {}),
-          ...(draft.startedAt ? { time_taken_sec: Math.min(86_400, Math.round((Date.now() - draft.startedAt) / 1000)) } : {}),
-        },
-        { mock: { plan: credits?.plan ?? "free", taskNo: task.task_no, balance: credits?.balance } },
-      ),
+      scoreWriting(supabase, {
+        task_id: task.id,
+        text: draft.text,
+        input_mode: draft.mode,
+        ...(draft.mode === "photo" ? { photo_paths: draft.photoPaths } : {}),
+        ...(draft.startedAt ? { time_taken_sec: Math.min(86_400, Math.round((Date.now() - draft.startedAt) / 1000)) } : {}),
+      }),
     );
     if (result.data) {
       localStorage.removeItem(key);
-      if (writingMocksEnabled()) {
-        // Mock feedback (development without an AI key): nothing was saved, so show it here.
-        setMockResult(result.data);
-        setScoring(null);
-        return;
-      }
       router.push(writingSubmissionPath(result.data.submission_id));
       return;
     }
@@ -162,33 +151,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
     if (!CREDIT_REFUSALS.includes(result.error.code)) {
       setError(`Your answer couldn't be scored: ${result.error.message} It's saved on this device, and no credits were kept; try again.`);
     }
-  }, [credits?.balance, credits?.plan, draft, key, router, run, scoring, task.id, task.task_no]);
-
-  if (mockResult) {
-    return (
-      <div className="flex w-full max-w-4xl flex-col gap-6 pb-16">
-        <BackLink />
-        <h1 className="text-h1">{task.title}</h1>
-        <WritingFeedbackView
-          model={{
-            taskNo: task.task_no,
-            kindLabel: taskKindLabel(task.task_no, task.test_type),
-            title: task.title,
-            prompt: task.prompt,
-            text: draft?.text ?? "",
-            wordCount: mockResult.word_count,
-            minWords: mockResult.min_words,
-            scores: mockResult.scores,
-            band: mockResult.band,
-            feedback: mockResult.detail === "full" ? { detail: "full", summary: mockResult.summary, corrections: mockResult.corrections, strengths: mockResult.strengths, improvements: mockResult.improvements, model_answer: mockResult.model_answer } : { detail: "summary", summary: mockResult.summary, corrections_count: mockResult.corrections_count },
-            inputMode: draft?.mode ?? "typed",
-            date: null,
-          }}
-        />
-        <p className="text-sm text-muted-foreground">Mock feedback (NEXT_PUBLIC_WRITING_MOCKS): not saved to your history.</p>
-      </div>
-    );
-  }
+  }, [draft, key, router, run, scoring, task.id]);
 
   const words = countEssayWords(draft?.text ?? "");
   const left = started !== null ? timeLeft(started, now, limit) : limit;
@@ -213,7 +176,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
           <figure className="overflow-hidden rounded-2xl border border-foreground/10 bg-white">
             {/* Plain <img>: CDN images, sized by the container; optimisation is off app-wide. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={task.image_url} alt="The chart, graph, table or diagram for this task" className="block h-auto w-full" />
+            <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="block h-auto w-full" />
           </figure>
         )}
         <p className="text-sm text-muted-foreground">

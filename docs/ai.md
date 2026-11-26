@@ -133,3 +133,62 @@ docker run --rm -v "$PWD:/app" -w /app denoland/deno:latest deno run --frozen --
 It prints each answer's target and AI band, the share within ±0.5 (target 75%), the mean error, the
 bias and the cost. It writes a JSON report to `_eval/results/` (gitignored) and exits 1 when under
 the target.
+
+## Testing without AI calls: the ai-stub function (M6-I1)
+
+`supabase/functions/ai-stub` answers like DeepSeek's chat completions API, so `score-writing` and
+`ocr-writing` run for real (auth, credits, Storage, saving, refunds) while no AI is called.
+
+- It's **off unless `AI_STUB=1`**: everywhere else it answers 404, so deploying it with the other
+  functions is harmless. Never set `AI_STUB` on staging or production.
+- Point DeepSeek at it with `DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub`. That's the
+  local gateway as seen from inside the edge runtime.
+- Replies are deterministic:
+  - bands come from the word count; corrections quote real mistakes in the answer ("alot",
+    "peoples", "dont"…); feedback is marked "(Stub AI)";
+  - OCR returns one fixed page per photo.
+- Test hooks in the answer: `STUB_FAIL` → HTTP 500 (refund path); `STUB_BAD_JSON` → an invalid
+  reply (retries, then refund).
+- **CI** (`.github/workflows/e2e.yml`) writes `DEEPSEEK_API_KEY=e2e-stub`, `DEEPSEEK_API_URL=…/ai-stub`
+  and `AI_STUB=1` into `supabase/functions/.env`, and runs Playwright with `E2E_AI=1 E2E_AI_STUB=1`.
+
+**Locally, without spending:** add these lines to `supabase/functions/.env` instead of (or after)
+your real key, restart `supabase functions serve --env-file supabase/functions/.env`, then:
+
+```sh
+DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub
+AI_STUB=1
+```
+
+```sh
+cd apps/web
+E2E_AI=1 E2E_AI_STUB=1 pnpm exec playwright test writing-ai writing-ui --project=desktop
+```
+
+With your real key (and no `DEEPSEEK_API_URL`), `E2E_AI=1` alone runs the same tests against
+DeepSeek: about US$0.03. `E2E_AI=0` means "the functions have no AI key" (opt-in; that test would
+make a paid call if a key were present).
+
+## Manual end-to-end run on staging with real AI (M6-I1)
+
+Done once by an account owner after the M6 PRs are merged and deployed. Each run costs a few cents.
+
+1. **Secrets:** `supabase secrets set DEEPSEEK_API_KEY=<key>` on the staging project. Make sure
+   `DEEPSEEK_API_URL` and `AI_STUB` are **not** set there (`supabase secrets list`).
+2. **Deploy:** merging to `develop` deploys the functions and migrations to staging (Actions:
+   "Deploy functions to staging", "Push migrations to staging"). Check both are green.
+3. **Content:** in the staging admin panel → Writing, create and publish:
+   - one Task 2 essay;
+   - one Task 1 Academic task, with a chart uploaded to writing-images and a description.
+4. **As a Free student** (staging web app), write the Task 2 essay (250+ words) and get the score:
+   - the confirm shows 4 credits and the balance drops by 4;
+   - the feedback shows four criteria, a band and the summary, with locked sections.
+5. **As a Gold student** (set the plan in admin → Users):
+   - score the Task 1 Academic task: full feedback, highlights that match the text, a model answer;
+   - photo upload: photograph a handwritten page **on a phone** (try an iPhone: HEIC), read it
+     (1 credit), check the text, score it.
+6. **In the database** (staging SQL editor):
+   - `ai_usage` has a row per call with `model = deepseek-flash`, real tokens, `cost_usd > 0` and
+     `success = true`;
+   - `writing_submissions.prompt_version` is `t2-v1` / `t1a-v1`.
+7. Note the band you'd expect against the AI band, the time each call took and the cost, in `log.md`.

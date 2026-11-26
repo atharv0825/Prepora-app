@@ -439,3 +439,8 @@ enabled = true
 # `health` is public, so the gateway's JWT check is off for it.
 [functions.health]
 verify_jwt = false
+
+# M6-I1: the DeepSeek stand-in, called by other functions with the stub key (not a JWT). Off
+# unless AI_STUB=1.
+[functions.ai-stub]
+verify_jwt = false

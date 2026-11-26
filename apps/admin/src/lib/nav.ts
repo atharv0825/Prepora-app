@@ -68,6 +68,7 @@ export const navGroups: NavGroup[] = [
         label: "Writing",
         icon: PenLine,
         milestone: "M6",
+        built: true, // M6-A1: task manager (Task 1 Academic with image, Task 1 General, Task 2), publish
         summary: "Task 1 reports and letters, Task 2 essay prompts.",
         features: [
           "Academic Task 1 with chart image upload",

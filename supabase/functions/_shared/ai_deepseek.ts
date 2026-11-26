@@ -20,6 +20,18 @@ import type { GenerateJsonOptions, ParsedReply, ProviderAdapter, TokenUsage } fr
 
 export const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
+/**
+ * Where requests go: DeepSeek, or the DEEPSEEK_API_URL secret when set. CI sets it to the ai-stub
+ * function (M6-I1), so the real Edge Functions run end to end without any AI call.
+ */
+export function deepseekUrl(): string {
+  try {
+    return Deno.env.get("DEEPSEEK_API_URL") || DEEPSEEK_API_URL;
+  } catch {
+    return DEEPSEEK_API_URL; // no env permission (unit tests)
+  }
+}
+
 export const DEEPSEEK_PRICES: Record<string, { hit: number; miss: number; output: number }> = {
   "deepseek-flash": { hit: 0.006, miss: 0.3, output: 1.2 },
   "deepseek-v4-pro": { hit: 0.044, miss: 1.32, output: 3.96 },
@@ -82,7 +94,7 @@ export const deepseek: ProviderAdapter = {
       body.reasoning_effort = opts.thinking;
     }
     return {
-      url: DEEPSEEK_API_URL,
+      url: deepseekUrl(),
       init: {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },

@@ -664,6 +664,107 @@ export type Database = {
         }
         Relationships: []
       }
+      writing_submissions: {
+        Row: {
+          band: number
+          created_at: string
+          feedback: Json
+          id: string
+          input_mode: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths: string[] | null
+          prompt_version: string | null
+          scores: Json
+          task_id: string
+          text: string
+          time_taken_sec: number | null
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          band: number
+          created_at?: string
+          feedback?: Json
+          id?: string
+          input_mode: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths?: string[] | null
+          prompt_version?: string | null
+          scores: Json
+          task_id: string
+          text: string
+          time_taken_sec?: number | null
+          user_id: string
+          word_count: number
+        }
+        Update: {
+          band?: number
+          created_at?: string
+          feedback?: Json
+          id?: string
+          input_mode?: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths?: string[] | null
+          prompt_version?: string | null
+          scores?: Json
+          task_id?: string
+          text?: string
+          time_taken_sec?: number | null
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "writing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      writing_tasks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string | null
+          prompt: string
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          task_no: number
+          test_type: Database["public"]["Enums"]["ielts_test_type"] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          prompt: string
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          task_no: number
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          prompt?: string
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          task_no?: number
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -894,6 +995,7 @@ export type Database = {
         | "flowchart_completion"
         | "short_answer"
       test_module: "reading" | "listening"
+      writing_input_mode: "typed" | "photo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1065,6 +1167,7 @@ export const Constants = {
         "short_answer",
       ],
       test_module: ["reading", "listening"],
+      writing_input_mode: ["typed", "photo"],
     },
   },
 } as const

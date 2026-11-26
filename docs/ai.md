@@ -260,7 +260,7 @@ the upload was labelled with. Groq accepts both, so there's no transcoding. The 
 to Groq (add `--allow-read=_eval`).
 
 **CI:** `GROQ_API_URL` also points at the ai-stub, which answers transcriptions with a fixed, timed transcript.
-`stub-short`/`stub-fail` in the file name exercise the too-short and AI-failure paths.
+A `STUB_SHORT` / `STUB_FAIL` marker in the recording's bytes (after its container header) exercises the too-short and AI-failure paths. It can't be the file name: score-speaking sends every recording to Groq as `answer.<ext>`.
 
 **Accent evaluation (M7-B5):** see `supabase/functions/_eval/speaking/README.md`. The eval needs real recordings
 from consenting speakers, kept local.

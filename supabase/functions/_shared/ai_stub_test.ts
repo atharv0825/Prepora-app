@@ -69,7 +69,7 @@ Deno.test("stub is off unless enabled", async () => {
 
 // ── Speaking (M7-B3): transcription stub → signals → scoring stub, as score-speaking runs them ──
 import { MIN_SCORABLE_WORDS, keepFoundPhrases, speakingPartBand, speakingSignals } from "./speaking.ts";
-import { STUB_TRANSCRIPT } from "./ai_stub.ts";
+import { STUB_FAIL_MARKER, STUB_SHORT_MARKER, STUB_TRANSCRIPT } from "./ai_stub.ts";
 import { transcribe } from "./stt.ts";
 import { buildPart2Request, SPEAKING_SETTINGS } from "./prompts/speaking.ts";
 import { ScoredSpeaking } from "./speaking_schemas.ts";
@@ -95,16 +95,12 @@ Deno.test("speaking via the stubs: transcript with timings → signals → a val
 });
 
 Deno.test("speaking stub hooks: a short recording, and an AI failure", async () => {
-  const short = await transcribe({ audio: new File([new Uint8Array([1, 2, 3, 4])], "x"), mimeType: "audio/webm" }, {
-    ...sttStub,
-    fetch: ((url: string, init: RequestInit) => {
-      const form = init.body as FormData;
-      const renamed = new FormData();
-      for (const [k, v] of form) renamed.append(k, k === "file" ? new File([v as Blob], "stub-short.webm") : v);
-      return handleStub(new Request(url, { method: "POST", body: renamed }), true);
-    }) as typeof fetch,
-  });
+  // As score-speaking sends it: the recording's bytes (a WebM header + the marker), named answer.webm.
+  const marked = (marker: string) => new Blob([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]), marker], { type: "audio/webm" });
+  const short = await transcribe({ audio: marked(STUB_SHORT_MARKER), mimeType: "audio/webm" }, sttStub);
   assert(short.words.length < MIN_SCORABLE_WORDS, `${short.words.length} words`);
+  const failing = await transcribe({ audio: marked(STUB_FAIL_MARKER), mimeType: "audio/webm" }, sttStub);
+  assert(failing.text.endsWith("STUB_FAIL"), failing.text);
   const req = buildPart2Request(CARD, `${STUB_TRANSCRIPT} STUB_FAIL`, speakingSignals({ transcript: STUB_TRANSCRIPT, durationSec: 80 }).signals);
   try {
     await generateJson({ model, system: req.system, parts: req.parts, schema: ScoredSpeaking, maxAttempts: 2 }, stub());

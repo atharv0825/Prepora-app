@@ -3151,3 +3151,69 @@ On one branch from `develop` (M6-F1..F4 merged in #64).
 1. After merging: `supabase secrets set DEEPSEEK_API_KEY=…` on staging, and check `AI_STUB` and `DEEPSEEK_API_URL` are **not** set there.
 2. Do the **staging run with real AI** from the checklist: admin publishes a Task 2 and a Task 1 Academic task with a chart; a Free and a Gold student score; a phone photo (iPhone HEIC); check `ai_usage` and `prompt_version`.
 3. Optional, locally: `E2E_AI=1 pnpm exec playwright test writing-ai writing-ui --project=desktop` against your DeepSeek key (about US$0.03), or with the stub env lines for free.
+
+## 2026-11-26 — M7-C1 + M7-C2: Speaking schema + RLS, speaking-audio bucket; score-speaking contract and mock
+
+On one branch from `develop` (M6-A1/I1 merged in #65).
+
+**M7-C1: migration `20261127120000_speaking_schema.sql`**
+- **`speaking_topics`:**
+  - `part` 1–3 and a `title`;
+  - **Part 2:** `cue_card_points` (2–5 "You should say" points);
+  - **Parts 1 and 3:** `questions` (1–12);
+  - **Part 3:** `parent_topic_id`, which must be a **Part 2** card. A Part 3 discussion can only be published after its card (trigger, 23514).
+  - A shape check makes each part carry exactly its own fields, with no blank items. Source, status, `published_at`.
+  - Published topics are readable by everyone; staff write them and delete drafts only.
+- **`speaking_sessions`:**
+  - `mode` (`part1`, `part2`, `part3`, `full_test`); `status` (in_progress, completed, abandoned); `started_at` / `completed_at` (required when completed);
+  - `part1_band`–`part3_band` and `overall_band` (half bands; the IELTS rounding comes in M8);
+  - **a student starts their own session with only `id`, `user_id` and `mode`** (column grants plus RLS on `user_id`); bands and status are written only by the service role.
+- **`speaking_responses`:**
+  - `session_id`, `user_id`, `topic_id`, `part`;
+  - `audio_paths` (≤ 12: one for Part 2, one per answer for Parts 1 and 3; **emptied by a later 30-day clean-up**, plan §2.6);
+  - `duration_sec`, `transcript`, `signals` (jsonb), `scores` (`fc`, `lr`, `gra`, `pron`, all four required), `band` (half), `feedback` (the plan's shape), `prompt_version`;
+  - **one response per part per session**;
+  - a trigger checks the response belongs to the session's student, the part fits the session's mode, and the topic is for that part;
+  - **students read their own; only the service role writes**; staff don't read answers.
+- **`speaking-audio` bucket:**
+  - private; **15 MB**; WebM/Opus (Chrome, Android), MP4/AAC (Safari, iOS), plus OGG, MPEG and WAV;
+  - **own folder only** (`{user_id}/…`) for read, upload, replace and delete;
+  - every plan can record (Free has credits for 2 Part 2 scorings).
+  - Note for M7-F2: upload with the bare type (`audio/webm`, not `audio/webm;codecs=opus`).
+- Found while testing: students couldn't start a session with their own id. **`id` was added to the insert grant**, so the client can generate the id it uses in upload paths.
+
+**M7-C2: contract and mock** (`packages/shared`)
+- **`ielts/speaking.ts`:**
+  - the criteria and labels (Pronunciation is judged on intelligibility, not accent);
+  - `SPEAKING_PARTS`: credit actions; Part 2 is 60 s prep and 120 s max; Part 1 answers up to ~45 s, Part 3 up to ~90 s; `PART2_MIN_SECONDS` = 60;
+  - **`speakingPartBand`**: the average rounded down to a half band, as for a Writing task;
+  - **`countFillers`** (um, uh, er, erm, ah, hmm, "you know", "I mean": whole words only; "like", "so" and "actually" are left to the AI); `countSpokenWords`; `wordsPerMinute`.
+- **`api/score-speaking.ts`:**
+  - **Request:** `session_id`, `topic_id`, `part`, `audio_path` (`{uuid}/{file}.webm|ogg|m4a|mp4|aac|mp3|wav`), `duration_sec`. One recording for now; M8 extends it for Parts 1 and 3.
+  - **`ScoredSpeaking`** (the AI's output): scores, summary, `better_phrases` (≤ 15, `original` quoted from the transcript, `better`, `why`), strengths, improvements, model answer.
+  - **`SpeakingSignals`:** duration, words, wpm, pauses, longest pause, filler count.
+  - **Response:**
+    - **everyone gets** the transcript, signals and fillers (measured, not AI coaching), the four criteria, the band and the summary;
+    - **`full`** adds better phrases, strengths, improvements and the model answer;
+    - **`summary`** (Free) adds only `better_phrases_count`.
+    - Refines: the band equals `speakingPartBand(scores)`, and `filler_count` adds up the fillers.
+  - The stored `SpeakingFeedback`; `speakingFeedbackFor` and `toSpeakingSummary`; the errors documented (including 409 for a part already scored).
+- **`mocks/speaking.ts`:**
+  - a cue card and a band-6 Part 2 transcript (~1 min 50 s, with fillers);
+  - `mockScoreSpeaking`: better phrases quoted from the transcript, fillers counted, scores from fillers and phrases, short answers lose FC;
+  - credits per part (5, 4, 6) and 402 errors; every response parsed by the contract.
+
+**Tests**
+- pgTAP **`speaking_schema.test.sql`** (+51):
+  - structure, grants and the bucket;
+  - the editor writes topics and gets refused for: the wrong shape, 1 point, an orphan or wrong-parent Part 3, blank questions, Part 4; publishing order; drafts not visible to students; published topics can't be deleted;
+  - students: start their own Part 2 session, but not for someone else, not with a band, and can't update it; can't write responses;
+  - the service role: saving; one per part; the owner, mode and topic-part checks; a full test takes any part; four criteria; half bands; the completed check; a topic with responses can't be deleted;
+  - RLS: students read only their own, and staff don't read answers;
+  - audio: Free records into their own folder, not another student's; others can't see or delete it; the owner can.
+- Unit (+13): `speaking.test.ts` (4), `score-speaking.test.ts` (6), `mocks/speaking.test.ts` (3).
+
+**Verified**
+- `supabase migration up` locally ✓. The grant fix was applied to the local DB by hand, because the migration had already run; CI's "Apply migrations to a fresh DB" checks the file from scratch. `supabase test db`: **629 passed** (23 files) ✓; `db lint`: no errors ✓; types regenerated, `--check` ✓.
+- `pnpm test`: **557 passed** (59 files) ✓; typecheck ✓ (shared, web, admin).
+- **Not verified:** the bucket's audio types and size through the Storage API (local Storage isn't running; covered when M7-F2 uploads in CI); CI.

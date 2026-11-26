@@ -559,6 +559,164 @@ export type Database = {
         }
         Relationships: []
       }
+      speaking_responses: {
+        Row: {
+          audio_paths: string[]
+          band: number
+          created_at: string
+          duration_sec: number | null
+          feedback: Json
+          id: string
+          part: number
+          prompt_version: string | null
+          scores: Json
+          session_id: string
+          signals: Json
+          topic_id: string
+          transcript: string
+          user_id: string
+        }
+        Insert: {
+          audio_paths?: string[]
+          band: number
+          created_at?: string
+          duration_sec?: number | null
+          feedback?: Json
+          id?: string
+          part: number
+          prompt_version?: string | null
+          scores: Json
+          session_id: string
+          signals?: Json
+          topic_id: string
+          transcript: string
+          user_id: string
+        }
+        Update: {
+          audio_paths?: string[]
+          band?: number
+          created_at?: string
+          duration_sec?: number | null
+          feedback?: Json
+          id?: string
+          part?: number
+          prompt_version?: string | null
+          scores?: Json
+          session_id?: string
+          signals?: Json
+          topic_id?: string
+          transcript?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaking_responses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_responses_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speaking_sessions: {
+        Row: {
+          completed_at: string | null
+          id: string
+          mode: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band: number | null
+          part1_band: number | null
+          part2_band: number | null
+          part3_band: number | null
+          started_at: string
+          status: Database["public"]["Enums"]["speaking_session_status"]
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          mode: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band?: number | null
+          part1_band?: number | null
+          part2_band?: number | null
+          part3_band?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["speaking_session_status"]
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          mode?: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band?: number | null
+          part1_band?: number | null
+          part2_band?: number | null
+          part3_band?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["speaking_session_status"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      speaking_topics: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cue_card_points: string[] | null
+          id: string
+          parent_topic_id: string | null
+          part: number
+          published_at: string | null
+          questions: string[] | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cue_card_points?: string[] | null
+          id?: string
+          parent_topic_id?: string | null
+          part: number
+          published_at?: string | null
+          questions?: string[] | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cue_card_points?: string[] | null
+          id?: string
+          parent_topic_id?: string | null
+          part?: number
+          published_at?: string | null
+          questions?: string[] | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaking_topics_parent_topic_id_fkey"
+            columns: ["parent_topic_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       test_attempts: {
         Row: {
           answers: Json
@@ -997,6 +1155,8 @@ export type Database = {
         | "note_table_completion"
         | "flowchart_completion"
         | "short_answer"
+      speaking_session_mode: "part1" | "part2" | "part3" | "full_test"
+      speaking_session_status: "in_progress" | "completed" | "abandoned"
       test_module: "reading" | "listening"
       writing_input_mode: "typed" | "photo"
     }
@@ -1169,6 +1329,8 @@ export const Constants = {
         "flowchart_completion",
         "short_answer",
       ],
+      speaking_session_mode: ["part1", "part2", "part3", "full_test"],
+      speaking_session_status: ["in_progress", "completed", "abandoned"],
       test_module: ["reading", "listening"],
       writing_input_mode: ["typed", "photo"],
     },

@@ -15,6 +15,7 @@ import {
 import { toast } from "@prepora/ui/components/sonner";
 import { deleteListeningTest, setListeningTestStatus } from "@/lib/listening-actions";
 import { deleteReadingTest, setReadingTestStatus } from "@/lib/reading-actions";
+import { deleteSpeakingTopic, setSpeakingTopicStatus } from "@/lib/speaking-actions";
 import { deleteWritingTask, setWritingTaskStatus } from "@/lib/writing-actions";
 
 type Confirm = { kind: "status"; to: ContentStatus } | { kind: "delete" };
@@ -30,14 +31,14 @@ export function StatusActions({
   status,
   check,
 }: {
-  module?: "reading" | "listening" | "writing";
+  module?: "reading" | "listening" | "writing" | "speaking";
   testId: string;
   status: ContentStatus;
   check: PublishCheck;
 }) {
-  const setStatus = module === "reading" ? setReadingTestStatus : module === "listening" ? setListeningTestStatus : setWritingTaskStatus;
-  const remove = module === "reading" ? deleteReadingTest : module === "listening" ? deleteListeningTest : deleteWritingTask;
-  const thing = module === "writing" ? "task" : "test";
+  const setStatus = { reading: setReadingTestStatus, listening: setListeningTestStatus, writing: setWritingTaskStatus, speaking: setSpeakingTopicStatus }[module];
+  const remove = { reading: deleteReadingTest, listening: deleteListeningTest, writing: deleteWritingTask, speaking: deleteSpeakingTopic }[module];
+  const thing = module === "writing" ? "task" : module === "speaking" ? "topic" : "test";
   const [pending, start] = useTransition();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
 
@@ -55,19 +56,19 @@ export function StatusActions({
     published: {
       title: `Publish this ${thing}?`,
       body:
-        module === "writing"
+        module === "writing" || module === "speaking"
           ? "Students see it straight away. You can still edit it, and edits go live immediately."
           : "Students on the chosen plan can take it straight away. You can still edit it, and edits go live immediately.",
       action: "Publish",
     },
     draft: {
       title: "Move back to draft?",
-      body: `Students can't open it any more; anyone partway through loses access. Their past ${module === "writing" ? "feedback is" : "results are"} kept.`,
+      body: `Students can't open it any more; anyone partway through loses access. Their past ${module === "writing" || module === "speaking" ? "feedback is" : "results are"} kept.`,
       action: "Move to draft",
     },
     archived: {
       title: `Archive this ${thing}?`,
-      body: `Students can't see it any more. Their past ${module === "writing" ? "feedback is" : "results are"} kept. You can publish it again later.`,
+      body: `Students can't see it any more. Their past ${module === "writing" || module === "speaking" ? "feedback is" : "results are"} kept. You can publish it again later.`,
       action: "Archive",
     },
     delete: {
@@ -75,6 +76,8 @@ export function StatusActions({
       body:
         module === "writing"
           ? "The task is deleted for good (its chart image stays in storage)."
+          : module === "speaking"
+          ? "The topic is deleted for good."
           : `The test, its ${module === "reading" ? "passages" : "sections"} and questions are deleted for good.`,
       action: "Delete",
     },

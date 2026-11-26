@@ -3420,3 +3420,53 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
   - **a real phone:** Safari's MP4 recording on an iPhone, Android Chrome, the iOS permission flow and the help steps (M7-I1);
   - the stubbed-AI scoring path and the recording playback via signed URL (Storage isn't running locally; CI);
   - the Free mobile feedback and dark mode by eye.
+
+## 2026-11-26 — M7-A1: Speaking topic manager (admin); M7-I1: real-device test plan
+
+On a branch from `develop` (#68 and #69 merged; the stub-marker fix is in PR #70).
+
+**M7-A1: the Speaking topic manager**
+- **Scope:** Part 2 cue cards and their linked Part 3 discussions (`parent_topic_id`), as the step says. **Part 1 question sets come with M8-A1.**
+- **Contract `packages/shared/src/api/admin-speaking.ts`:**
+  - `CueCardForm`: a task, and 2–5 points;
+  - `Part3Form`: a theme, 1–12 questions and the parent card;
+  - **blank form rows are dropped before counting**; `cueCardRow` and `part3Row` give the right column shape per part;
+  - **`speakingPublishCheck`:**
+    - **blocks:** a card without 2–5 points; a Part 3 without questions, or **whose card isn't published**;
+    - **warns:** the task doesn't start with "Describe…", the last point isn't "and explain why…", or Part 3 has fewer than 4 questions.
+- **Server Functions `apps/admin/src/lib/speaking-actions.ts`** (editor's own session; the database re-checks):
+  - save a cue card or a Part 3 (create redirects to the new topic);
+  - set the status (publishing runs the checklist with the parent's status);
+  - delete. **A topic with linked Part 3 discussions or students' answers gives 23503: "Archive it instead."**
+- **`StatusActions`** now also takes `module="speaking"` (from a lookup table instead of chained ternaries), with Speaking wording.
+- **Pages:**
+  - **`/speaking`:** cue cards with their status, point count, **"N Part 3 (M published)"**, and the updated time; plus "New cue card".
+  - **`/speaking/[id]`:**
+    - for a card: status and workflow, the checklist, the details form, **"What students see"** (the card as the student app shows it), **the linked Part 3 discussions, and a form to add one**;
+    - for a Part 3: the same, with a link back to its card.
+- **`components/speaking/topic-form.tsx`:** one form for both. The rows can be **added, removed and moved up or down**, with numbered labels and example placeholders; it keeps the input when the server refuses.
+- The admin nav marks Speaking as built.
+
+**M7-I1: on real devices with real recordings (staging): a plan, not done**
+- **`docs/speaking-device-testing.md`:**
+  - the prerequisites (staging keys, **no stub settings**, a published card, a Free and a Gold account);
+  - **six device/browser rows** (iPhone Safari, iPhone Chrome, Android Chrome, Samsung Internet, desktop Chrome/Edge, Mac Safari);
+  - **eight checks per device:** permission and meter; blocked-mic help; auto-start and the 2:00 stop; playback (including the iPhone silent switch); upload and scoring time; the feedback (transcript accuracy, whether "um" is kept); **aeroplane mode → saved on the device → reopen → Send it**; the Free view;
+  - SQL to check `audio_paths` (`.m4a` from Safari, `.webm` elsewhere), `audio_seconds` and cost;
+  - **a results table to copy into this log**; the plan's M7 exit criterion.
+- I can't run it: it needs real phones, microphones and staging.
+
+**Tests**
+- Unit (+7): `admin-speaking.test.ts` (6: blank rows, order, limits, the Part 3 link, the checklist); `nav.test.ts` (Speaking built).
+- e2e **`speaking-admin.spec.ts`** (API, 2):
+  - an editor creates a card from the form contract (the blank row dropped) and a linked Part 3;
+  - **the Part 3 can't be published before its card** (checklist and 23514), then publishes after it;
+  - a student reads both, can't insert or update;
+  - a card with a linked Part 3 gives 23503 on delete, then archives and disappears for students;
+  - a card students have answered also gives 23503.
+
+**Verified**
+- `pnpm test`: **585 passed** (64 files) ✓; typecheck ✓ (admin, web); admin lint ✓.
+- `speaking-admin.spec.ts`: **2 passed**, run with a temporary Playwright config without the web build, because the machine had 1.6 GB free and `next build` ran out of memory earlier. The config was removed afterwards.
+- **The admin screens in a browser:** a temporary admin dev server on :3301 and a temporary spec (both removed). It covered: a new card with a blank row and a reorder → the student preview in order → a Part 3 from the card page, with **Publish disabled ("Publish its Part 2 cue card first")** → publish the card → the discussion listed → publish the discussion → "1 Part 3 (1 published)". The screenshot was checked by eye.
+- **Not verified:** M7-I1 itself (the real-device run); CI.

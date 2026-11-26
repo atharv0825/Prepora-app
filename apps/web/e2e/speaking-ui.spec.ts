@@ -84,7 +84,7 @@ test("F1 + F2: dashboard → cue card; mic test; prepare; record; stop; listen b
   await page.getByRole("region", { name: "Practise" }).getByRole("link", { name: /Speaking/ }).click();
   await expect(page).toHaveURL(/\/app\/speaking$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Speaking");
-  await expect(page.getByText(/Scoring costs 4 credits/)).toBeVisible();
+  await expect(page.getByText(/1 minute to prepare, then speak for up to 2 minutes\. 4 credits\./)).toBeVisible();
   const card = page.getByTestId("cue-card-item").filter({ hasText: `E2E describe a place ${stamp}` });
   await expect(card).toContainText("Not answered yet");
   await card.getByRole("link", { name: /Start/ }).click();

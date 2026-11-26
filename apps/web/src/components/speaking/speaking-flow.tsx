@@ -6,6 +6,7 @@ import { Loader2, Mic, RotateCcw, Square, TriangleAlert, Upload } from "lucide-r
 import { cn } from "cn";
 import { Button } from "@prepora/ui/components/button";
 import { Textarea } from "@prepora/ui/components/textarea";
+import type { ScoreSpeakingResponse } from "@prepora/shared/api/score-speaking";
 import { PART2_MIN_SECONDS, SPEAKING_PARTS } from "@prepora/shared/ielts/speaking";
 import { CostConfirm } from "@/components/credits/cost-confirm";
 import { useCredits } from "@/components/credits/credits-provider";
@@ -33,11 +34,28 @@ type Phase = "pending" | "mic" | "card" | "prep" | "recording" | "review" | "sen
  * "Get my band score" (credit confirm) → upload with progress and retries → scoring progress →
  * the feedback page. The recording stays on this device until it's scored (pending.ts), so a
  * failed upload or a closed tab can be retried without recording again.
+ *
+ * Inside the full test (M8-F2) it gets the test's `session`, the microphone `stream` (owned by the
+ * full test, so it isn't stopped here) and `onScored` instead of the feedback page. The credits
+ * were confirmed when the test started, and the recording isn't kept on the device (a retry works
+ * while the page is open).
  */
-export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: string }) {
+export function SpeakingFlow({
+  topic,
+  userId,
+  session,
+  stream: sharedStream,
+  onScored,
+}: {
+  topic: CueCardTopic;
+  userId: string;
+  session?: { id: string };
+  stream?: MediaStream;
+  onScored?: (result: ScoreSpeakingResponse) => void;
+}) {
   const router = useRouter();
   const { run } = useCredits();
-  const [phase, setPhase] = useState<Phase | null>(null);
+  const [phase, setPhase] = useState<Phase | null>(session ? (sharedStream ? "card" : "mic") : null);
   const [pending, setPending] = useState<PendingRecording | null>(null);
   const [notes, setNotes] = useState("");
   const [left, setLeft] = useState(PREP);
@@ -45,11 +63,18 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
   const [recording, setRecording] = useState<Recording | null>(null);
   const [progress, setProgress] = useState<{ stage: "upload" | "score"; fraction: number; started: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const stream = useRef<MediaStream | null>(null);
+  const stream = useRef<MediaStream | null>(sharedStream ?? null);
   const recorder = useRef<MediaRecorder | null>(null);
+  const inTest = Boolean(session);
+  // Outside a full test the recording is kept on the device until scored.
+  const store = {
+    save: (r: PendingRecording) => (inTest ? Promise.resolve() : savePending(r)),
+    clear: () => (inTest ? Promise.resolve() : clearPending(topic.id)),
+  };
 
   // An unsent recording from before?
   useEffect(() => {
+    if (inTest) return;
     let live = true;
     void loadPending(topic.id).then((p) => {
       if (!live) return;
@@ -59,10 +84,12 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
     return () => {
       live = false;
     };
-  }, [topic.id]);
+  }, [topic.id, inTest]);
 
-  // Release the microphone when leaving.
-  useEffect(() => () => stream.current?.getTracks().forEach((t) => t.stop()), []);
+  // Release the microphone when leaving (unless the full test owns it).
+  useEffect(() => () => {
+    if (!sharedStream) stream.current?.getTracks().forEach((t) => t.stop());
+  }, [sharedStream]);
 
   const stopRecording = useCallback(() => {
     if (recorder.current?.state === "recording") recorder.current.stop();
@@ -125,15 +152,15 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
     setPhase("sending");
     const supabase = createClient();
     try {
-      await savePending(rec);
-      // 1. The session (once; reused by a retry).
-      let sessionId = rec.sessionId;
+      await store.save(rec);
+      // 1. The session (once; reused by a retry). In a full test, the test's.
+      let sessionId = rec.sessionId ?? session?.id;
       if (!sessionId) {
         sessionId = crypto.randomUUID();
         const { error: e } = await supabase.from("speaking_sessions").insert({ id: sessionId, user_id: userId, mode: "part2" });
         if (e) throw new Error(`We couldn't start your session (${e.message}).`);
         rec = { ...rec, sessionId };
-        await savePending(rec);
+        await store.save(rec);
       }
       // 2. The recording, with progress (once; reused by a retry).
       const { contentType, ext } = uploadTypeFor(rec.recorderType);
@@ -154,7 +181,7 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
           onProgress: (fraction) => setProgress((p) => (p ? { ...p, fraction } : p)),
         });
         rec = { ...rec, audioPath };
-        await savePending(rec);
+        await store.save(rec);
       }
       // 3. Scoring.
       setProgress({ stage: "score", fraction: 0, started: Date.now() });
@@ -162,16 +189,17 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
         scoreSpeaking(supabase, { session_id: sessionId, topic_id: topic.id, part: 2, audio_path: audioPath, duration_sec: Math.max(1, rec.durationSec) }),
       );
       if (result.data) {
-        await clearPending(topic.id);
-        router.push(speakingResponsePath(result.data.response_id));
+        await store.clear();
+        if (onScored) onScored(result.data);
+        else router.push(speakingResponsePath(result.data.response_id));
         return;
       }
       setProgress(null);
       setPending(rec);
-      if (result.error.code === "conflict") {
+      if (result.error.code === "conflict" && !inTest) {
         // The session is finished or this part already scored: a retry starts a new session.
         const fresh = { ...rec, sessionId: undefined, audioPath: undefined };
-        await savePending(fresh);
+        await store.save(fresh);
         setPending(fresh);
       }
       if (!CREDIT_REFUSALS.includes(result.error.code)) {
@@ -318,13 +346,17 @@ export function SpeakingFlow({ topic, userId }: { topic: CueCardTopic; userId: s
             </p>
           )}
           <div className="flex flex-wrap gap-3">
-            <CostConfirm
-              actionKey={SPEAKING_PARTS[2].actionKey}
-              description="Band per criterion, your transcript, better phrases and a model answer for this cue card."
-              confirmLabel="Score my answer"
-              onConfirm={submitCurrent}
-              trigger={<Button>{error ? "Try again" : "Get my band score"}</Button>}
-            />
+            {inTest ? (
+              <Button onClick={submitCurrent}>{error ? "Try again" : "Send and continue to Part 3"}</Button>
+            ) : (
+              <CostConfirm
+                actionKey={SPEAKING_PARTS[2].actionKey}
+                description="Band per criterion, your transcript, better phrases and a model answer for this cue card."
+                confirmLabel="Score my answer"
+                onConfirm={submitCurrent}
+                trigger={<Button>{error ? "Try again" : "Get my band score"}</Button>}
+              />
+            )}
             {stream.current && (
               <Button
                 variant="outline"

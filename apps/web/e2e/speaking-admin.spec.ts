@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { CueCardForm, cueCardRow, Part3Form, part3Row, speakingPublishCheck } from "@prepora/shared/api/admin-speaking";
+import { CueCardForm, cueCardRow, Part1Form, part1Row, Part3Form, part3Row, speakingPublishCheck } from "@prepora/shared/api/admin-speaking";
 import { adminClient, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M7-A1: the Speaking topic manager's calls through the real API (PostgREST) with real sessions, as
 // the admin panel's Server Functions make them: an editor creates a cue card and a linked Part 3
 // discussion from the form contract; the Part 3 can't be published before its card; a student sees
 // only published topics and can't write any; a card with a linked discussion or answers can't be
-// deleted, only archived.
+// deleted, only archived. M8-A1: a Part 1 question set from its form contract, the 4-question
+// minimum, publishing, and a student reading it (as the examiner and the full test do).
 
 test.describe("Speaking topic manager API (M7-A1)", () => {
   test.skip(({ browserName, isMobile }) => browserName !== "chromium" || isMobile, "API test: run once");
@@ -85,5 +86,33 @@ test.describe("Speaking topic manager API (M7-A1)", () => {
     });
     expect((await db.from("speaking_topics").update({ status: "draft" }).eq("id", cardId)).error).toBeNull();
     expect((await db.from("speaking_topics").delete().eq("id", cardId)).error?.code).toBe("23503");
+  });
+
+  test("M8-A1: an editor builds a Part 1 question set; under 4 questions blocks publishing; students read it", async () => {
+    const db = editor.client;
+    const theme = `Hometown ${Date.now()}`;
+    const draft = Part1Form.parse({ title: theme, questions: ["Where is your hometown?", "", "What do you like about it?", "Has it changed much?"] });
+    const created = await db.from("speaking_topics").insert({ ...part1Row(draft), created_by: editor.id }).select("id, part, title, cue_card_points, questions, parent_topic_id, status").single();
+    expect(created.error).toBeNull();
+    expect(created.data).toMatchObject({ part: 1, title: theme, cue_card_points: null, parent_topic_id: null, status: "draft" });
+    const id = created.data!.id;
+    ids.push(id);
+    // 3 questions: the checklist blocks publishing (the examiner asks 4–5).
+    expect(speakingPublishCheck(created.data!).blocking).toEqual(["A Part 1 set needs at least 4 questions: the examiner asks 4–5."]);
+    expect((await student.client.from("speaking_topics").select("id").eq("id", id)).data).toEqual([]); // a draft
+
+    const full = Part1Form.parse({ title: theme, questions: [...draft.questions, "Would you like to live there in the future?", "Is it a good place for young people?", "What's the weather like there?"] });
+    const saved = await db.from("speaking_topics").update(part1Row(full)).eq("id", id).eq("part", 1).select("questions, cue_card_points, questions").single();
+    expect(saved.data!.questions).toHaveLength(6);
+    expect(speakingPublishCheck({ ...part1Row(full) })).toEqual({ blocking: [], warnings: [] });
+    expect((await db.from("speaking_topics").update({ status: "published" }).eq("id", id)).error).toBeNull();
+
+    // The database refuses a Part 1 with a card or a parent, whatever the form says.
+    expect((await db.from("speaking_topics").insert({ part: 1, title: "Bad", questions: ["Q?"], cue_card_points: ["a", "b"] })).error?.code).toBe("23514");
+
+    const seen = await student.client.from("speaking_topics").select("id, part, title, questions").eq("id", id).single();
+    expect(seen.data).toMatchObject({ part: 1, title: theme });
+    expect(seen.data!.questions![0]).toBe("Where is your hometown?");
+    expect((await student.client.from("speaking_topics").update({ title: "Hacked" }).eq("id", id).select("id")).data).toEqual([]);
   });
 });

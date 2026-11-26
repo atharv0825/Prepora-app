@@ -184,6 +184,10 @@ test.describe("score-speaking (API)", () => {
     const p1 = made.find((t) => t.part === 1)!.id;
     const p3 = made.find((t) => t.part === 3)!.id;
     try {
+      // A full test costs 15 and the earlier tests here already spent some of the 18 sign-up
+      // credits: top the student up (Gold's daily cap, 40, still allows the day's 19).
+      const { error: gError } = await db.rpc("grant_credits", { p_user_id: gold.id, p_source: "topup", p_amount: 20 });
+      if (gError) throw gError;
       const before = await balance(gold);
       const session = crypto.randomUUID();
       expect((await gold.client.from("speaking_sessions").insert({ id: session, user_id: gold.id, mode: "full_test" })).error).toBeNull();

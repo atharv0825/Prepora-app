@@ -3354,3 +3354,20 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 1. With `GROQ_API_KEY` set: run `stt_live_test.ts` with `--allow-read=_eval`. It confirms Groq reads **both Chrome WebM and Safari MP4** with timings, and whether "um" survives.
 2. Collect accent-diverse recordings with consent (≥ 3–5 speakers each for Indian, Nepali, Filipino and Vietnamese English, plus a teacher's bands and verbatim transcripts). Run `_eval/speaking_eval.ts`. **Any fairness flag blocks releasing `s2-v1`.**
 3. On staging: `supabase secrets set GROQ_API_KEY=…`, and check `GROQ_API_URL` and `AI_STUB` are **not** set there.
+
+## 2026-11-26 — Fix (PR #68): the stub's too-short / AI-failure hooks never fired in CI
+
+**What CI showed** (job 139802130052, Playwright): `speaking-ai.spec.ts` "a too-short recording and an AI failure are refunded" expected **400 validation_failed** but got **200**: the answer was scored normally. 150 passed, 57 skipped, 1 failed (also on retry).
+
+**Cause:** the ai-stub picked its transcript from the **uploaded file's name** (`stub-short.webm`, `stub-fail.webm`). But **score-speaking always sends the recording to Groq as `answer.<ext>`** (`stt.ts transcriptionForm`), so the stub never saw that name and returned the normal transcript.
+- **My Deno unit test hid it:** it renamed the multipart file to `stub-short.webm` itself before calling the stub, which production never does. My test design was wrong, not score-speaking.
+
+**Fix:**
+- **The markers moved into the recording's bytes:** `STUB_SHORT` / `STUB_FAIL` after a real container header. The stub decodes the uploaded audio and looks for them (exported `STUB_SHORT_MARKER`, `STUB_FAIL_MARKER`). They reach it whatever the file is called, and the WebM header still makes `sniffAudioType` accept the file.
+- **The Deno test now drives the stub exactly as score-speaking does** (`transcribe()` with the marked bytes, named `answer.webm`), for both hooks, with no renaming.
+- The e2e uploads `WebM header + "STUB_SHORT"` / `"STUB_FAIL"`; `docs/ai.md` is updated.
+
+**Verified**
+- Deno 2.9.8: `deno check` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** ✓ (the hook test now goes through the real request path); web typecheck ✓.
+- **Not verified locally:** the e2e itself (it needs Storage and the stub-served functions, which CI has). The re-run on this push is the check.
+- Merged into PR #69's branch (stacked on #68) with a normal merge, so #69 runs with the fix too.

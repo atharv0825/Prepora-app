@@ -17,6 +17,8 @@ const stubAi = process.env.E2E_AI === "1" && process.env.E2E_AI_STUB === "1";
 // A few bytes with a WebM header: the function reads the container from the first bytes; the stub
 // doesn't decode audio (real recordings: speaking-formats live test, M7-B4).
 const WEBM = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81, 0x01]);
+/** A WebM header followed by a marker the ai-stub reads in the audio bytes (STUB_SHORT, STUB_FAIL). */
+const marked = (marker: string) => new Uint8Array([...WEBM, ...new TextEncoder().encode(marker)]);
 
 async function call(user: TestUser | null, body: unknown) {
   const res = await fetch(`${url}/functions/v1/score-speaking`, {
@@ -153,10 +155,10 @@ test.describe("score-speaking (API)", () => {
     test.skip(!stubAi, "needs E2E_AI=1 E2E_AI_STUB=1");
     const db = adminClient();
     const before = await balance(gold);
-    const short = await call(gold, await prepare(gold, "stub-short.webm"));
+    const short = await call(gold, await prepare(gold, "short.webm", marked("STUB_SHORT")));
     expect([short.status, short.body.error?.code]).toEqual([400, "validation_failed"]);
     expect(short.body.error?.message).toContain("couldn't hear enough");
-    const failed = await call(gold, await prepare(gold, "stub-fail.webm"));
+    const failed = await call(gold, await prepare(gold, "fail.webm", marked("STUB_FAIL")));
     expect([failed.status, failed.body.error?.code]).toEqual([500, "internal"]);
     expect(await balance(gold)).toBe(before);
     const { data: usage } = await db.from("ai_usage").select("success, audio_seconds").eq("user_id", gold.id).eq("success", false);

@@ -110,6 +110,7 @@ export function mockScoreSpeaking(
       pauses: 4,
       longest_pause_sec: 2.1,
       filler_count: fillers.reduce((n, f) => n + f.count, 0),
+      transcript_confidence: 0.86,
     },
     fillers,
     scores: scored.scores,

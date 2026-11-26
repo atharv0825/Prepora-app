@@ -19,7 +19,7 @@ const base = {
   topic_id: T,
   part: 2,
   transcript: "Um, the food is very delicious.",
-  signals: { duration_sec: 110, words: 6, words_per_minute: 3, pauses: 1, longest_pause_sec: 1.2, filler_count: 1 },
+  signals: { duration_sec: 110, words: 6, words_per_minute: 3, pauses: 1, longest_pause_sec: 1.2, filler_count: 1, transcript_confidence: 0.9 },
   fillers: [{ word: "um", count: 1 }],
   scores: scored.scores,
   band: 6,

@@ -3,7 +3,7 @@ import { ONBOARDED, createTestUser, deleteTestUser, type TestUser } from "./supp
 
 // M2-F3: the home dashboard for an onboarded student: greeting, goal card with the exam
 // countdown, credits card and the four module tiles (Reading open since M4-F1, Listening since
-// the Listening and Writing home pages, Speaking "coming soon").
+// the Listening, Writing and Speaking home pages).
 
 function inDays(days: number): string {
   const d = new Date();
@@ -41,15 +41,12 @@ test.describe("home dashboard", () => {
 
     const modules = page.getByRole("region", { name: "Practise" }).getByRole("listitem");
     await expect(modules).toHaveCount(4);
-    // Reading, Listening and Writing are open; Speaking is still coming soon.
-    for (const [name, href] of [["Reading", "/app/reading"], ["Listening", "/app/listening"], ["Writing", "/app/writing"]]) {
+    // All four modules are open (Speaking since M7).
+    for (const [name, href] of [["Reading", "/app/reading"], ["Listening", "/app/listening"], ["Writing", "/app/writing"], ["Speaking", "/app/speaking"]]) {
       const tile = modules.filter({ has: page.getByRole("heading", { name }) });
       await expect(tile.getByRole("link")).toHaveAttribute("href", href);
       await expect(tile).not.toContainText("Coming soon");
     }
-    const speaking = modules.filter({ has: page.getByRole("heading", { name: "Speaking" }) });
-    await expect(speaking).toContainText("Coming soon");
-    await expect(speaking.getByRole("link")).toHaveCount(0);
   });
 
   test("no exam date: 'Not booked yet'; no time zone: 'Welcome back'", async ({ page, context, baseURL }) => {

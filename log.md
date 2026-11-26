@@ -3354,3 +3354,69 @@ On one branch from `develop` (M6-A1/I1 merged in #65).
 1. With `GROQ_API_KEY` set: run `stt_live_test.ts` with `--allow-read=_eval`. It confirms Groq reads **both Chrome WebM and Safari MP4** with timings, and whether "um" survives.
 2. Collect accent-diverse recordings with consent (≥ 3–5 speakers each for Indian, Nepali, Filipino and Vietnamese English, plus a teacher's bands and verbatim transcripts). Run `_eval/speaking_eval.ts`. **Any fairness flag blocks releasing `s2-v1`.**
 3. On staging: `supabase secrets set GROQ_API_KEY=…`, and check `GROQ_API_URL` and `AI_STUB` are **not** set there.
+
+## 2026-11-26 — M7-F1..F3: Speaking screens (mic check, cue card and recorder, upload, feedback)
+
+**Stacked on M7-B3..B5 (#68, open).** M7-B1/B2 (#67) are merged.
+
+**Pages** (`apps/web/src/app/(app)/app/speaking/`)
+- **`/app/speaking`:** published Part 2 cue cards (with their points, "Best band", "Start" or "Answer again"), the scoring cost from `credit_costs`, a note that the Parts 1 and 3 examiner is coming (M8), and **the student's scored answers**.
+- **`/app/speaking/[topicId]`:** the recorder for one card (published Part 2 only; a bad id gives 404).
+- **`/app/speaking/responses/[id]`:** the feedback, read through RLS (**another student gets 404**), with the student's recording played through a 1-hour **signed URL** while it's kept.
+- **The dashboard's Speaking tile is open: all four modules are now available.** New routes: `routes.speaking`, `speakingTopicPath`, `speakingResponsePath`.
+
+**M7-F1: microphone** (`components/speaking/mic-check.tsx`)
+- **An explainer before asking** (plan §5.1): why we need it, that we record only while the timer runs, private, **deleted after 30 days** (transcript and feedback kept), and tips.
+- "Allow microphone" triggers the browser prompt (with echo cancellation and noise suppression).
+- **The mic test:** a live **level meter** (Web Audio analyser, RMS × 4) with "We can hear you" once the level passes 0.15. "Continue" is disabled until then.
+- **Problems:** blocked, no microphone, in use by another app, not https, unsupported, other. **For a block, steps per browser:** Chrome, Edge, Safari on Mac, **iPhone/iPad (every iOS browser uses Safari's settings)**, Firefox, Samsung Internet, other. Plus "Try again".
+- The microphone is released when the student leaves.
+
+**M7-F2: the cue card** (`components/speaking/speaking-flow.tsx`)
+- The card ("You should say:" points), then **"Start my 1 minute"**: a **60 s prep countdown with a notes box**, and **recording starts by itself at 0:00**, as in the exam (or earlier with "Start speaking now").
+- **Recording:**
+  - real `MediaRecorder`, **Opus/WebM preferred, else MP4 (Safari)**, else the browser's choice;
+  - a 0:00 / 2:00 clock and bar (amber under 1 minute);
+  - the notes stay visible;
+  - **it stops by itself at 2:00**, or with "Stop".
+- **Listen back:** playback of the recording; the length; **a warning under 1 minute** (short turn: lower Fluency); "Record again"; **"Get my band score"**, which confirms the credits (4).
+
+**M7-F3: sending and feedback**
+- The session is created **only on submit**, with a client-generated id, so abandoned recordings leave nothing behind. The recording goes to `speaking-audio/{uid}/{session}.{webm|m4a}` with **the bare content type** (the bucket refuses `;codecs=`).
+- **Upload with progress and retries** (`lib/speaking/upload.ts`):
+  - XHR to Storage's REST endpoint (supabase-js's upload reports no progress), with `x-upsert`;
+  - **retries network errors, timeouts, 408, 429 and 5xx (3 attempts, 1 s then 3 s)**; not 4xx;
+  - **"Resumable" was handled differently from TUS:** a 2-minute answer is 1–3 MB, below Supabase's 6 MB TUS chunk, so TUS would add nothing. Instead **the recording stays on the device** (`lib/speaking/pending.ts`, IndexedDB) until it's scored, together with the session and upload path once they exist, so a retry resumes where it stopped. After a dropped connection, a failed scoring or a closed tab, the card offers **"You have a recording that wasn't scored": Send it / Record a new answer**. A 409 (session finished) starts a fresh session on retry.
+- **Progress:** "Uploading… N%" (a progress bar), then four scoring steps with the seconds so far, and that leaving is safe.
+- Credit refusals open the existing dialog; other errors keep the recording and say "no credits were kept".
+- **The feedback screen** (`components/speaking/speaking-feedback.tsx`):
+  - the band; **the four criteria with bars**; the summary; a note that **Pronunciation is judged on how easy you are to understand, never your accent**;
+  - **"How you spoke":** length (amber under 1 minute), speaking rate (with the natural 110–170 range), pauses of 1 s+ (longest), fillers (each counted);
+  - **the student's recording**;
+  - **the transcript with fillers highlighted in amber, for everyone**, and **numbered better phrases in blue linking to the list**;
+  - "Better ways to say it"; strengths; next steps; the model answer (collapsible);
+  - **Free:** three locked cards ("1 better phrase found", strengths and next steps, model answer) and "Upgrade to Gold".
+
+**Pure helpers** (`lib/speaking/speaking.ts`): recorder type choice, upload type and extension, error classification, browser detection and help, the level meter's maths, transcript highlighting (`transcriptPieces`: phrases first, then fillers, no overlaps), `mmss`.
+
+**Playwright:** the desktop and mobile Chromium projects now run with **a fake microphone** (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`: a steady beep), so the mic test and real recording run headless.
+
+**Tests**
+- Unit (+12): `speaking.test.ts` (8): recorder type preference and exceptions, upload types, error classes, browser detection (iOS Chrome uses Safari's settings), the level meter, transcript pieces, `mmss`. `upload.test.ts` (4, a fake XHR): URL encoding, headers and upsert, progress; retries after a drop and a 503; no retry for 413; gives up after 3. `dashboard.test.ts`: all four modules open.
+- e2e **`speaking-ui.spec.ts`** (5 × desktop and mobile):
+  - **F1 + F2:** dashboard → Speaking (cost) → card → explainer (30 days) → Allow → **"We can hear you"** (fake mic) → card → prep timer → notes → speak → stop after 3 s → review "0:03 recorded" and the under-a-minute warning, **a real WebM recording (> 1 KB)**, "Record again";
+  - **F1:** a blocked microphone (`NotAllowedError`) shows the Chrome steps and "Try again";
+  - **F3:** **every upload aborted** → confirm 4 credits → "The upload failed… saved on this device" → **reload → the unsent recording is offered** → "Record a new answer" → the explainer, and still discarded after another reload;
+  - **F3 with the stubbed AI (E2E_AI=1, CI):** record → upload → scored → the feedback page (band 6.0, fillers, 3 phrases, playback);
+  - **stored feedback:** Gold (6.5, Pronunciation, 120 wpm, longest 2.4 s, fillers Um/you know/Uh, a linked phrase, model answer); Free (locked "1 better phrase found", fillers still highlighted, no phrases); **Gold's answer is 404 for Free**; history and "Best band 6.5".
+- `dashboard.spec.ts`: Speaking open.
+
+**Verified**
+- `pnpm test`: **579 passed** (63 files) ✓; web typecheck ✓; web lint ✓.
+- e2e desktop + mobile: **`speaking-ui` and `dashboard`: 12 passed, 2 skipped** (the stubbed-AI scoring path: Storage and the stub run in CI).
+- Screenshot checked: the full Speaking feedback (desktop).
+- Regression (`writing-ui`, `reading-ui`, `listening-home`, `credits-ui`, `journey`): **35 passed, 14 skipped, 1 failed: the Reading "timer sends the answers at zero" (desktop).** It waits for grade-test to save at 0:00, and the page didn't navigate in time. **I couldn't re-run it:** the machine had **0.7 GB of 7.3 GB RAM free** (Memory Compression 1.8 GB, VS Code, Docker/WSL, Chrome), and `next build` then failed with out-of-memory (also after clearing `.next`). No Reading code changed, and the fake-mic flags don't affect it. **CI will show whether it's real.**
+- **Not verified:**
+  - **a real phone:** Safari's MP4 recording on an iPhone, Android Chrome, the iOS permission flow and the help steps (M7-I1);
+  - the stubbed-AI scoring path and the recording playback via signed URL (Storage isn't running locally; CI);
+  - the Free mobile feedback and dark mode by eye.

@@ -2815,6 +2815,11 @@ On a branch from `develop` (M6-C1 #60 and M6-C2/C3 #61 merged).
 - Network errors and timeouts are retried; the last timeout's reason is kept; the deadline stops retries; cancelling stops at once.
 - Inline image parts; Flash-Lite cost ≈ the plan's $0.003 per OCR; an unknown model's cost is 0; enum schemas convert; a missing key fails before any call.
 
+**Manual steps (you, not automated)**
+1. **Create a paid-tier Gemini key** for anything with real users. On the free tier Google may use prompts to improve its products, which conflicts with the privacy policy. Restrict it to the Generative Language API and set a budget alert (docs/gemini.md).
+2. **Set the secret in each environment** (staging, then production): `supabase secrets set GEMINI_API_KEY=…`. For local functions, put it in the gitignored env file passed to `supabase functions serve --env-file`.
+3. **Run the live test once with a dev key.** It costs a fraction of a cent, and the command is in docs/gemini.md. It confirms the model ids, JSON mode and usage fields against the real API.
+
 **Verified**
 - **Deno 2.9.8** in Docker (`denoland/deno:latest`), with CI's commands: `deno check --frozen _shared/*.ts` ✓; `deno test --frozen _shared/`: **23 passed, 2 ignored** (the live tests) ✓. `deno.lock` unchanged.
 - **Not verified:**

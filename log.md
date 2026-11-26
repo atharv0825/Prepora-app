@@ -2636,3 +2636,60 @@ Done together on one branch from `develop` (M5-B1..B3 merged in #55).
 - **Dark screenshots checked by eye**: dashboard, Reading list, Reading player (desktop and mobile), credits, Listening. That's how the half-themed bug, the invisible meter tracks and the invisible "Academic" badge were found and fixed.
 - `pnpm test` ✓; typecheck ✓ (ui, web, admin); lint ✓.
 - **Not verified:** every page in dark (results, profile, onboarding and plans weren't screenshot; they use the same tokens); the Listening map/diagram pictures in dark; Safari/iOS; staging.
+
+## 2026-11-26 — M6-C1: Writing schema + RLS; private `writing-photos` bucket
+
+On a branch from `develop` (dark mode merged in #59).
+
+**Migration `20261126120000_writing_schema.sql`**
+- **`writing_input_mode`** enum: `typed` or `photo`.
+- **`writing_tasks`**:
+  - `task_no` 1 or 2; `title`; `prompt`; `image_url`; source; status; `created_by`; `published_at`.
+  - **`test_type`**: required for Task 1 (Academic = report, General = letter). For Task 2 it can be null, meaning the essay suits both tests.
+  - `image_url` is http(s) only, and **only Task 1 Academic** can have one.
+  - **Publishing** a Task 1 Academic prompt needs its chart image. A published one can't lose the image afterwards. `published_at` is set the first time.
+  - No `min_plan`: Writing is paid for with credits, so every plan sees the same tasks.
+- **`writing_submissions`**:
+  - `user_id`, `task_id`, `input_mode`, `text` (the answer as scored, after any OCR edits), `word_count`, `band` (whole or half), `time_taken_sec`, `created_at`.
+  - `scores` must have all four criteria: `ta`, `cc`, `lr`, `gra`.
+  - `feedback` is a jsonb object (shape in M6-C2).
+  - `photo_paths` holds 1–2 pages for photo answers, and must be empty for typed ones.
+  - `prompt_version` records which rubric prompt did the scoring (M6-B2).
+  - **The task can't be deleted while it has submissions** (`on delete restrict`); archive it instead.
+- **RLS and grants:**
+  - published tasks are readable by everyone, signed out too;
+  - staff write tasks, and can delete drafts only;
+  - **a student reads only their own submissions and can't write any.** Only score-writing (service role) writes them, so nobody can set their own band.
+  - **Free plans store the summary only**: score-writing saves just what the plan includes. Otherwise a Free student could read the full feedback straight from the table.
+  - Staff don't read students' answers either (there's no need yet).
+- **Bucket `writing-photos`**: private; 10 MB; JPEG, PNG, WebP, HEIC/HEIF (iPhone).
+  - A student can read, upload, replace and delete files only in their own folder, `{user_id}/…`.
+  - **Uploading needs Gold or Platinum** (`has_plan('gold')`), because photo upload is a Gold feature. This stops Free accounts using the bucket as storage; ocr-writing checks the plan again when it spends the credit.
+- DB types regenerated: `packages/shared/src/db.ts` and `supabase/functions/_shared/db.ts`.
+
+**Tests**
+- pgTAP **`writing_schema.test.sql`** (+46):
+  - the tables, RLS, missing write grants and the bucket's settings.
+  - The editor's tasks are refused for: Task 1 without a test type, a Task 3, an image on Task 2, a non-http image, and publishing a report without its chart. A report that has its chart publishes, and can't drop it later. A published task isn't deleted; a draft is.
+  - Students: see the 3 published tasks and not drafts (anon the same); can't write or change tasks; get 42501 writing a submission or deleting one; read only their own.
+  - Submission rules: a photo answer needs 1–2 photos; a typed one has none; all four criteria; a half band; a non-empty answer. A task with submissions can't be deleted.
+  - Photos:
+    - Gold and Platinum upload to their own folder, not to another student's or the bucket root;
+    - each sees only their own files and can't delete anyone else's;
+    - **Free can't upload**; a student deletes their own.
+    - The test sets `storage.allow_delete_query` as the Storage API does, so RLS still decides the deletes.
+- e2e **`writing-schema.spec.ts`** (API only, desktop):
+  - signed out, published tasks are visible and drafts aren't; a student's submission insert gets 42501.
+  - The storage test goes through the real Storage API:
+    - a Gold upload, read back with a signed URL; the public URL doesn't work;
+    - another student can't download, sign or list it;
+    - Free uploads, another student's folder, PDFs and files over 10 MB are refused; the owner can delete.
+
+**Verified**
+- `supabase migration up` locally (no reset) ✓; `supabase test db`: **569 passed** (21 files) ✓; `supabase db lint`: no errors ✓.
+- `db:types --check` ✓ (both copies identical); typecheck ✓ (shared, web, admin); web lint ✓; `pnpm test` 496 ✓.
+- e2e `writing-schema` (desktop): **1 passed, 1 skipped**.
+- **Not verified:**
+  - the storage e2e locally: this local stack runs without the Storage service, and adding it needs `supabase stop`/`start`. In CI that test runs and fails if Storage is down. **So the bucket's type and size limits haven't been seen working yet**; the folder and plan rules are checked by pgTAP.
+  - `deno check` (the installed Deno is too old for the project's config; the file is the same as the typechecked shared copy);
+  - CI; staging.

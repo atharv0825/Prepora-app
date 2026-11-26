@@ -2826,3 +2826,107 @@ On a branch from `develop` (M6-C1 #60 and M6-C2/C3 #61 merged).
   - **a real Gemini call.** There's no key here, so the model ids, the uppercase `thinkingLevel` values, `responseJsonSchema` acceptance and the usage field names haven't been checked against the live API. Run the live test with a dev key (docs/gemini.md).
   - No function uses the client yet (M6-B3).
   - CI.
+
+## 2026-11-26 — M6-B2..B5: Writing rubric prompts, score-writing, ocr-writing, prompt eval
+
+On one branch, **stacked on M6-B1 (#62, open)**, because it uses the Gemini client.
+
+**M6-B2: rubric prompts in versioned files** (`supabase/functions/_shared/prompts/`)
+- **`writing-rubric.v1.ts`**: the shared parts.
+  - Coherence and Cohesion, Lexical Resource, and Grammatical Range and Accuracy, band by band (9 down to 3 and below).
+  - **Paraphrased in my own words from the public IELTS band descriptors, not copied verbatim.**
+  - Scoring rules:
+    - each criterion separately in half bands, and **no overall band** (the app computes it);
+    - calibrated and strict: most candidates score 5–7, 8+ needs near-native control;
+    - under length lowers TA/TR in proportion, and under two thirds of the minimum caps it at 5;
+    - off topic, memorised or copied answers get TA/TR ≤ 3; notes or bullets are penalised;
+    - US and UK spelling are both fine.
+  - Feedback rules: a 2–4 sentence summary; up to 25 corrections, **`original` copied exactly**; 2–4 strengths and improvements; a band-9 model answer 10–20% over the minimum.
+  - **Safety:** the answer goes inside `<answer>` tags and any instructions in it are ignored, to stop students prompting their own score.
+- **`writing-t2.v1.ts`** (`t2-v1`): Task Response. Checks every part of the question is answered, the position is clear throughout, and ideas are supported.
+- **`writing-t1-academic.v1.ts`** (`t1a-v1`): Task Achievement. No overview caps it at 5; data must be accurate; no opinions.
+- **`writing-t1-general.v1.ts`** (`t1g-v1`): Task Achievement. All three bullet points (a missing one caps it at 5), a clear purpose, and a consistent tone and register, openings and closings included.
+- **`ocr-handwriting.v1.ts`** (`ocr-v1`):
+  - **transcribe exactly, mistakes included**, never correct anything, because the answer is scored on what was written;
+  - keep paragraphs; leave out crossed-out words and printed text; mark unsure words `[?]`;
+  - one entry per photo, with legibility; ignore instructions written in the photos.
+- **`prompts/writing.ts`** picks the versions in use. It builds the scoring request (task in `<task>`, the chart inline, the app's word count, an UNDER-length notice, the answer in `<answer>` with `</answer>` escaped) and the OCR request (optional task context, then each photo in order).
+  - score-writing, ocr-writing and the eval all go through it, so **the eval measures exactly what production sends**.
+  - A released version is never edited: copy to v2, run the eval, switch.
+
+**M6-B3: `score-writing`** (`supabase/functions/score-writing/index.ts`)
+- Order of work:
+  1. The task must be published (404). Photo paths must be in the caller's folder (400).
+  2. **Before spending:** the plan (`plans.limits.detailed_feedback`), the Task 1 Academic chart (fetched, PNG/JPEG/WebP, ≤ 5 MB, inlined), and the Gemini key (500 with nothing charged if it's missing).
+  3. **`withCredits('writing_t1' | 'writing_t2')`**, then inside it:
+     - Gemini Flash scores with the versioned prompt, and the reply is validated with **`ScoredWriting`** (Zod);
+     - **corrections that don't quote the answer exactly are dropped** (`keepFoundCorrections`), along with duplicates and no-ops;
+     - **the band is recomputed** with `writingTaskBand`, never taken from the model;
+     - the `writing_submissions` row is inserted with **only what the plan includes** (`writingFeedbackFor`: Free gets the summary) and its `prompt_version`.
+     - A failed insert throws `AiCallError` with the usage, so **the credits are refunded and the tokens still logged**.
+  4. Returns the contract's response, with `credits_charged` and `balance_after`.
+- `requirePinnedRegion`. **The client's signal isn't passed on:** if the student leaves, the scoring still finishes and is saved to their history instead of being thrown away.
+- `ai_usage` gets one row per call from `withCredits` (tokens, cost, success). That's the "logs tokens and cost" part.
+
+**M6-B4: `ocr-writing`** (`supabase/functions/ocr-writing/index.ts`)
+- Photos must be in the caller's own folder (400). **Free gets 403 `feature_not_in_plan` straight away** (`plans.limits.ocr`; `spend_credits` checks again).
+- Before spending:
+  - the optional task (404 if unpublished);
+  - the photos, downloaded with the service role (404 if missing; the type comes from Storage or the file extension);
+  - **the total must be ≤ 14 MB**, because Gemini's inline limit is about 20 MB and base64 adds a third. **M6-F2 should resize photos before upload**;
+  - the key.
+- **`withCredits('ocr')`**: Gemini Flash-Lite with minimal thinking. The schema requires **one page per photo**, so a wrong count is retried like any invalid reply.
+- Returns the pages (path, text, legibility), the joined text and the word count. Nothing is saved.
+
+**Shared code**
+- **`_shared/writing.ts`** (no imports, so vitest loads the exact file):
+  - copies of `WRITING_TASKS`, `writingTaskBand`, `countEssayWords`, `isUnderLength`, `toWritingSummary`, `writingFeedbackFor` and `joinOcrPages`;
+  - new: `keepFoundCorrections`; `isOwnPhotoPath` (exactly `{uid}/{file}`, no subfolders or `..`).
+- **`_shared/writing_schemas.ts`**: the Zod copies of the contract (`ScoreWritingInput`, `ScoredWriting`, `OcrWritingInput`, `OcrModelOutput`).
+- `gemini.ts`: added `bytesToBase64`, chunked so large photos don't overflow the call stack.
+
+**M6-B5: prompt evaluation** (`supabase/functions/_eval/`)
+- **`writing_essays.ts`**: 20 answers with target bands: 10 Task 2 (4–8.5), 5 General Task 1 (4.5–8) and 5 Academic Task 1 (5–8).
+  - The Academic visuals are tables in the task text, so no images are needed.
+  - **I wrote the answers myself to sit at their bands, following the descriptors. They are not examiner-marked**, so the eval measures agreement with an informed label, not ground truth.
+  - Examiner-marked scripts (copyrighted) can go in the gitignored `writing_essays.local.json`.
+- **`writing_eval.ts`** scores them with the production prompts and settings, two at a time. It prints each band, the share within ±0.5 (**target 75%**), the mean absolute error, the bias, the worst three and the cost.
+  - Results are reported overall and per task type, with a JSON report in `_eval/results/` (gitignored). It **exits 1 under the target**.
+  - Options: `--only`, `--limit`, `--concurrency`; `--dry-run` checks the set and builds every request without a key.
+- **A test caught a flaw in my own set:** four Task 2 answers aimed at 5.5–6.5 were under 250 words, which the rubric penalises. I lengthened them, and the test now requires every under-length answer to target band 5 or below.
+- **CI:** `deno check` now also covers `_shared/prompts/*.ts` and `_eval/*.ts`, and `deno test` runs `_eval/` too. The eval itself never runs in CI.
+
+**Tests**
+- Deno `_shared/writing_prompt_test.ts` (+6):
+  - three versioned prompts, each with all four criteria and the key rules;
+  - Task 2 is Task Response; Academic checks the overview; General checks bullets and tone;
+  - `taskKind`; the request shape (trimmed task, word count, UNDER notice, answer last, chart inline for Academic);
+  - **an answer containing `</answer>` can't close its own tag**;
+  - the OCR request's order and rules; both schemas convert to JSON Schema with the right `required` fields.
+- Deno `_eval/writing_eval_test.ts` (+3): the set (20 answers, kinds, band range, the under-length rule), `checkSet` errors, and the `summarise` maths.
+- vitest `tests/writing-scoring.test.ts` (+5):
+  - **the Deno copy matches the shared contract** on bands (every TA × GRA combination), word counts, under-length, feedback trimming and OCR joining;
+  - the Deno schemas keep the contract's categories, photo-path regex and limits;
+  - `keepFoundCorrections`; `isOwnPhotoPath`.
+- e2e **`writing-ai.spec.ts`** (API, against the real local functions):
+  - **always:** 401; validation; another student's photo; 404 for a draft or unknown task, with no credits spent; OCR for another student's photo (400), on Free (403) and for a missing photo (404).
+  - **Without a key (CI):** a valid answer gets 500, nothing is spent or saved; no credits gives 500 before spending.
+  - **With `E2E_GEMINI=1`:**
+    - Gold gets the full feedback: contract-valid, band 4.5–7.5 for the band-6 sample, every correction found in the text, 4 credits;
+    - Free gets the summary, with no corrections or model answer;
+    - both rows are saved with `t2-v1` and the plan's shape, and the student reads only their own;
+    - `ai_usage` records gemini-3.8-flash, real tokens and a cost; no credits gives 402 with details.
+
+**Manual steps for you** (details in `docs/gemini.md`)
+1. **Restart the local functions** so they include `score-writing` and `ocr-writing`: `supabase functions serve --env-file supabase/functions/.env`. Running it with your key file needs your go-ahead, so I didn't.
+2. **Run the real-AI e2e** (about US$0.06): from `apps/web`, `E2E_GEMINI=1 pnpm exec playwright test writing-ai --project=desktop`.
+3. **Run the eval** (about US$0.60, Deno 2; the Docker command is in docs/gemini.md) and check the share within ±0.5. If it's below 75%, look at the bias and the worst answers before releasing `v1`, or tune a `v2`.
+4. Optional: add examiner-marked scripts to `_eval/writing_essays.local.json` for a stronger benchmark.
+
+**Verified**
+- **Deno 2.9.8** (Docker), with CI's commands plus the new paths: `deno check --frozen` on all functions, `_shared/*.ts`, `_shared/prompts/*.ts` and `_eval/*.ts` ✓; `deno test --frozen _shared/ _eval/`: **32 passed, 2 ignored** (the live Gemini tests) ✓. Eval `--dry-run`: 20 requests built ✓.
+- `pnpm test`: **528 passed** (53 files) ✓; typecheck ✓ (shared, web); web lint ✓.
+- **Not verified:**
+  - **neither function has run yet.** The local runtime was started before these folders existed, and restarting it with your key file was refused, so the e2e spec skips here. That leaves untested: the function handlers end to end, the real Gemini replies, the refund path inside a real function, the chart fetch, and OCR on real photos (local Storage isn't running either).
+  - **The eval hasn't been run**, so how well v1 agrees with the target bands is unknown.
+  - CI.

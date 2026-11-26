@@ -54,3 +54,57 @@ GEMINI_API_KEY=<dev key> deno test --frozen --allow-env=GEMINI_API_KEY \
 - Failures throw `AiCallError` with the tokens of every attempt, so `ai_usage` records the real cost.
 - No `temperature`/`topP`/`topK` (newer Gemini models ignore them and will reject them).
 - Prompts and replies are never logged: they contain students' writing.
+
+## Writing scoring and OCR (M6-B2..B5)
+
+| Function | Model | Credits | Notes |
+|---|---|---|---|
+| `score-writing` | `gemini-3.8-flash` | 4 (`writing_t1` / `writing_t2`) | Saves a `writing_submissions` row; Free gets the summary only |
+| `ocr-writing` | `gemini-3.5-flash-lite` | 1 (`ocr`, Gold/Platinum) | Reads 1–2 photos from `writing-photos`; saves nothing |
+
+- **Prompts** live in versioned files in `supabase/functions/_shared/prompts/` (`writing-t1-academic.v1.ts`,
+  `writing-t1-general.v1.ts`, `writing-t2.v1.ts`, the shared `writing-rubric.v1.ts`, `ocr-handwriting.v1.ts`).
+  `prompts/writing.ts` picks the versions in use. Never edit a released version: copy it to `v2`, run the eval,
+  then switch. Each submission stores its `prompt_version`.
+- **Checks before spending credits:** the task, the photos' folder, the plan, the Task 1 chart and the key. Anything
+  that fails after spending (the AI, saving the submission) refunds the credits, and `ai_usage` still records the tokens.
+- **The band** is always recomputed from the four criteria (average, rounded down to a half band), never taken from
+  the model. Corrections that don't quote the answer exactly are dropped.
+
+### Running the functions locally with the key
+
+```sh
+supabase functions serve --env-file supabase/functions/.env
+```
+
+Restart it after adding a function folder: the runtime only serves the functions that existed when it started.
+
+The API tests in `apps/web/e2e/writing-ai.spec.ts` always check the error paths. The real-AI test (about US$0.06) runs
+only with `E2E_GEMINI=1`:
+
+```sh
+cd apps/web
+E2E_GEMINI=1 pnpm exec playwright test writing-ai --project=desktop
+```
+
+### Prompt evaluation (M6-B5)
+
+20 answers with target bands in `supabase/functions/_eval/writing_essays.ts`: 10 Task 2, 5 General Task 1 and
+5 Academic Task 1, bands 4 to 8.5. **These were written for the set and are not examiner-marked**, so they are an
+informed label, not ground truth. Put examiner-marked scripts in the gitignored `_eval/writing_essays.local.json`
+(same fields) for a stronger check. From `supabase/functions`, with Deno 2 (about US$0.60 for the set):
+
+```sh
+deno run --frozen --env-file=.env --allow-env=GEMINI_API_KEY \
+  --allow-net=generativelanguage.googleapis.com --allow-read=_eval --allow-write=_eval/results \
+  _eval/writing_eval.ts            # --only t2 | --limit 5 | --concurrency 2 | --dry-run
+```
+
+With Deno 1.x installed locally, run the same command in Docker (Deno reads `.env` itself):
+
+```sh
+docker run --rm -v "$PWD:/app" -w /app denoland/deno:latest deno run --frozen --env-file=.env --allow-env=GEMINI_API_KEY --allow-net=generativelanguage.googleapis.com --allow-read=_eval --allow-write=_eval/results _eval/writing_eval.ts
+```
+
+It prints each answer's target and AI band, the share within ±0.5 (target 75%), the mean error, the bias and the
+cost. It writes a JSON report to `_eval/results/` (gitignored) and exits 1 when under the target.

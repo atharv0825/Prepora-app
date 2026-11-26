@@ -108,6 +108,15 @@ type GenerateContentResponse = {
   modelVersion?: string;
 };
 
+/** Base64 for inlineData (images, PDFs), in chunks so large files don't overflow the call stack. */
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
 /** Cost in US$ of a call's tokens (0 for a model without a price, so a typo can't crash a call). */
 export function geminiCostUsd(model: string, inputTokens: number, outputTokens: number): number {
   const price = GEMINI_PRICES[model];

@@ -3,15 +3,16 @@
 //   1. The task must be published (404). Photo answers' paths must be in the student's own
 //      writing-photos folder (400).
 //   2. Before any credit is spent: the student's plan (detailed_feedback or the Free summary),
-//      the Task 1 Academic chart (fetched and inlined for the model) and the Gemini key.
-//   3. withCredits('writing_t1' | 'writing_t2'): Gemini scores the answer with the versioned
+//      the Task 1 Academic chart (fetched and inlined for the model) and the AI provider's key.
+//   3. withCredits('writing_t1' | 'writing_t2'): the scoring model (_shared/ai.ts: DeepSeek by
+//      default) scores the answer with the versioned
 //      rubric prompt (_shared/prompts/writing.ts); the reply is validated with ScoredWriting;
 //      corrections that don't quote the answer exactly are dropped; the band is recomputed from
 //      the four criteria (never taken from the model); the submission is saved with ONLY what the
 //      plan includes (Free: the summary). Any failure in there refunds the credits, and the
 //      tokens are still logged in ai_usage.
 //   4. Return the feedback with the credits charged and the new balance.
-// The request's signal isn't passed to Gemini: if the student leaves, the scoring still finishes
+// The request's signal isn't passed to the model: if the student leaves, the scoring still finishes
 // and is saved to their history instead of being thrown away.
 
 import { errors } from "../_shared/errors.ts";
@@ -19,7 +20,7 @@ import type { DbClient } from "../_shared/auth.ts";
 import type { Json } from "../_shared/db.ts";
 import { createHandler } from "../_shared/handler.ts";
 import { AiCallError, withCredits } from "../_shared/credits.ts";
-import { bytesToBase64, GEMINI_MODELS, generateJson } from "../_shared/gemini.ts";
+import { aiConfigured, aiModel, bytesToBase64, generateJson } from "../_shared/ai.ts";
 import { buildScoringRequest, SCORING_SETTINGS } from "../_shared/prompts/writing.ts";
 import { ScoredWriting, ScoreWritingInput } from "../_shared/writing_schemas.ts";
 import {
@@ -91,7 +92,8 @@ Deno.serve(
       }
 
       // 2. Everything that can fail cheaply, before spending.
-      if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY is not set (docs/gemini.md)");
+      const model = aiModel("scoring");
+      if (!aiConfigured(model)) throw new Error(`${model.provider} API key is not set (docs/ai.md)`);
       const taskNo = task.task_no as WritingTaskNo;
       const [detailed, image] = await Promise.all([
         detailedFeedback(db, userId),
@@ -110,7 +112,7 @@ Deno.serve(
         WRITING_TASKS[taskNo].actionKey,
         async () => {
           const out = await generateJson({
-            model: GEMINI_MODELS.scoring,
+            model,
             system: request.system,
             parts: request.parts,
             schema: ScoredWriting,

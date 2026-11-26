@@ -1,6 +1,6 @@
 // Unit tests for the Writing prompts (M6-B2) and their request building. No network.
 // Run (Deno 2, from supabase/functions): deno test --frozen _shared/
-import { toGeminiJsonSchema } from "./gemini.ts";
+import { toJsonSchema } from "./ai.ts";
 import { buildOcrRequest, buildScoringRequest, OCR_PROMPT, SCORING_PROMPTS, taskKind } from "./prompts/writing.ts";
 import { OcrModelOutput, ScoredWriting } from "./writing_schemas.ts";
 
@@ -60,7 +60,7 @@ Deno.test("scoring request: task, word count, answer in tags; the chart inline f
   const chart = { mimeType: "image/png", data: "iVBORw0KGgo=" };
   const a = buildScoringRequest({ taskNo: 1, testType: "academic", prompt: "The chart shows…", image: chart }, "word ".repeat(160));
   assertEquals(a.version, "t1a-v1");
-  assertEquals(a.parts[2], { inlineData: chart });
+  assertEquals(a.parts[2], { image: chart });
   assert(!text(a.parts).includes("UNDER"), "160 words is enough for Task 1");
 });
 
@@ -75,15 +75,15 @@ Deno.test("OCR request: optional task context, then each photo in order", () => 
   const r = buildOcrRequest(photos, "Write a letter…");
   assertEquals(r.version, "ocr-v1");
   assert(text(r.parts).startsWith("For context only"), "context first");
-  assertEquals(r.parts.slice(1), [{ text: "Photo 1 of 2:" }, { inlineData: photos[0] }, { text: "Photo 2 of 2:" }, { inlineData: photos[1] }]);
+  assertEquals(r.parts.slice(1), [{ text: "Photo 1 of 2:" }, { image: photos[0] }, { text: "Photo 2 of 2:" }, { image: photos[1] }]);
   assertEquals(buildOcrRequest([photos[0]]).parts.length, 2, "no context part without a task");
   for (const rule of ["EXACTLY", "Never correct", "[?]", "one entry per photo"]) assert(OCR_PROMPT.system.includes(rule), rule);
 });
 
-Deno.test("the response schemas convert to JSON Schema for Gemini", () => {
-  const scored = toGeminiJsonSchema(ScoredWriting) as { required: string[]; properties: Record<string, { required?: string[] }> };
+Deno.test("the response schemas convert to JSON Schema for the model", () => {
+  const scored = toJsonSchema(ScoredWriting) as { required: string[]; properties: Record<string, { required?: string[] }> };
   assertEquals(scored.required, ["scores", "summary", "corrections", "strengths", "improvements", "model_answer"]);
   assertEquals(scored.properties.scores.required, ["ta", "cc", "lr", "gra"]);
-  const ocr = toGeminiJsonSchema(OcrModelOutput) as { required: string[] };
+  const ocr = toJsonSchema(OcrModelOutput) as { required: string[] };
   assertEquals(ocr.required, ["pages"]);
 });

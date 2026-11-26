@@ -3,8 +3,10 @@
 //   1. The photos must be in the student's own writing-photos folder (400). Free plans get
 //      403 feature_not_in_plan straight away (the plan's ocr flag; spend_credits checks it again).
 //   2. Before any credit is spent: the optional task (404 if it isn't published), the photos
-//      (404 if missing; 400 if together they're too big to send inline) and the Gemini key.
-//   3. withCredits('ocr', 1 credit): gemini-3.5-flash-lite transcribes each page exactly, mistakes
+//      (404 if missing; 400 if a type the model can't read, e.g. HEIC on DeepSeek, or if together
+//      they're too big to send inline) and the AI provider's key.
+//   3. withCredits('ocr', 1 credit): the "lite" model (_shared/ai.ts: deepseek-flash by default)
+//      transcribes each page exactly, mistakes
 //      included, marking unsure words [?]; the reply must have one page per photo. A failure
 //      refunds the credit.
 //   4. Return the pages and the joined text for the editor. Nothing is saved: the student checks
@@ -14,12 +16,12 @@ import { errors, HttpError } from "../_shared/errors.ts";
 import type { DbClient } from "../_shared/auth.ts";
 import { createHandler } from "../_shared/handler.ts";
 import { withCredits } from "../_shared/credits.ts";
-import { bytesToBase64, GEMINI_MODELS, generateJson } from "../_shared/gemini.ts";
+import { ADAPTERS, aiConfigured, aiModel, bytesToBase64, generateJson } from "../_shared/ai.ts";
 import { buildOcrRequest, OCR_SETTINGS } from "../_shared/prompts/writing.ts";
 import { OcrModelOutput, OcrWritingInput } from "../_shared/writing_schemas.ts";
 import { countEssayWords, isOwnPhotoPath, joinOcrPages } from "../_shared/writing.ts";
 
-/** Gemini takes up to ~20 MB inline per request; base64 adds a third. Phones should resize first (M6-F2). */
+/** Kept under Gemini's ~20 MB inline limit (DeepSeek allows 48 MiB); base64 adds a third. Phones should resize first (M6-F2). */
 const PHOTOS_MAX_BYTES = 14 * 1024 * 1024;
 const BY_EXTENSION: Record<string, string> = {
   jpg: "image/jpeg",
@@ -85,7 +87,13 @@ Deno.serve(
       if (total > PHOTOS_MAX_BYTES) {
         throw errors.validation([{ path: "photo_paths", message: "The photos are too large together (14 MB at most). Retake them at a lower resolution.", code: "too_big" }]);
       }
-      if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY is not set (docs/gemini.md)");
+      const model = aiModel("lite");
+      const unreadable = photos.filter((p) => !ADAPTERS[model.provider].imageTypes.has(p.mimeType));
+      if (unreadable.length) {
+        // M6-F2 converts photos to JPEG on the device, so this only catches old or direct uploads.
+        throw errors.validation([{ path: "photo_paths", message: `Upload JPEG, PNG or WebP photos (not ${unreadable[0].mimeType})`, code: "custom" }]);
+      }
+      if (!aiConfigured(model)) throw new Error(`${model.provider} API key is not set (docs/ai.md)`);
 
       const request = buildOcrRequest(photos.map((p) => ({ mimeType: p.mimeType, data: bytesToBase64(p.bytes) })), taskPrompt);
       // One page per photo; a different count is retried like any invalid reply.
@@ -94,7 +102,7 @@ Deno.serve(
       // 3. Spend 1 credit, read, refund on failure.
       const spent = await withCredits({ user, admin }, "ocr", async () => {
         const out = await generateJson({
-          model: GEMINI_MODELS.lite,
+          model,
           system: request.system,
           parts: request.parts,
           schema,

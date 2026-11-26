@@ -2,7 +2,7 @@
 // ocr-writing and the prompt eval (supabase/functions/_eval) all go through here, so the eval
 // measures exactly what production sends. To release a new prompt version: add the *.v2.ts file,
 // point the import below at it, run the eval, and compare against the previous version.
-import type { GeminiPart, ThinkingLevel } from "../gemini.ts";
+import type { AiPart, Thinking } from "../ai.ts";
 import * as t1Academic from "./writing-t1-academic.v1.ts";
 import * as t1General from "./writing-t1-general.v1.ts";
 import * as t2 from "./writing-t2.v1.ts";
@@ -19,9 +19,9 @@ export const SCORING_PROMPTS: Record<WritingTaskKind, { version: string; system:
 
 export const OCR_PROMPT = { version: ocr.VERSION, system: ocr.SYSTEM };
 
-/** Generation settings for scoring: room for thinking plus the JSON (model answer included). */
-export const SCORING_SETTINGS: { thinkingLevel?: ThinkingLevel; maxOutputTokens: number } = { maxOutputTokens: 16_000 };
-export const OCR_SETTINGS: { thinkingLevel?: ThinkingLevel; maxOutputTokens: number } = { thinkingLevel: "minimal", maxOutputTokens: 8_000 };
+/** Scoring thinks (low effort: compare "high" with the eval before changing); OCR doesn't need to. */
+export const SCORING_SETTINGS: { thinking?: Thinking; maxOutputTokens: number } = { thinking: "low", maxOutputTokens: 16_000 };
+export const OCR_SETTINGS: { thinking?: Thinking; maxOutputTokens: number } = { thinking: "off", maxOutputTokens: 8_000 };
 
 export function taskKind(taskNo: WritingTaskNo, testType: "academic" | "general" | null): WritingTaskKind {
   if (taskNo === 2) return "t2";
@@ -39,7 +39,7 @@ export interface ScoringTask {
 }
 
 /** The system instruction, user message and prompt version for scoring one answer. */
-export function buildScoringRequest(task: ScoringTask, answer: string): { version: string; system: string; parts: GeminiPart[] } {
+export function buildScoringRequest(task: ScoringTask, answer: string): { version: string; system: string; parts: AiPart[] } {
   const kind = taskKind(task.taskNo, task.testType);
   const { version, system } = SCORING_PROMPTS[kind];
   const words = countEssayWords(answer);
@@ -50,9 +50,9 @@ export function buildScoringRequest(task: ScoringTask, answer: string): { versio
     ? "Academic Task 1 report"
     : "General Training Task 1 letter";
 
-  const parts: GeminiPart[] = [{ text: `${label}.\n\nThe task:\n<task>\n${task.prompt.trim()}\n</task>` }];
+  const parts: AiPart[] = [{ text: `${label}.\n\nThe task:\n<task>\n${task.prompt.trim()}\n</task>` }];
   if (task.image) {
-    parts.push({ text: "The visual given with the task:" }, { inlineData: task.image });
+    parts.push({ text: "The visual given with the task:" }, { image: task.image });
   }
   parts.push({
     text: `Word count (counted by the app): ${words}. Minimum: ${minWords}.${words < minWords ? " The answer is UNDER the minimum length." : ""}\n\n<answer>\n${answer.replaceAll("</answer>", "<\\/answer>")}\n</answer>`,
@@ -61,13 +61,13 @@ export function buildScoringRequest(task: ScoringTask, answer: string): { versio
 }
 
 /** The OCR request: the photos in page order. */
-export function buildOcrRequest(photos: { mimeType: string; data: string }[], taskPrompt?: string): { version: string; system: string; parts: GeminiPart[] } {
-  const parts: GeminiPart[] = [];
+export function buildOcrRequest(photos: { mimeType: string; data: string }[], taskPrompt?: string): { version: string; system: string; parts: AiPart[] } {
+  const parts: AiPart[] = [];
   if (taskPrompt) {
     parts.push({ text: `For context only (do not transcribe it), the task the candidate answered:\n<task>\n${taskPrompt.trim()}\n</task>` });
   }
   photos.forEach((p, i) => {
-    parts.push({ text: `Photo ${i + 1} of ${photos.length}:` }, { inlineData: p });
+    parts.push({ text: `Photo ${i + 1} of ${photos.length}:` }, { image: p });
   });
   return { version: OCR_PROMPT.version, system: OCR_PROMPT.system, parts };
 }

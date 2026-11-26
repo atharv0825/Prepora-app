@@ -5,15 +5,17 @@ import { adminClient, createTestUser, deleteTestUser, localSupabase, type TestUs
 
 // M6-B3/B4 through the real local Edge Functions: score-writing and ocr-writing.
 //   * Always (CI too): sign-in, validation, 404 for unpublished tasks, other students' photos,
-//     402 without credits, 403 for Free OCR. These fail before Gemini or before any credit.
-//   * Without a Gemini key (CI): a valid answer gets a 500 with NO credits spent and nothing saved.
-//   * With E2E_GEMINI=1 (a laptop whose functions are served with GEMINI_API_KEY): real scoring,
-//     Gold gets the full feedback, Free the summary, and both are saved and logged in ai_usage.
-//     Costs about US$0.06 per run. No real AI calls in CI (M6-I1 stubs Gemini there).
+//     402 without credits, 403 for Free OCR. These fail before the AI call or before any credit.
+//   * Without an AI key (CI): a valid answer gets a 500 with NO credits spent and nothing saved.
+//   * With E2E_AI=1 (a laptop whose functions are served with DEEPSEEK_API_KEY, or the provider set
+//     by AI_PROVIDER): real scoring, Gold gets the full feedback, Free the summary, and both are
+//     saved and logged in ai_usage. Costs about US$0.01 on DeepSeek. No real AI calls in CI (M6-I1).
+//     E2E_AI_MODEL: the model expected in ai_usage (default deepseek-flash).
 // Needs the Edge Functions: skipped locally without them, fails in CI.
 
 const { url, publishableKey } = localSupabase();
-const realAi = process.env.E2E_GEMINI === "1";
+const realAi = process.env.E2E_AI === "1";
+const expectedModel = process.env.E2E_AI_MODEL ?? "deepseek-flash";
 
 async function call(fn: "score-writing" | "ocr-writing", user: TestUser | null, body: unknown) {
   const res = await fetch(`${url}/functions/v1/${fn}`, {
@@ -122,8 +124,8 @@ test.describe("Writing AI functions (API)", () => {
     }
   });
 
-  test("without a Gemini key: 500, no credits spent, nothing saved", async () => {
-    test.skip(realAi, "functions are served with a Gemini key");
+  test("without an AI key: 500, no credits spent, nothing saved", async () => {
+    test.skip(realAi, "functions are served with an AI key");
     const before = await balance(free);
     const r = await call("score-writing", free, { task_id: tasks.essay, text: MOCK_TASK2_ESSAY });
     expect([r.status, r.body.error?.code]).toEqual([500, "internal"]);
@@ -132,7 +134,7 @@ test.describe("Writing AI functions (API)", () => {
   });
 
   test("real AI: Gold gets the full feedback, Free the summary; saved and logged", async () => {
-    test.skip(!realAi, "set E2E_GEMINI=1 with functions served with GEMINI_API_KEY (costs ~US$0.06)");
+    test.skip(!realAi, "set E2E_AI=1 with functions served with DEEPSEEK_API_KEY (costs ~US$0.01)");
     test.setTimeout(240_000);
     const db = adminClient();
     const [goldBefore, freeBefore] = await Promise.all([balance(gold), balance(free)]);
@@ -172,7 +174,7 @@ test.describe("Writing AI functions (API)", () => {
     // Real tokens and cost against the credits charged.
     const { data: usage } = await db.from("ai_usage").select("model, input_tokens, output_tokens, cost_usd, credits_charged, success").eq("user_id", gold.id);
     expect(usage).toHaveLength(1);
-    expect(usage![0]).toMatchObject({ model: "gemini-3.8-flash", credits_charged: 4, success: true });
+    expect(usage![0]).toMatchObject({ model: expectedModel, credits_charged: 4, success: true });
     expect(usage![0].input_tokens).toBeGreaterThan(1000);
     expect(Number(usage![0].cost_usd)).toBeGreaterThan(0);
     console.log("Usage:", JSON.stringify(usage![0]));

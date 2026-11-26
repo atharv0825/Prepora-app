@@ -2930,3 +2930,71 @@ On one branch, **stacked on M6-B1 (#62, open)**, because it uses the Gemini clie
   - **neither function has run yet.** The local runtime was started before these folders existed, and restarting it with your key file was refused, so the e2e spec skips here. That leaves untested: the function handlers end to end, the real Gemini replies, the refund path inside a real function, the chart fetch, and OCR on real photos (local Storage isn't running either).
   - **The eval hasn't been run**, so how well v1 agrees with the target bands is unknown.
   - CI.
+
+## 2026-11-26 — AI provider: DeepSeek first (Gemini kept as an alternative)
+
+User decision: "instead of using GEMINI we are going to use deepseek first". Committed on the M6-B2..B5 branch (PR #63, stacked on #62), so the Writing AI lands already on DeepSeek.
+
+**Checked against DeepSeek's API docs** (api-docs.deepseek.com, read 2026-11-26)
+- OpenAI-compatible `POST https://api.deepseek.com/chat/completions`, with `Authorization: Bearer`.
+- Models: **`deepseek-flash`** (V4.1-Flash: 1M context, **images supported**) and `deepseek-v4-pro` (no images). `deepseek-chat` and `deepseek-reasoner` were retired on 2026-07-24.
+- JSON: `response_format: {type: "json_object"}` only, **with no schema enforcement**. The docs ask for the word "json" and the format in the prompt.
+- Known quirk: content can come back blank with `finish_reason: stop`.
+- Thinking is a parameter: `thinking: {type}` and `reasoning_effort` (low / high).
+- Prices per 1M tokens at peak, deepseek-flash: $0.30 in ($0.006 on a cache hit), $1.20 out. **Off-peak is half.** Peak is Mon–Fri 01–04 and 06–10 UTC.
+- Retry 408/429/5xx; don't retry 400/401/402 (balance)/422.
+- **Privacy:** the docs don't say where API data is stored or for how long.
+
+**Change: a provider-neutral client with one adapter per provider**
+- **`_shared/ai.ts`**: the core that was in `gemini.ts`, unchanged in behaviour (timeouts, deadline, retries with backoff and Retry-After, Zod validation, usage summed over attempts, `AiCallError` with usage).
+  - Now with `AiModel {provider, model}` and `AI_MODELS` (DeepSeek: flash for scoring and OCR; Gemini: 3.8-flash and 3.5-flash-lite).
+  - **`currentProvider()`**: the `AI_PROVIDER` secret, **default `deepseek`**.
+  - `aiModel(job)`; `aiConfigured(model)` (key check before spending); `toJsonSchema`; `bytesToBase64`.
+  - Neutral parts (`{text}` / `{image}`) and thinking levels (`off` / `low` / `high`).
+- **`_shared/ai_deepseek.ts`**:
+  - **the JSON Schema goes in the system message**, together with JSON object mode;
+  - images as `data:` URLs; thinking enabled with `reasoning_effort`, or disabled;
+  - a blank reply and `insufficient_system_resource` are retried; `length` and `content_filter` aren't;
+  - 504 is retried here (DeepSeek's docs say so);
+  - usage with cache hits; **cost with cache hits and peak/off-peak pricing**;
+  - image types JPEG, PNG, WebP and GIF, **no HEIC**.
+- **`_shared/ai_gemini.ts`**: the M6-B1 Gemini code as an adapter, with the same behaviour (`responseJsonSchema`, thinkingLevel, 504 not retried).
+- `gemini.ts`, `gemini_test.ts` and `gemini_live_test.ts` are replaced by `ai*.ts`.
+- **Callers:**
+  - `score-writing` uses `aiModel("scoring")` with low-effort thinking.
+  - `ocr-writing` uses `aiModel("lite")` with thinking off. It now **answers 400 for photo types the provider can't read** (HEIC on DeepSeek), checked before spending. M6-F2 should convert photos to JPEG on the device.
+  - The eval has `--provider` and `--thinking`, to compare providers and effort levels.
+  - Prompts are unchanged (still `t2-v1`, `t1a-v1`, `t1g-v1`, `ocr-v1`).
+- **Migration `20261126130000_writing_ai_deepseek.sql`**: `credit_costs.model = deepseek-flash` for writing_t1, writing_t2 and ocr, with estimates of $0.0053, $0.006 and $0.002 at peak (Gemini Flash was ≈ $0.03). **The credits charged are unchanged**, so the margin grows; retune from `ai_usage` after the beta.
+- **Docs:** `docs/gemini.md` is renamed **`docs/ai.md`**: providers, prices, differences, setup (`DEEPSEEK_API_KEY`, `AI_PROVIDER`), the live test, the eval, and a **"Privacy: decide before launch"** section.
+- e2e `writing-ai.spec.ts`: `E2E_GEMINI` becomes **`E2E_AI=1`**, and `E2E_AI_MODEL` (default `deepseek-flash`) is the model expected in `ai_usage`.
+- `region.ts` comment: pinning keeps AI calls in one known region, whatever the provider.
+
+**Tests**
+- Deno **`_shared/ai_test.ts`** (19, replacing the 14 Gemini tests):
+  - DeepSeek is the default, and models are chosen per job and provider;
+  - the DeepSeek request: endpoint, Bearer key, JSON object mode, "json" and the schema in the system message, thinking and effort, max tokens, data-URL images, no temperature; thinking off and the default;
+  - DeepSeek success and usage with cache hits; **peak cost $0.0008412 for 800 miss / 200 hit / 500 out**; off-peak is half; weekends and other hours;
+  - blank and `insufficient_system_resource` replies retried; `length` and `content_filter` not;
+  - keep-alive blank lines before the body; 429 (Retry-After), 503 and 504 retried; 400/401/402/422 not;
+  - the shared core: invalid JSON and schema retries with billed usage, giving up with usage and the field, network and timeout, deadline, cancel, missing `DEEPSEEK_API_KEY`;
+  - the Gemini request and cost; Gemini no-retry cases; helpers (base64 on 100 kB, image types).
+- **`ai_live_test.ts`**: one real call per provider and job, **with an image**. Skipped without that provider's key and network permission.
+- `writing_prompt_test.ts`: image parts are now `{image}`.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. **Create a DeepSeek API key and add balance** (requests fail with 402 at zero).
+2. **Put `DEEPSEEK_API_KEY=…` in `supabase/functions/.env`** for local use, and `supabase secrets set DEEPSEEK_API_KEY=…` for staging, then production.
+3. **Restart the local functions** (`supabase functions serve --env-file supabase/functions/.env`).
+4. **Run the live test**, then the real-AI e2e (`E2E_AI=1`, ≈ $0.01), then the eval (≈ $0.10). Compare `--thinking low` with `high` if the bands look off.
+5. **Privacy:** before real users' writing goes to DeepSeek, check its privacy policy and terms, and name the provider in Prepora's privacy policy. DeepSeek's API docs don't say where data is stored.
+- The Gemini steps from the M6-B1 entry are now only needed if you switch with `AI_PROVIDER=gemini`.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions, `_shared/*.ts`, `_shared/prompts/*.ts` and `_eval/*.ts` ✓; `deno test --frozen _shared/ _eval/`: **35 passed, 4 ignored** (the live tests) ✓. Eval `--dry-run`: 20 requests, "deepseek deepseek-flash, thinking low" ✓.
+- `supabase migration up` locally ✓; `supabase test db`: 569 passed ✓; `credit_costs` shows deepseek-flash for the three actions ✓.
+- `pnpm test` 528 ✓; web typecheck ✓; web lint ✓.
+- **Not verified:**
+  - **no real DeepSeek call yet** (no key here), so JSON mode with our schema-in-prompt, image input, the usage fields and the blank-reply behaviour are untested live;
+  - the functions end to end (the runtime needs restarting with your key);
+  - the eval; CI.

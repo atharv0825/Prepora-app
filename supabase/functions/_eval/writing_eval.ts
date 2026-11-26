@@ -3,17 +3,18 @@
 // (_shared/prompts/writing.ts, the same code score-writing runs) and compares the AI band with the
 // target band. Target: most answers (≥ 75%) within ±0.5.
 //
-// Run from supabase/functions with Deno 2 (costs about US$0.03 per answer, ≈ $0.60 for the set):
+// Run from supabase/functions with Deno 2 (DeepSeek: about US$0.005 per answer, ≈ $0.10 for the set):
 //
-//   deno run --frozen --env-file=.env --allow-env=GEMINI_API_KEY \
-//     --allow-net=generativelanguage.googleapis.com --allow-read=_eval --allow-write=_eval/results \
+//   deno run --frozen --env-file=.env --allow-env --allow-net=api.deepseek.com,generativelanguage.googleapis.com \
+//     --allow-read=_eval --allow-write=_eval/results \
 //     _eval/writing_eval.ts [--only t2|t1_general|t1_academic] [--limit N] [--concurrency N]
+//                           [--provider deepseek|gemini] [--thinking off|low|high]
 //
-//   --dry-run   check the set and build every request, without calling Gemini (no key needed)
+//   --dry-run   check the set and build every request, without calling the model (no key needed)
 //
 // Writes a JSON report to _eval/results/ (gitignored) and exits 1 when under the target, so a
 // prompt change can be compared with the previous version before it's released.
-import { GEMINI_MODELS, generateJson } from "../_shared/gemini.ts";
+import { aiModel, type AiProvider, generateJson, type Thinking } from "../_shared/ai.ts";
 import { buildScoringRequest, SCORING_PROMPTS, SCORING_SETTINGS, type WritingTaskKind } from "../_shared/prompts/writing.ts";
 import { countEssayWords, isHalfBand, writingTaskBand, type WritingScores } from "../_shared/writing.ts";
 import { ScoredWriting } from "../_shared/writing_schemas.ts";
@@ -29,6 +30,8 @@ const dryRun = Deno.args.includes("--dry-run");
 const only = arg("only") as WritingTaskKind | undefined;
 const limit = Number(arg("limit") ?? Infinity);
 const concurrency = Math.max(1, Number(arg("concurrency") ?? 2));
+const model = aiModel("scoring", arg("provider") as AiProvider | undefined);
+const thinking = (arg("thinking") as Thinking | undefined) ?? SCORING_SETTINGS.thinking;
 
 async function loadEssays(): Promise<EvalEssay[]> {
   let local: EvalEssay[] = [];
@@ -64,7 +67,7 @@ async function scoreOne(e: EvalEssay): Promise<Row> {
   const base = { id: e.id, kind: e.kind, words: countEssayWords(e.essay), expected: e.expected_band, cost: 0 };
   if (dryRun) return base;
   try {
-    const out = await generateJson({ model: GEMINI_MODELS.scoring, system: req.system, parts: req.parts, schema: ScoredWriting, ...SCORING_SETTINGS });
+    const out = await generateJson({ model, system: req.system, parts: req.parts, schema: ScoredWriting, ...SCORING_SETTINGS, thinking });
     const ai = writingTaskBand(out.data.scores);
     return { ...base, ai, diff: ai - e.expected_band, scores: out.data.scores, cost: out.usage.cost_usd };
   } catch (err) {
@@ -115,7 +118,7 @@ if (import.meta.main) {
     Deno.exit(2);
   }
   const versions = [...new Set(essays.map((e) => SCORING_PROMPTS[e.kind].version))].join(", ");
-  console.log(`Writing eval: ${essays.length} answers, prompts ${versions}, model ${GEMINI_MODELS.scoring}${dryRun ? " (dry run)" : ""}`);
+  console.log(`Writing eval: ${essays.length} answers, prompts ${versions}, model ${model.provider} ${model.model}, thinking ${thinking ?? "default"}${dryRun ? " (dry run)" : ""}`);
   const rows = await pool(essays, concurrency, scoreOne);
   if (dryRun) {
     console.log(`Dry run OK: ${rows.length} requests built.`);
@@ -134,7 +137,7 @@ if (import.meta.main) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   await Deno.mkdir(new URL("./results/", import.meta.url), { recursive: true });
   const file = new URL(`./results/writing-${stamp}.json`, import.meta.url);
-  await Deno.writeTextFile(file, JSON.stringify({ at: new Date().toISOString(), model: GEMINI_MODELS.scoring, versions, summary, byKind, rows }, null, 2));
+  await Deno.writeTextFile(file, JSON.stringify({ at: new Date().toISOString(), model, thinking, versions, summary, byKind, rows }, null, 2));
   console.log(`\nReport: ${file.pathname}`);
 
   const pass = summary.errors === 0 && summary.within_rate >= TARGET_WITHIN;

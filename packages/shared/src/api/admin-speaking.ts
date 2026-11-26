@@ -1,8 +1,28 @@
-// Speaking topic manager contract (M7-A1): Part 2 cue cards and the Part 3 discussions linked to
-// them (parent_topic_id). Part 1 question sets come with M8-A1. The admin form and its Server
-// Functions validate with these; the database checks the same rules (M7-C1).
+// Speaking topic manager contract: Part 2 cue cards and the Part 3 discussions linked to them
+// (parent_topic_id, M7-A1), and Part 1 question sets on a theme (M8-A1). The admin form and its
+// Server Functions validate with these; the database checks the same rules (M7-C1).
 import { z } from "zod";
 import type { PublishCheck } from "./admin-reading";
+import { QUESTIONS_PER_PART } from "../ielts/speaking-session";
+
+/** The usual Part 1 themes, offered as suggestions in the form (any theme can be typed). */
+export const PART1_THEMES = [
+  "Work or studies",
+  "Hometown",
+  "Home and accommodation",
+  "Hobbies and free time",
+  "Family and friends",
+  "Food and cooking",
+  "Daily routine",
+  "Weather and seasons",
+  "Travel and holidays",
+  "Music",
+  "Reading",
+  "Sport and exercise",
+  "Technology and phones",
+  "Shopping",
+  "Weekends",
+] as const;
 
 const line = (max: number, what: string) => z.string().trim().min(1, `Write the ${what}`).max(max, `${max} characters at most`);
 /** Form lists arrive with blank rows (an empty "add another" field): drop them before counting. */
@@ -33,6 +53,20 @@ export const Part3Form = z
   .strict();
 export type Part3Form = z.input<typeof Part3Form>;
 
+export const Part1Form = z
+  .object({
+    /** The theme the examiner asks about ("Hometown", "Work or studies"). */
+    title: line(200, "theme"),
+    /** The examiner's questions, in order: 4–5 are asked, so write at least 4. */
+    questions: items("question", 1, 12, 300),
+  })
+  .strict();
+export type Part1Form = z.input<typeof Part1Form>;
+
+export function part1Row(f: z.output<typeof Part1Form>) {
+  return { part: 1, title: f.title, questions: f.questions, cue_card_points: null, parent_topic_id: null } as const;
+}
+
 export function cueCardRow(f: z.output<typeof CueCardForm>) {
   return { part: 2, title: f.title, cue_card_points: f.points, questions: null, parent_topic_id: null } as const;
 }
@@ -59,6 +93,13 @@ export function speakingPublishCheck(t: AdminSpeakingTopic): PublishCheck {
     if (n < 2 || n > 5) blocking.push("A cue card needs 2 to 5 points.");
     if (!/^describe\b/i.test(t.title.trim())) warnings.push('Part 2 tasks usually start with "Describe…".');
     if (n > 0 && !/^and\b/i.test(t.cue_card_points!.at(-1)!.trim())) warnings.push('The last point is usually "and explain why…".');
+  } else if (t.part === 1) {
+    const n = t.questions?.length ?? 0;
+    const { min, max } = QUESTIONS_PER_PART[1];
+    // The examiner asks 4–5 from the set (and at most one follow-up): fewer can't fill the part.
+    if (n < min) blocking.push(`A Part 1 set needs at least ${min} questions: the examiner asks ${min}–${max}.`);
+    if (n > 0 && n < max + 1) warnings.push(`With ${max + 1} or more questions, the examiner can vary the ones it asks.`);
+    if (t.questions?.some((q) => !q.trim().endsWith("?"))) warnings.push("Every question should end with a question mark (they're read aloud).");
   } else if (t.part === 3) {
     if (!(t.questions?.length ?? 0)) blocking.push("Add the examiner's questions.");
     if (t.parent_status !== "published") blocking.push("Publish its Part 2 cue card first.");

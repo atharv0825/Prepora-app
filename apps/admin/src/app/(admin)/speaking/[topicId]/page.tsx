@@ -14,9 +14,10 @@ import { formatDateTime } from "@/lib/users";
 
 export const metadata: Metadata = { title: "Speaking topic" };
 
-// M7-A1: one Speaking topic. A Part 2 cue card: status, publish checklist, details, what students
+// One Speaking topic. A Part 2 cue card (M7-A1): status, publish checklist, details, what students
 // see, and its Part 3 discussions (add one here). A Part 3 discussion: the same, with a link back
-// to its card. Staff only (layout + RLS).
+// to its card. A Part 1 question set (M8-A1): status, checklist, theme and questions, and what the
+// examiner will ask. Staff only (layout + RLS).
 export default async function SpeakingTopicPage({ params }: PageProps<"/speaking/[topicId]">) {
   const { topicId } = await params;
   if (!ContentId.safeParse(topicId).success) notFound();
@@ -27,7 +28,7 @@ export default async function SpeakingTopicPage({ params }: PageProps<"/speaking
     .eq("id", topicId)
     .maybeSingle();
   if (error) throw new Error(`speaking_topics failed: ${error.code}`);
-  if (!topic || topic.part === 1) notFound();
+  if (!topic) notFound();
   const [{ data: parent }, { data: children }] = await Promise.all([
     topic.parent_topic_id
       ? supabase.from("speaking_topics").select("id, title, status").eq("id", topic.parent_topic_id).maybeSingle()
@@ -39,16 +40,20 @@ export default async function SpeakingTopicPage({ params }: PageProps<"/speaking
   const check = speakingPublishCheck({ ...topic, parent_status: parent?.status ?? null });
   const status = topic.status as ContentStatus;
   const card = topic.part === 2;
+  const set = topic.part === 1;
+  const kindLabel = card ? "Part 2 cue card" : set ? "Part 1 question set" : "Part 3 discussion";
 
   return (
     <div className="flex flex-col gap-8 pb-16">
       <div className="flex flex-col gap-3">
-        <Link href={card ? "/speaking" : `/speaking/${topic.parent_topic_id}`} className="self-start text-sm text-muted-foreground underline-offset-4 hover:underline">
-          ← {card ? "Cue cards" : `Cue card: ${parent?.title ?? "…"}`}
+        <Link href={topic.parent_topic_id ? `/speaking/${topic.parent_topic_id}` : "/speaking"} className="self-start text-sm text-muted-foreground underline-offset-4 hover:underline">
+          ← {topic.parent_topic_id ? `Cue card: ${parent?.title ?? "…"}` : "Speaking topics"}
         </Link>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-muted-foreground">{card ? "Part 2 cue card" : "Part 3 discussion"}</p>
+            <p className="text-sm text-muted-foreground" data-testid="topic-kind">
+              {kindLabel}
+            </p>
             <h1 className="text-h2">{topic.title}</h1>
             <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant={statusBadge(status)} data-testid="topic-status">
@@ -76,7 +81,8 @@ export default async function SpeakingTopicPage({ params }: PageProps<"/speaking
           <ul className="flex flex-col gap-2 text-sm" data-testid="publish-check">
             {check.blocking.length === 0 && (
               <li className="flex items-start gap-2 text-primary">
-                <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden /> {card ? "The card has its task and points." : "The questions are in place and the cue card is published."}
+                <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden />{" "}
+                {card ? "The card has its task and points." : set ? "The set has enough questions for the examiner." : "The questions are in place and the cue card is published."}
               </li>
             )}
             {check.blocking.map((b) => (
@@ -100,11 +106,31 @@ export default async function SpeakingTopicPage({ params }: PageProps<"/speaking
         <CardContent>
           {card ? (
             <TopicForm kind="card" topicId={topic.id} values={{ title: topic.title, items: topic.cue_card_points ?? [] }} />
+          ) : set ? (
+            <TopicForm kind="part1" topicId={topic.id} values={{ title: topic.title, items: topic.questions ?? [] }} />
           ) : (
             <TopicForm kind="part3" topicId={topic.id} parentId={topic.parent_topic_id!} values={{ title: topic.title, items: topic.questions ?? [] }} />
           )}
         </CardContent>
       </Card>
+
+      {set && (
+        <Card>
+          <CardHeader>
+            <CardTitle>What the examiner asks</CardTitle>
+            <CardDescription>
+              Each question is shown and read aloud, one at a time: 4–5 in all, usually in this order, with at most one short follow-up on an answer. Then the part is scored (5 credits).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ol className="flex list-decimal flex-col gap-1.5 rounded-2xl bg-secondary/60 p-5 pl-10 text-sm" data-testid="set-preview">
+              {(topic.questions ?? []).map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      )}
 
       {card && (
         <Card>

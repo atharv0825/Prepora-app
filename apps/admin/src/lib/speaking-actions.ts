@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ContentId, ContentStatus } from "@prepora/shared/api/admin-reading";
-import { CueCardForm, cueCardRow, Part3Form, part3Row, speakingPublishCheck } from "@prepora/shared/api/admin-speaking";
+import { CueCardForm, cueCardRow, Part1Form, part1Row, Part3Form, part3Row, speakingPublishCheck } from "@prepora/shared/api/admin-speaking";
 import { type BuilderState, failure, fieldErrors, SESSION_ENDED, signedIn } from "./builder-server";
 
-// Speaking topic manager (M7-A1): Part 2 cue cards and the Part 3 discussions linked to them. As the
-// other builders: each Server Function validates its input and writes with the editor's own
+// Speaking topic manager: Part 2 cue cards and the Part 3 discussions linked to them (M7-A1), and
+// Part 1 question sets on a theme (M8-A1). As the other builders: each Server Function validates its input and writes with the editor's own
 // session (speaking_topics staff policies, M7-C1); the database re-checks shapes and publishing order.
 
 const topicPath = (id: string) => `/speaking/${id}`;
@@ -37,6 +37,31 @@ export async function saveCueCard(_prev: BuilderState, form: FormData): Promise<
   const { data, error } = await session.supabase.from("speaking_topics").update(cueCardRow(input.data)).eq("id", id).eq("part", 2).select("id");
   if (error) return failure("update cue card", error);
   if (!data?.length) return { ok: false, message: "This cue card no longer exists." };
+  revalidatePath(topicPath(id));
+  revalidatePath("/speaking");
+  return { ok: true, message: "Saved.", savedAt: Date.now() };
+}
+
+export async function savePart1(_prev: BuilderState, form: FormData): Promise<BuilderState> {
+  const id = str(form, "topic_id");
+  if (id !== undefined && !ContentId.safeParse(id).success) return { ok: false, message: "Invalid request." };
+  const input = Part1Form.safeParse({ title: str(form, "title"), questions: strings(form, "question") });
+  if (!input.success) return { ok: false, message: "Check the highlighted fields.", fieldErrors: fieldErrors(input.error.issues) };
+  const session = await signedIn();
+  if (!session) return SESSION_ENDED;
+  if (!id) {
+    const { data, error } = await session.supabase
+      .from("speaking_topics")
+      .insert({ ...part1Row(input.data), source: "admin", status: "draft", created_by: session.userId })
+      .select("id")
+      .single();
+    if (error) return failure("create Part 1 question set", error);
+    revalidatePath("/speaking");
+    redirect(topicPath(data.id));
+  }
+  const { data, error } = await session.supabase.from("speaking_topics").update(part1Row(input.data)).eq("id", id).eq("part", 1).select("id");
+  if (error) return failure("update Part 1 question set", error);
+  if (!data?.length) return { ok: false, message: "This question set no longer exists." };
   revalidatePath(topicPath(id));
   revalidatePath("/speaking");
   return { ok: true, message: "Saved.", savedAt: Date.now() };

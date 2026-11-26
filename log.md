@@ -3705,3 +3705,55 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
   It must pass for **both** `chrome-opus.webm` and `safari-aac.mp4`. Also look at `kept_um` in its output.
 - **Check Gemini's audio input price** for `gemini-3.5-flash-lite` and correct `GEMINI_AUDIO_PRICES` in `stt.ts` if it differs.
 - **Privacy policy:** name Google (Gemini) as the processor of Speaking recordings and Writing photos.
+
+## 2026-11-26 — M8-A1: Part 1 question sets (admin); M8-I1: the full test on staging (checklist)
+
+**M8-A1: Part 1 question sets in the admin panel**
+- **Shared contract (`api/admin-speaking.ts`):**
+  - `Part1Form`: a theme and 1–12 questions, blank rows dropped; no card or parent.
+  - `part1Row`.
+  - `PART1_THEMES`: 15 usual themes (work or studies, hometown, hobbies, family, food…).
+  - **`speakingPublishCheck` for Part 1:** **blocks publishing under 4 questions**, because the examiner asks 4–5 (`QUESTIONS_PER_PART`). It warns when there are fewer than 6 (the examiner can't vary its questions) and when a question doesn't end with "?" (they're read aloud).
+- **Admin:**
+  - The Speaking page has a **"Part 1 question sets"** section: each set's theme, question count, status and "AI" badge, plus a "New question set" form.
+  - The theme field suggests the usual themes (a `datalist`); any theme can be typed.
+  - **The topic page** opens Part 1 sets with the status actions, the publish checklist, the editable theme and questions (add, remove, reorder), and **"What the examiner asks"**: the questions in order, how many are asked, the one follow-up and the 5 credits.
+  - `savePart1` follows the other builders: the form contract, the editor's own session (staff RLS), and "no longer exists" handling.
+  - Nav note updated.
+- **The database already allowed Part 1** (M7-C1: questions, no card, no parent), so there's no migration. Students see published sets on the Speaking home and in the full test (M8-F).
+
+**M8-I1: the full test end to end on staging:** a checklist in **`docs/speaking-full-test-staging.md`**:
+- prerequisites: secrets, content, a Gold student with 15+ credits;
+- the run, part by part, with the balance after each part (−5, −4, −6) and a reload test;
+- **SQL** for:
+  - the session's bands, with the expected rounded overall band computed alongside;
+  - **the credits through `credit_ledger`** (ledger `ref_id` = the response id), net of refunds, expected −15;
+  - `ai_usage`: 3 charged rows plus 8–10 uncharged examiner turns, and the real cost;
+- a **rounding table**: part bands give means ending .0/.17/.33/.5/.67/.83, so e.g. 6/6.5/6.5 → 6.5 and 6/6/6.5 → 6.0;
+- a results table to fill in.
+
+**Finding: Free students can't take a full test.** Free's daily cap is **8 credits** and a full test is **15** (Part 1 5 + Part 2 4 would already be 9). The test's cost dialog checks the 15 against the cap and shows why, so nobody is charged for a test they can't finish. Options: a cap of 15+ for Free, or full tests for Gold/Platinum only. Your call.
+
+**Tests**
+- vitest `admin-speaking.test.ts` (+4): Part 1 form → row; needs a theme and 1–12 questions, no parent; the themes; the publish check (under 4 blocks; fewer than 6 warns; "?" warns).
+- e2e `speaking-admin.spec.ts` (+1, API):
+  - an editor creates a set from the form contract (3 questions → blocked), saves 6, and publishes;
+  - the database refuses a Part 1 with a card (23514);
+  - a student reads it and can't change it.
+
+**Verified**
+- `pnpm test`: **622 passed** ✓. Admin typecheck (with `next typegen`) ✓; lint ✓.
+- `speaking-admin.spec.ts` against local Supabase: **3 passed** ✓.
+- **The admin pages in a browser** (a temporary admin dev server on :3301 with local Supabase, an editor session, and a throwaway spec, deleted afterwards):
+  - create a set with 3 questions → the topic page;
+  - "needs at least 4 questions";
+  - add a 4th, Save → "enough questions";
+  - the list shows "4 questions". ✓ (screenshot checked)
+- **M8-I1's SQL** run on local Postgres: the rounding expression gives the table's values for all 6 rows, and the ledger and `ai_usage` queries run ✓.
+- **Not verified:** **the staging run itself (M8-I1)**: it needs staging with real keys and a person speaking.
+- Also confirmed: **#76 (Gemini speech to text) CI is green**: E2E 169 passed, the same as before, so the stubbed Speaking and OCR flows pass through Gemini.
+
+**Manual steps for you**
+- **Content on staging:** create and publish a few **Part 1 question sets** (admin → Speaking → New question set; at least 4 questions, ideally 6+), e.g. Work or studies, Hometown, Hobbies. The full test needs at least one, plus a card with a published Part 3.
+- **M8-I1:** follow `docs/speaking-full-test-staging.md` on staging with a Gold student, run the three SQL checks, and paste the results row into `log.md`.
+- **Decide** Free and the full test (see the finding above).

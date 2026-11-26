@@ -165,4 +165,92 @@ test.describe("score-speaking (API)", () => {
     expect(usage!.length).toBeGreaterThanOrEqual(2);
     expect(usage!.some((u) => Number(u.audio_seconds) > 0)).toBe(true); // the failed AI call still logs Whisper's seconds
   });
+  test("stubbed AI: a full test — examiner turns, Parts 1 → 2 → 3 in order, 15 credits, the overall band", async () => {
+    test.skip(!stubAi, "needs E2E_AI=1 E2E_AI_STUB=1");
+    test.setTimeout(240_000);
+    const db = adminClient();
+    const stamp = Date.now();
+    const { data: made, error } = await db
+      .from("speaking_topics")
+      .insert(
+        [
+          { part: 1, title: `E2E hometown ${stamp}`, questions: ["Where is your hometown?", "What do you like about it?", "Has it changed much?", "Would you live there in future?", "Do you often go back?"], status: "published" },
+          { part: 3, title: `E2E places ${stamp}`, questions: ["Why do people travel?", "Is tourism good for local people?", "How will travel change?", "Should places limit visitors?"], parent_topic_id: topics.card, status: "published" },
+        ],
+        { defaultToNull: false },
+      )
+      .select("id, part");
+    if (error) throw error;
+    const p1 = made.find((t) => t.part === 1)!.id;
+    const p3 = made.find((t) => t.part === 3)!.id;
+    try {
+      const before = await balance(gold);
+      const session = crypto.randomUUID();
+      expect((await gold.client.from("speaking_sessions").insert({ id: session, user_id: gold.id, mode: "full_test" })).error).toBeNull();
+      const upload = async (name: string, bytes: Uint8Array = WEBM) => {
+        const path = `${gold.id}/${session}-${name}.webm`;
+        expect((await gold.client.storage.from("speaking-audio").upload(path, bytes, { contentType: "audio/webm" })).error).toBeNull();
+        return path;
+      };
+      const turn = (part: 1 | 3, topic_id: string, turns: unknown[]) =>
+        fetch(`${url}/functions/v1/examiner-turn`, {
+          method: "POST",
+          headers: { apikey: publishableKey, authorization: `Bearer ${gold.accessToken}`, "content-type": "application/json" },
+          body: JSON.stringify({ session_id: session, part, topic_id, turns }),
+        }).then(async (r) => ({ status: r.status, body: (await r.json()) as Record<string, unknown> & { error?: { code: string } } }));
+
+      /** Plays a part with the examiner: upload each answer, send it, take the next question. */
+      async function converse(part: 1 | 3, topicId: string, followUpOn?: number) {
+        const turns: { question: string; audio_path?: string; transcript?: string }[] = [];
+        let r = await turn(part, topicId, []);
+        expect(r.status, JSON.stringify(r.body)).toBe(200);
+        expect(r.body).toMatchObject({ transcribed: null, source: "set", question_no: 1, done: false });
+        for (let i = 0; !r.body.done && i < 8; i++) {
+          const marker = followUpOn === i ? marked("STUB_FOLLOW_UP") : WEBM;
+          turns.push({ question: r.body.next_question as string, audio_path: await upload(`p${part}-q${i + 1}`, marker) });
+          r = await turn(part, topicId, turns);
+          expect(r.status, JSON.stringify(r.body)).toBe(200);
+          const t = r.body.transcribed as { index: number; transcript: string };
+          expect(t.index).toBe(turns.length - 1);
+          turns[turns.length - 1] = { ...turns.at(-1)!, transcript: t.transcript };
+        }
+        expect(r.body).toMatchObject({ done: true, next_question: null });
+        return turns.map((t) => ({ question: t.question, audio_path: t.audio_path! }));
+      }
+
+      // The state machine: Part 3 and Part 2 can't come first.
+      expect((await turn(3, p3, [])).status).toBe(409);
+      expect((await call(gold, { session_id: session, topic_id: topics.card, part: 2, audio_path: await upload("early") })).status).toBe(409);
+
+      // Part 1: 5 questions (the set; the stub never stops early), then scored for 5 credits.
+      const part1 = await converse(1, p1);
+      expect(part1).toHaveLength(5);
+      const s1 = await call(gold, { session_id: session, topic_id: p1, part: 1, answers: part1 });
+      expect(s1.status, JSON.stringify(s1.body)).toBe(200);
+      expect(s1.body).toMatchObject({ part: 1, credits_charged: 5 });
+      expect(s1.body.transcript as string).toContain("Examiner: Where is your hometown?\nYou: ");
+
+      // Part 2, then Part 3 with one follow-up (its answer asked for one), scored for 6.
+      expect((await call(gold, { session_id: session, topic_id: topics.card, part: 2, audio_path: await upload("p2") })).status).toBe(200);
+      const part3 = await converse(3, p3, 1);
+      expect(part3.map((a) => a.question)).toContain("Why do you feel that way?");
+      const s3 = await call(gold, { session_id: session, topic_id: p3, part: 3, answers: part3 });
+      expect(s3.status, JSON.stringify(s3.body)).toBe(200);
+      expect(s3.body).toMatchObject({ part: 3, credits_charged: 6 });
+
+      // M8-B3: completed, with each part's band and the IELTS-rounded overall band.
+      const { data: done } = await db.from("speaking_sessions").select("status, part1_band, part2_band, part3_band, overall_band").eq("id", session).single();
+      expect(done).toMatchObject({ status: "completed", part1_band: 6, part2_band: 6, part3_band: 6, overall_band: 6 });
+      // 5 + 4 + 6 = 15 credits; the examiner's turns cost nothing but are logged.
+      expect(await balance(gold)).toBe(before - 15);
+      const { data: usage } = await db.from("ai_usage").select("action_key, credits_charged").eq("user_id", gold.id).gte("created_at", new Date(stamp).toISOString());
+      expect(usage!.filter((u) => u.credits_charged > 0).map((u) => u.credits_charged).sort()).toEqual([4, 5, 6]);
+      expect(usage!.filter((u) => u.credits_charged === 0).length).toBeGreaterThanOrEqual(10); // one per examiner turn
+      expect((await turn(1, p1, [])).status).toBe(409); // finished
+    } finally {
+      await db.from("speaking_sessions").delete().eq("user_id", gold.id).gte("started_at", new Date(stamp).toISOString());
+      await db.from("speaking_topics").update({ status: "archived" }).in("id", [p3, p1]);
+      await db.from("speaking_topics").delete().in("id", [p3, p1]);
+    }
+  });
 });

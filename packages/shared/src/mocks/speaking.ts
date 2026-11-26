@@ -92,7 +92,8 @@ export function mockScoreSpeaking(
     throw new MockApiError(402, { error: { code: "insufficient_credits", message: "Not enough credits", details: { action_key: actionKey, credits, balance } } });
   }
   const transcript = opts.transcript ?? MOCK_PART2_TRANSCRIPT;
-  const duration = req.duration_sec ?? 110;
+  // Part 2: one recording; Parts 1 and 3: about 45 s per answer.
+  const duration = req.part === 2 ? (req.duration_sec ?? 110) : req.answers.length * 45;
   const fillers = countFillers(transcript);
   const words = countSpokenWords(transcript);
   const scored = mockScoredSpeaking(transcript, duration, req.part);

@@ -16,8 +16,9 @@
 //     improvements and a model answer. Free gets their count only, and the row stores the same
 //     trimmed feedback (toSpeakingSummary), as for Writing.
 //
-// This version takes one recording (Part 2's single answer). Parts 1 and 3 (M8) answer several
-// examiner questions; M8-C1 extends the request with one recording per answer.
+// Part 2 sends its one recording. Parts 1 and 3 (M8-B2) send the examiner's questions with one
+// recording per answer (4–5, from examiner-turn): score-speaking transcribes every recording itself,
+// so the score never rests on a transcript the browser could change.
 //
 // Errors (the shared { error: { code, message, details } } shape):
 //   400 validation_failed      malformed body; a path outside the student's folder; a part the
@@ -43,16 +44,38 @@ export const SpeakingAudioPath = z
 
 export const SpeakingPartSchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
-export const ScoreSpeakingRequest = z
+/** One examiner question and the recording of its answer (Parts 1 and 3). */
+export const SpeakingAnswer = z
   .object({
-    session_id: z.uuid(),
-    topic_id: z.uuid(),
-    part: SpeakingPartSchema,
+    question: z.string().trim().min(1).max(300),
     audio_path: SpeakingAudioPath,
-    /** Seconds recorded (the recorder's clock); the server measures the file too. */
-    duration_sec: z.number().int().min(1).max(1800).optional(),
+    duration_sec: z.number().int().min(1).max(300).optional(),
   })
   .strict();
+export type SpeakingAnswer = z.infer<typeof SpeakingAnswer>;
+
+export const ScoreSpeakingRequest = z.discriminatedUnion("part", [
+  z
+    .object({
+      session_id: z.uuid(),
+      topic_id: z.uuid(),
+      part: z.literal(2),
+      audio_path: SpeakingAudioPath,
+      /** Seconds recorded (the recorder's clock); the server measures the file too. */
+      duration_sec: z.number().int().min(1).max(1800).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      session_id: z.uuid(),
+      /** Part 1: the question set; Part 3: the discussion. */
+      topic_id: z.uuid(),
+      part: z.union([z.literal(1), z.literal(3)]),
+      /** The questions asked and their recordings, in order (4–5: ielts/speaking-session.ts). */
+      answers: z.array(SpeakingAnswer).min(4, "Answer at least 4 questions").max(5, "5 questions at most"),
+    })
+    .strict(),
+]);
 export type ScoreSpeakingRequest = z.infer<typeof ScoreSpeakingRequest>;
 
 export const SpeakingScoresSchema = z.object({ fc: band, lr: band, gra: band, pron: band }).strict();

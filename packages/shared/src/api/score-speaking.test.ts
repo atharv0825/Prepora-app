@@ -35,6 +35,15 @@ describe("ScoreSpeakingRequest", () => {
       expect(ScoreSpeakingRequest.safeParse({ ...ok, audio_path: `${U}/a.${ext}` }).success).toBe(true);
     }
   });
+  it("Parts 1 and 3 send 4–5 answered questions, each with its recording", () => {
+    const answers = [1, 2, 3, 4].map((n) => ({ question: `Q${n}?`, audio_path: `${U}/p1-${n}.webm`, duration_sec: 30 }));
+    expect(ScoreSpeakingRequest.safeParse({ session_id: S, topic_id: T, part: 1, answers }).success).toBe(true);
+    expect(ScoreSpeakingRequest.safeParse({ session_id: S, topic_id: T, part: 3, answers: [...answers, answers[0]] }).success).toBe(true);
+    expect(ScoreSpeakingRequest.safeParse({ session_id: S, topic_id: T, part: 1, answers: answers.slice(0, 3) }).success).toBe(false);
+    expect(ScoreSpeakingRequest.safeParse({ session_id: S, topic_id: T, part: 1, audio_path: `${U}/p.webm` }).success).toBe(false);
+    expect(ScoreSpeakingRequest.safeParse({ session_id: S, topic_id: T, part: 2, answers }).success).toBe(false);
+  });
+
   it("refuses other paths, parts and fields", () => {
     const ok = { session_id: S, topic_id: T, part: 2, audio_path: `${U}/p2.webm` };
     expect(ScoreSpeakingRequest.safeParse({ ...ok, audio_path: `${U}/p2.exe` }).success).toBe(false);

@@ -32,7 +32,10 @@ describe("mockScoreSpeaking", () => {
   it("a short Part 2 answer loses fluency; Part 1 costs 5 credits; errors in the real shapes", () => {
     const short = mockScoreSpeaking({ ...req, duration_sec: 40 }, { transcript: "I like the beach because it is quiet." });
     expect(short.scores.fc).toBeLessThanOrEqual(5);
-    expect(mockScoreSpeaking({ ...req, part: 1 }).credits_charged).toBe(5);
+    const answers = [1, 2, 3, 4].map((n) => ({ question: `Q${n}?`, audio_path: `${U}/p1-${n}.webm` }));
+    expect(mockScoreSpeaking({ session_id: req.session_id, topic_id: req.topic_id, part: 1, answers }).credits_charged).toBe(5);
+    expect(mockScoreSpeaking({ session_id: req.session_id, topic_id: req.topic_id, part: 3, answers }).credits_charged).toBe(6);
+    expect(() => mockScoreSpeaking({ ...req, part: 1 })).toThrow(MockApiError); // Parts 1 and 3 send answers
     try {
       mockScoreSpeaking(req, { balance: 3 });
       throw new Error("expected an error");

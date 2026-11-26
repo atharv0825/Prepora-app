@@ -166,3 +166,94 @@ export function speakingFeedbackFor(scored: ScoredSpeaking, detailedFeedback: bo
 
 /** Fewer words than this isn't an answer to score (silence, a mis-start): refused, credits refunded. */
 export const MIN_SCORABLE_WORDS = 20;
+
+// ── Sessions, rounding and examiner turns (M8-B1..B3) ───────────────────────────────────────
+// Copies of packages/shared/src/ielts/bands.ts (ieltsRound, overallBand) and
+// ielts/speaking-session.ts; tests/speaking-signals.test.ts checks they agree.
+
+export function ieltsRound(average: number): number {
+  if (!Number.isFinite(average) || average < 0 || average > 9) throw new RangeError(`not a band average: ${average}`);
+  const v = Math.round(average * 1e9) / 1e9;
+  const whole = Math.floor(v);
+  const frac = v - whole;
+  if (frac < 0.25) return whole;
+  if (frac < 0.75) return whole + 0.5;
+  return whole + 1;
+}
+
+export function overallBand(bands: readonly number[]): number {
+  if (!bands.length) throw new RangeError("no bands to average");
+  return ieltsRound(bands.reduce((a, b) => a + b, 0) / bands.length);
+}
+
+export type SessionMode = "part1" | "part2" | "part3" | "full_test";
+export type SessionStage = "part1" | "part2" | "part3" | "finished";
+
+export function partsOf(mode: SessionMode): (1 | 2 | 3)[] {
+  return mode === "full_test" ? [1, 2, 3] : [Number(mode.slice(4)) as 1 | 2 | 3];
+}
+
+export function sessionStage(mode: SessionMode, scored: Iterable<number>): SessionStage {
+  const done = new Set(scored);
+  const next = partsOf(mode).find((p) => !done.has(p));
+  return next ? (`part${next}` as SessionStage) : "finished";
+}
+
+export function sessionOverallBand(mode: SessionMode, bands: Partial<Record<1 | 2 | 3, number>>): number | null {
+  const parts = partsOf(mode);
+  if (parts.some((p) => bands[p] === undefined)) return null;
+  return overallBand(parts.map((p) => bands[p]!));
+}
+
+export const QUESTIONS_PER_PART: Record<1 | 3, { min: number; max: number }> = { 1: { min: 4, max: 5 }, 3: { min: 4, max: 5 } };
+
+/** Follow-ups the examiner may add: Part 1 sticks to the set; Part 3 is a discussion. */
+export const MAX_FOLLOW_UPS: Record<1 | 3, number> = { 1: 1, 3: 3 };
+
+export function examinerDone(part: 1 | 3, asked: number, examinerWantsToStop: boolean): boolean {
+  const { min, max } = QUESTIONS_PER_PART[part];
+  if (asked >= max) return true;
+  if (asked < min) return false;
+  return examinerWantsToStop;
+}
+
+/** Parts 1 and 3: under this many words in all the answers isn't scorable (refused and refunded). */
+export const MIN_SCORABLE_WORDS_CONVERSATION = 30;
+
+/**
+ * One set of signals for several answers (Parts 1 and 3): durations, words, pauses and fillers add
+ * up; words per minute is over the total speech; the longest pause is the longest of any answer;
+ * the confidence is weighted by each answer's length.
+ */
+export function combineSignals(parts: readonly { signals: SpeakingSignals; fillers: FillerCount[] }[]): { signals: SpeakingSignals; fillers: FillerCount[] } {
+  const sum = (f: (s: SpeakingSignals) => number) => parts.reduce((n, p) => n + f(p.signals), 0);
+  const duration = sum((s) => s.duration_sec);
+  const words = sum((s) => s.words);
+  // Each answer's speaking time, recovered from its own rate (words / wpm), else its length.
+  const speech = parts.reduce((n, p) => n + (p.signals.words_per_minute ? (p.signals.words / p.signals.words_per_minute) * 60 : p.signals.duration_sec), 0);
+  const timed = parts.filter((p) => p.signals.pauses !== null);
+  const confident = parts.filter((p) => p.signals.transcript_confidence !== null && p.signals.duration_sec > 0);
+  const confWeight = confident.reduce((n, p) => n + p.signals.duration_sec, 0);
+  const fillers = new Map<string, number>();
+  for (const p of parts) for (const f of p.fillers) fillers.set(f.word, (fillers.get(f.word) ?? 0) + f.count);
+  const fillerList = [...fillers].map(([word, count]) => ({ word, count })).sort((a, b) => b.count - a.count || a.word.localeCompare(b.word));
+  return {
+    fillers: fillerList,
+    signals: {
+      duration_sec: Math.round(duration * 10) / 10,
+      words,
+      words_per_minute: wordsPerMinute(words, speech > 0 ? speech : duration),
+      pauses: timed.length ? timed.reduce((n, p) => n + p.signals.pauses!, 0) : null,
+      longest_pause_sec: timed.length ? Math.max(...timed.map((p) => p.signals.longest_pause_sec ?? 0)) : null,
+      filler_count: fillerList.reduce((n, f) => n + f.count, 0),
+      transcript_confidence: confWeight > 0
+        ? Math.round((confident.reduce((n, p) => n + p.signals.transcript_confidence! * p.signals.duration_sec, 0) / confWeight) * 100) / 100
+        : null,
+    },
+  };
+}
+
+/** The stored transcript of a conversation: each question and its answer, examiner first. */
+export function conversationTranscript(turns: readonly { question: string; answer: string }[]): string {
+  return turns.map((t) => `Examiner: ${t.question.trim()}\nYou: ${t.answer.trim()}`).join("\n\n");
+}

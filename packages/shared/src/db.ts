@@ -529,6 +529,7 @@ export type Database = {
           published_at: string | null
           source: Database["public"]["Enums"]["content_source"]
           status: Database["public"]["Enums"]["content_status"]
+          test_no: number
           test_type: Database["public"]["Enums"]["ielts_test_type"]
           title: string
           updated_at: string
@@ -541,8 +542,9 @@ export type Database = {
           published_at?: string | null
           source?: Database["public"]["Enums"]["content_source"]
           status?: Database["public"]["Enums"]["content_status"]
+          test_no?: number
           test_type: Database["public"]["Enums"]["ielts_test_type"]
-          title: string
+          title?: string
           updated_at?: string
         }
         Update: {
@@ -553,6 +555,7 @@ export type Database = {
           published_at?: string | null
           source?: Database["public"]["Enums"]["content_source"]
           status?: Database["public"]["Enums"]["content_status"]
+          test_no?: number
           test_type?: Database["public"]["Enums"]["ielts_test_type"]
           title?: string
           updated_at?: string
@@ -1213,6 +1216,10 @@ export type Database = {
       }
       jsonb_changes: { Args: { p_after: Json; p_before: Json }; Returns: Json }
       lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
+      next_reading_test_no: {
+        Args: { p_type: Database["public"]["Enums"]["ielts_test_type"] }
+        Returns: number
+      }
       pick_next: {
         Args: {
           p_exclude?: string[]
@@ -1224,6 +1231,13 @@ export type Database = {
       plan_rank: {
         Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
         Returns: number
+      }
+      reading_test_title: {
+        Args: {
+          p_no: number
+          p_type: Database["public"]["Enums"]["ielts_test_type"]
+        }
+        Returns: string
       }
       record_test_attempt: {
         Args: {

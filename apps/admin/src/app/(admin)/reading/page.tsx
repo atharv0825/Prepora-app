@@ -38,7 +38,9 @@ export default async function ReadingTestsPage() {
       <Card>
         <CardHeader>
           <CardTitle>New test</CardTitle>
-          <CardDescription>It starts as a draft. Students see it only once you publish it.</CardDescription>
+          <CardDescription>
+            It&rsquo;s numbered and named for you (Academic Test 1, 2… or General Training Test 1, 2…) and starts as a draft. Students see it only once you publish it.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <NewTestForm module="reading" />

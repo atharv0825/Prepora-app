@@ -76,6 +76,10 @@ export const ReadingTestDetails = z.object({
 });
 export type ReadingTestDetails = z.infer<typeof ReadingTestDetails>;
 
+/** Creating a test: no title. The database numbers it per type and names it ("Academic Test 3"). */
+export const ReadingTestCreate = ReadingTestDetails.omit({ title: true });
+export type ReadingTestCreate = z.infer<typeof ReadingTestCreate>;
+
 export const ReadingPassageInput = z.object({
   test_id: z.uuid(),
   order_no: z.coerce.number().int().min(1).max(3),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveQuestion, publishCheck, questionOrder, ReadingPassageInput, ReadingQuestionInput, ReadingTestDetails } from "./admin-reading";
+import { moveQuestion, publishCheck, questionOrder, ReadingPassageInput, ReadingQuestionInput, ReadingTestCreate, ReadingTestDetails } from "./admin-reading";
 
 const T = "00000000-0000-4000-8000-000000000001";
 const P = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
@@ -27,6 +27,11 @@ describe("builder inputs (M4-A1)", () => {
     });
     expect(ReadingTestDetails.safeParse({ title: " ", test_type: "academic", min_plan: "free" }).success).toBe(false);
     expect(ReadingTestDetails.safeParse({ title: "x", test_type: "ielts", min_plan: "free" }).success).toBe(false);
+  });
+
+  it("creating a test needs no title (the database names it)", () => {
+    expect(ReadingTestCreate.parse({ title: "ignored", test_type: "academic", min_plan: "free" })).toEqual({ test_type: "academic", min_plan: "free" });
+    expect(ReadingTestCreate.safeParse({ test_type: "ielts", min_plan: "free" }).success).toBe(false);
   });
 
   it("passages are cleaned before the length check", () => {

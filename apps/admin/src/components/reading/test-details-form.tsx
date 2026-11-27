@@ -17,6 +17,9 @@ type Details = { title: string; test_type?: "academic" | "general"; min_plan: st
  * Title, Academic / General Training (Reading only: Listening is one test for both), and the
  * lowest plan that can take the test (M4-A1, M5-A1). Without a test id it creates a new draft
  * and opens it in the builder.
+ *
+ * A new Reading test has no Title field: the database numbers it per type and names it
+ * ("Academic Test 3"). It can be renamed afterwards in the builder.
  */
 export function TestDetailsForm({
   module = "reading",
@@ -42,10 +45,13 @@ export function TestDetailsForm({
   }, { ok: true, message: "" });
   const errors = state.fieldErrors ?? {};
   const id = (name: string) => `${testId ?? "new"}-${name}`;
+  const askTitle = !(module === "reading" && !testId);
+  const cols = module === "reading" && askTitle ? "sm:grid-cols-[2fr_1fr_1fr_auto]" : "sm:grid-cols-[2fr_1fr_auto]";
 
   return (
-    <form onSubmit={submitKeepingInput(action)} className={`grid gap-4 sm:items-end ${module === "reading" ? "sm:grid-cols-[2fr_1fr_1fr_auto]" : "sm:grid-cols-[2fr_1fr_auto]"}`} aria-label="Test details">
+    <form onSubmit={submitKeepingInput(action)} className={`grid gap-4 sm:items-end ${cols}`} aria-label="Test details">
       {testId && <input type="hidden" name="test_id" value={testId} />}
+      {askTitle && (
       <div className="flex flex-col gap-1.5">
         <label htmlFor={id("title")} className="text-sm font-medium">
           Title
@@ -62,6 +68,7 @@ export function TestDetailsForm({
         />
         {errors.title && <span className="text-xs text-destructive">{errors.title}</span>}
       </div>
+      )}
       {module === "reading" && (
       <div className="flex flex-col gap-1.5">
         <label htmlFor={id("type")} className="text-sm font-medium">

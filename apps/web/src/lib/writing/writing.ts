@@ -19,6 +19,14 @@ export function tasksFor<T extends TaskRow>(tasks: readonly T[], filter: TestTyp
   };
 }
 
+/** What each task is, for the chosen test type (Writing home and the task pages). */
+export function taskNote(taskNo: 1 | 2, filter: TestType | "all"): string {
+  if (taskNo === 2) return "An essay, 250 words, 40 minutes. The same for both tests.";
+  if (filter === "general") return "A letter, 150 words, 20 minutes.";
+  if (filter === "academic") return "A report on a chart or diagram, 150 words, 20 minutes.";
+  return "A report (Academic) or a letter (General Training), 150 words, 20 minutes.";
+}
+
 /** "Task 1 · Academic report", "Task 1 · General letter", "Task 2 · Essay". */
 export function taskKindLabel(taskNo: number, testType: TestType | null): string {
   if (taskNo === 2) return "Task 2 · Essay";

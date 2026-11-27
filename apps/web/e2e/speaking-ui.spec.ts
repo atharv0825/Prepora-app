@@ -85,6 +85,10 @@ test("F1 + F2: dashboard → cue card; mic test; prepare; record; stop; listen b
   await expect(page).toHaveURL(/\/app\/speaking$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Speaking");
   await expect(page.getByText(/1 minute to prepare, then speak for up to 2 minutes\. 4 credits\./)).toBeVisible();
+  // Part 1 and Part 2 tiles; the cue cards are on Part 2's page.
+  await expect(page.getByTestId("speaking-group")).toHaveCount(2);
+  await page.getByTestId("speaking-group").filter({ hasText: "Part 2: cue cards" }).click();
+  await expect(page).toHaveURL(/\/app\/speaking\/parts\/2$/);
   const card = page.getByTestId("cue-card-item").filter({ hasText: `E2E describe a place ${stamp}` });
   await expect(card).toContainText("Not answered yet");
   await card.getByRole("link", { name: /Start/ }).click();
@@ -218,5 +222,6 @@ test("F3: stored feedback — Gold full with highlights, Free locked, nobody els
   // The history lists the student's own answer.
   await page.goto("/app/speaking");
   await expect(page.getByTestId("speaking-history").getByRole("listitem")).toHaveCount(1);
+  await page.goto("/app/speaking/parts/2");
   await expect(page.getByTestId("cue-card-item").filter({ hasText: stamp })).toContainText("Best band 6.5");
 });

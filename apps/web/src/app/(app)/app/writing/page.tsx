@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Camera, PenLine } from "lucide-react";
+import { Camera, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { FilterPills } from "@/components/practice/filter-pills";
 import { PracticeHeader } from "@/components/practice/page-header";
-import { PracticeCard } from "@/components/practice/practice-card";
+import { GroupCard } from "@/components/practice/group-card";
 import { BandTrend } from "@/components/writing/band-trend";
 import { formatDate } from "@/lib/credits";
-import { testTypeLabel } from "@/lib/dashboard";
 import { validTimeZone } from "@/lib/onboarding";
 import { listFilter } from "@/lib/reading";
-import { routes, writingSubmissionPath, writingTaskPath } from "@/lib/routes";
+import { routes, writingSubmissionPath, writingTaskListPath } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount } from "@/lib/supabase/session";
-import { bandTrend, recentAverage, taskKindLabel, tasksFor, taskSummary, type TaskRow } from "@/lib/writing/writing";
+import { bandTrend, recentAverage, taskNote, tasksFor, taskSummary, type TaskRow } from "@/lib/writing/writing";
 
 export const metadata: Metadata = { title: "Writing · Prepora", robots: { index: false } };
 
@@ -91,41 +90,27 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
 
       <FilterPills filters={FILTERS} current={filter} hrefFor={(v) => `${routes.writing}?type=${v}`} />
 
-      {[
-        { title: "Task 1", note: filter === "general" ? "A letter, 150 words, 20 minutes." : filter === "academic" ? "A report on a chart or diagram, 150 words, 20 minutes." : "A report (Academic) or a letter (General Training), 150 words, 20 minutes.", items: task1 },
-        { title: "Task 2", note: "An essay, 250 words, 40 minutes. The same for both tests.", items: task2 },
-      ].map((group) => (
-        <section key={group.title} aria-label={group.title} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-h2">{group.title}</h2>
-            <p className="text-sm text-muted-foreground">{group.note}</p>
-          </div>
-          {group.items.length === 0 ? (
-            <p className="text-muted-foreground">
-              No {filter === "all" || group.title === "Task 2" ? "" : `${testTypeLabel(filter)} `}tasks yet. New tasks are added regularly.
-            </p>
-          ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {group.items.map((t) => {
-                const s = summary.get(t.id);
-                return (
-                  <li key={t.id} data-testid="writing-task">
-                    <PracticeCard
-                      href={writingTaskPath(t.id)}
-                      title={t.title}
-                      kindLabel={taskKindLabel(t.task_no, t.test_type)}
-                      icon={PenLine}
-                      status={s ? `Written ${s.count} ${s.count === 1 ? "time" : "times"} · best band ${s.best.toFixed(1)}` : "Not written yet"}
-                      done={!!s}
-                      verbs={{ start: "Start writing", again: "Write again" }}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      ))}
+      {/* Task 1 and Task 2 side by side; each opens its own page of topics (same filter). */}
+      <section aria-label="Tasks" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2">
+        {([1, 2] as const).map((no) => {
+          const items = no === 1 ? task1 : task2;
+          return (
+            <GroupCard
+              key={no}
+              href={writingTaskListPath(no, filter)}
+              title={`Task ${no}`}
+              note={taskNote(no, filter)}
+              icon={no === 1 ? FileText : PenLine}
+              module="writing"
+              noun={["topic", "topics"]}
+              total={items.length}
+              done={items.filter((t) => summary.has(t.id)).length}
+              doneWord="written"
+              testId="writing-group"
+            />
+          );
+        })}
+      </section>
 
       <section aria-label="Your Writing" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-2">

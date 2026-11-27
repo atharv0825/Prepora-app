@@ -75,3 +75,13 @@ describe("transcriptPieces", () => {
     expect([mmss(0), mmss(65), mmss(120), mmss(-3)]).toEqual(["0:00", "1:05", "2:00", "0:00"]);
   });
 });
+
+describe("speakingPartNote", () => {
+  it("describes each part with its cost when known", async () => {
+    const { speakingPartNote } = await import("./speaking");
+    const costs: Record<string, number> = { speaking_p1: 5, speaking_p2: 4, speaking_p3: 6 };
+    expect(speakingPartNote(1, (k) => costs[k])).toBe("4–5 short questions from the examiner. 5 credits.");
+    expect(speakingPartNote(2, (k) => costs[k])).toBe("1 minute to prepare, then speak for up to 2 minutes. 4 credits. Part 3 discusses the card's theme (6 credits).");
+    expect(speakingPartNote(1, () => undefined)).toBe("4–5 short questions from the examiner.");
+  });
+});

@@ -46,10 +46,14 @@ export const listeningAttemptPath = (attemptId: string) => `/app/listening/attem
 
 /** Writing pages with an id: the editor (M6-F1/F2; ?photo=1 opens the photo flow) and one submission's feedback (M6-F3). */
 export const writingTaskPath = (taskId: string, opts: { photo?: boolean } = {}) => `/app/writing/${taskId}${opts.photo ? "?photo=1" : ""}`;
+/** A Writing task's topics: /app/writing/tasks/1 (+ ?type=academic|general|all). */
+export const writingTaskListPath = (taskNo: 1 | 2, type?: string) => `/app/writing/tasks/${taskNo}${type ? `?type=${type}` : ""}`;
 export const writingSubmissionPath = (submissionId: string) => `/app/writing/submissions/${submissionId}`;
 
 /** Speaking pages with an id: a cue card's recorder (M7-F1/F2) and one scored answer (M7-F3). */
 export const speakingTopicPath = (topicId: string) => `/app/speaking/${topicId}`;
+/** Speaking Part 1 question sets or Part 2 cue cards: /app/speaking/parts/1 or /2. */
+export const speakingPartPath = (part: 1 | 2) => `/app/speaking/parts/${part}`;
 export const speakingResponsePath = (responseId: string) => `/app/speaking/responses/${responseId}`;
 /** M8-F1: practise Part 1 (a question set) or Part 3 (a discussion) with the AI examiner. */
 export const speakingExaminerPath = (topicId: string) => `/app/speaking/examiner/${topicId}`;

@@ -1,0 +1,154 @@
+/* Dashboard motion (M8.6 follow-up): entrance, growing charts and a few small "alive" touches.
+   Every rule is off with prefers-reduced-motion. Staggering: set --i on the element (0, 1, 2…). */
+
+/* Cards rise in one after another. */
+.rise {
+  animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+}
+
+/* Bars grow up from the baseline; progress fills grow from the left. */
+.growY {
+  transform-origin: 50% 100%;
+  animation: growY 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(0.35s + var(--i, 0) * 90ms);
+}
+@keyframes growY {
+  from { transform: scaleY(0); }
+}
+.growX {
+  transform-origin: 0 50%;
+  animation: growX 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation-delay: calc(0.35s + var(--i, 0) * 80ms);
+}
+@keyframes growX {
+  from { transform: scaleX(0); }
+}
+
+/* The trend line draws itself (needs pathLength="1" on the path). */
+.draw {
+  stroke-dasharray: 1;
+  animation: draw 1.4s ease-out 0.45s both;
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.fadeIn {
+  animation: fadeIn 0.8s ease-out 0.9s both;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+}
+
+/* The donut sweeps in. */
+.spinIn {
+  transform-origin: 50% 50%;
+  animation: spinIn 1s cubic-bezier(0.2, 0.8, 0.3, 1) 0.3s both;
+}
+@keyframes spinIn {
+  from {
+    opacity: 0;
+    transform: rotate(-120deg) scale(0.85);
+  }
+}
+
+/* Streak checks pop in one by one. */
+.pop {
+  animation: pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: calc(0.4s + var(--i, 0) * 70ms);
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+
+/* The streak flame flickers. */
+.flicker {
+  transform-origin: 50% 90%;
+  animation: flicker 1.8s ease-in-out infinite;
+}
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.08, 0.94) rotate(-4deg); }
+  60% { transform: scale(0.95, 1.07) rotate(3deg); }
+}
+
+/* A soft ring that keeps pulsing out (today's dot, the live dot). */
+/* The element must be positioned (relative/absolute) for the ring to sit on it. */
+.pulse::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: pulse 2s ease-out infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.6; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+/* A slow aurora behind the dashboard panel. */
+.aurora {
+  background-image:
+    radial-gradient(40% 60% at 15% 20%, rgb(63 196 140 / 0.14), transparent 70%),
+    radial-gradient(35% 55% at 85% 30%, rgb(250 105 158 / 0.1), transparent 70%),
+    radial-gradient(45% 60% at 50% 100%, rgb(47 111 219 / 0.08), transparent 70%);
+  background-size: 140% 140%;
+  animation: aurora 18s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+
+/* The arrow on "Start practising" nudges forward. */
+.nudge {
+  animation: nudge 2.4s ease-in-out 1.5s infinite;
+}
+@keyframes nudge {
+  0%, 70%, 100% { transform: translateX(0); }
+  80% { transform: translateX(4px); }
+  90% { transform: translateX(0); }
+}
+
+/* A tip slides in when it changes. */
+.tipIn {
+  animation: tipIn 0.45s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .growY,
+  .growX,
+  .draw,
+  .fadeIn,
+  .spinIn,
+  .pop,
+  .flicker,
+  .aurora,
+  .nudge,
+  .tipIn,
+  .pulse::after {
+    animation: none;
+  }
+  .draw {
+    stroke-dasharray: none;
+  }
+}

@@ -31,6 +31,13 @@ test.describe("home dashboard", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Meera$/);
     // M8.6: "Start practising" goes to the recommended module; the header pills (wide screens) mark Dashboard.
     await expect(page.getByRole("link", { name: "Start practising" })).toHaveAttribute("href", "/app/reading");
+    // Live touches: the status, a tip with text, and "Next tip" changes it.
+    await expect(page.getByTestId("live-status")).toContainText("Live · Updated just now");
+    const tip = page.getByTestId("tip");
+    await expect(tip).toHaveText(/^Tip: \S.{20,}/);
+    const first = await tip.textContent();
+    await page.getByRole("button", { name: "Next tip" }).click();
+    await expect(tip).not.toHaveText(first!);
     if (!test.info().project.name.match(/mobile|ios/)) {
       const nav = page.getByRole("navigation", { name: "Main" });
       await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
@@ -75,8 +82,12 @@ test.describe("home dashboard", () => {
     await expect(streak).toContainText("Finish any practice today to start your streak.");
     await expect(streak.getByRole("listitem")).toHaveCount(7);
     await expect(streak.getByRole("listitem", { name: "Today: no practice" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "Band by module" })).toContainText("Finish a test to see your estimated band");
-    await expect(page.getByRole("region", { name: "Practice mix" }).getByTestId("practice-total")).toHaveText("0");
+    // First visit: the charts are a blurred sample with an invitation, hidden from assistive tech.
+    const teaser = page.getByRole("region", { name: "Your progress shows up here" });
+    await expect(teaser).toContainText("Finish your first Reading, Listening, Writing or Speaking practice");
+    await expect(teaser.getByRole("link", { name: /Start your first practice/ })).toHaveAttribute("href", "/app/reading");
+    await expect(page.getByRole("region", { name: "Band by module" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Practice mix" })).toHaveCount(0);
 
     // Two graded Reading tests: yesterday and today (noon UTC, so the dates don't depend on the hour).
     const noon = (daysAgo: number) => `${inDays(-daysAgo)}T12:00:00Z`;
@@ -93,7 +104,8 @@ test.describe("home dashboard", () => {
     await expect(streak.getByRole("listitem", { name: "Today: practised" })).toBeVisible();
     await expect(streak.getByRole("listitem", { name: /: practised$/ })).toHaveCount(2);
 
-    // M8.6: the chart cards count the same two tests (Reading, band 7 each).
+    // M8.6: after the first practice the sample is gone; the chart cards count the same two tests (Reading, band 7 each).
+    await expect(page.getByTestId("charts-teaser")).toHaveCount(0);
     const bands = page.getByRole("region", { name: "Band by module" });
     await expect(bands.getByTestId("estimated-band")).toHaveText("7.0");
     await expect(bands).toContainText("from 1 of 4 modules");

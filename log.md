@@ -3805,3 +3805,51 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 - **Content on staging:** create and publish a few **Part 1 question sets** (admin → Speaking → New question set; at least 4 questions, ideally 6+), e.g. Work or studies, Hometown, Hobbies. The full test needs at least one, plus a card with a published Part 3.
 - **M8-I1:** follow `docs/speaking-full-test-staging.md` on staging with a Gold student, run the three SQL checks, and paste the results row into `log.md`.
 - **Decide** Free and the full test (see the finding above).
+
+
+## 2026-11-27 — M8.5: practice streaks on the dashboard and the profile
+
+**What a streak is**
+- A **practice day** is a day, in the student's own time zone (`profiles.timezone`, else UTC), on which they finished at least one scored piece of practice: a Reading or Listening test, a Writing answer or a Speaking part.
+- **Current** streak: consecutive practice days ending today, or ending yesterday while today is still open. **Best**: the longest run ever. **All time**: every practice day.
+- Nothing new is stored. The days are derived from `test_attempts`, `writing_submissions` and `speaking_responses`, so the streak can't drift from the history. All three already have `(user_id, created_at)` indexes.
+
+**Plan:** added milestone **M8.5 — Practice streaks** (between M8 and M9) to `plan.md`. It's the streak part of Phase 9; daily goals and email / web-push reminders stay in Phase 9.
+
+**Built**
+- **M8.5-C1** `packages/shared/src/api/streak.ts`: the zod `Streak` contract (`timezone`, `today`, `current`, `longest`, `total_days`, `practised_today`, `recent`), plus `lastDays()`, `lastSevenDays()`, `weekdayIndex()` and `streakMessage()`.
+- **M8.5-B1/B2** migration `20261129090000_streaks.sql`: `get_my_streak(p_days integer default 7)`.
+  - It answers for `auth.uid()` only: anon can't call it, and signed out raises 42501.
+  - `p_days` must be 1–120 (else 22023).
+  - It computes runs of days with gaps-and-islands; `recent` lists the practice days among the last `p_days`.
+  - `db.ts` types were updated by hand in both copies.
+- **M8.5-F1** dashboard `StreakCard`:
+  - a flame and the current streak, a "Best: N days" badge and a next-step message;
+  - a last-7-days strip; every day has an accessible label ("Today: practised", "Monday: no practice");
+  - empty and error states.
+- **M8.5-F2** profile (`/app/profile`) "Practice streak" section:
+  - Current, Best and All time stats;
+  - a **12-week calendar** from `get_my_streak(84)`: weeks are columns, Monday is at the top, today is outlined, and every day is labelled with its full date.
+
+**Tests**
+- vitest `streak.test.ts` (6): the contract (84 days OK, 121 refused, `total_days` required), calendar arithmetic across months and leap days, 84-day `lastDays`, Monday-first weekdays, and the messages.
+- pgTAP `streaks.test.sql` (22):
+  - access;
+  - a 3-day streak made of a test, a Writing answer and a Speaking part; best 5; `total_days` 8;
+  - `p_days` 15, 84 and 120, and the 0 and 121 refusals;
+  - not yet today;
+  - nothing yet;
+  - the time-zone boundary (00:30 in Kolkata);
+  - a broken run;
+  - another student's practice never counts.
+- e2e `dashboard.spec.ts`: the empty state, then a test seeded yesterday and one today. After that, both the dashboard and the profile must show 2 (best 2, all time 2), with 84 calendar days and today practised.
+
+**Verified**
+- `pnpm test`: **628 passed** ✓. Web `tsc --noEmit` ✓; eslint on the changed files ✓.
+- pgTAP: the first version passed **16/16** on local Postgres ✓.
+- **Not verified locally: the `p_days` / `total_days` version of the migration, the 22-assertion pgTAP file and the dashboard + profile e2e.** Docker Desktop won't start on this machine (a WSL problem), so there's no local Supabase. CI runs `supabase test db` and Playwright on the PR, so those checks happen there.
+- Not looked at in a browser yet (same reason).
+
+**Manual steps for you**
+- Fix Docker / WSL. `wsl --update`, then `wsl --shutdown`, then restarting Docker Desktop usually does it. Then `supabase start`, `supabase migration up --local`, and look at `/app` and `/app/profile`.
+- After merge, apply the migration on staging and production (`supabase db push`).

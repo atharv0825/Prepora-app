@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
+import { STREAK_CALENDAR_DAYS } from "@prepora/shared/api/streak";
 import { ProfileForm } from "@/components/account/profile-form";
-import { getAccount } from "@/lib/supabase/session";
+import { ProfileStreak } from "@/components/account/profile-streak";
+import { getAccount, getMyStreak } from "@/lib/supabase/session";
 
 export const metadata: Metadata = { title: "Profile · Prepora", robots: { index: false } };
 
 // Basic profile page (M1-F3): the name. More fields (country, time zone, exam details) come with
-// onboarding.
+// onboarding. Practice streak with a 12-week calendar (M8.5-F2).
 export default async function ProfilePage() {
-  const account = await getAccount();
+  const [account, streak] = await Promise.all([getAccount(), getMyStreak(STREAK_CALENDAR_DAYS)]);
   if (!account) return null; // the layout redirects first
   const missing = !account.profile;
 
@@ -32,6 +34,8 @@ export default async function ProfilePage() {
         <p className="text-sm text-muted-foreground">{account.email}</p>
         <p className="text-xs text-muted-foreground">From your Google account. It can&apos;t be changed here.</p>
       </div>
+
+      <ProfileStreak streak={streak} />
     </div>
   );
 }

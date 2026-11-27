@@ -285,6 +285,22 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 
 ---
 
+### M8.5 — Practice streaks (after M8)
+**Goal:** students see how many days in a row they have practised, on the home dashboard and on their profile. (The streak part of Phase 9; daily goals and email / web-push reminders stay in Phase 9.)
+
+| ID | Track | Step |
+|---|---|---|
+| M8.5-C1 | Contract | Zod `Streak` in `packages/shared/src/api/streak.ts` (`timezone`, `today`, `current`, `longest`, `practised_today`, `recent` practice days) + helpers `lastSevenDays()` and `streakMessage()`, with unit tests. |
+| M8.5-B1 | Backend | Migration: RPC `get_my_streak()` for `auth.uid()` only (anon refused). A practice day = a day in the student's time zone (`profiles.timezone`, else UTC) with a scored Reading/Listening test, Writing answer or Speaking part. Derived from `test_attempts`, `writing_submissions`, `speaking_responses` (nothing new stored); current run ends today or yesterday; longest run ever. pgTAP tests. |
+| M8.5-B2 | Backend | Longer history for the profile: `get_my_streak(p_days int default 7)` (1–120) so `recent` covers the last N days, plus `total_days` (all practice days ever); check `(user_id, created_at)` indexes exist on the three tables; contract `recent` max raised to match. |
+| M8.5-F1 | Frontend | Dashboard `StreakCard`: flame + current streak, "Best: N days" badge, next-step message, last-7-days strip with accessible labels; empty and error states. |
+| M8.5-F2 | Frontend | Profile (`/app/profile`) "Practice streak" section: current and best streak, total practice days, and a 12-week calendar grid (one square per day, today outlined) from `get_my_streak(84)`. |
+| M8.5-I1 | Integration | Playwright on dashboard and profile: empty state → seed practice yesterday + today → 2-day streak on both pages; desktop + mobile. Manual check with a non-UTC time zone near midnight. |
+
+**Exit:** finishing any scored practice counts today; the dashboard card and the profile section show the same current and best streak in the student's own time zone.
+
+---
+
 ### M9 — Billing & subscriptions (Weeks 8–9, can start after M3)
 **Goal:** users can buy Gold, Platinum, exam packs and top-ups; credits are granted automatically.
 

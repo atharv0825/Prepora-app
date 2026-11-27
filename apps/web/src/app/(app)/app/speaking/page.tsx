@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, MessagesSquare, Mic, Timer } from "lucide-react";
-import { cn } from "cn";
-import { buttonVariants } from "@prepora/ui/components/button";
+import { ArrowRight, MessageCircle, MessagesSquare, Mic, Timer } from "lucide-react";
+import { CompletionBar } from "@/components/practice/completion-bar";
+import { PracticeHeader } from "@/components/practice/page-header";
+import { PracticeCard } from "@/components/practice/practice-card";
 import { formatDate } from "@/lib/credits";
 import { validTimeZone } from "@/lib/onboarding";
 import { speakingExaminerPath, speakingResponsePath, speakingSessionPath, speakingTestPath, speakingTopicPath } from "@/lib/routes";
@@ -37,27 +38,49 @@ export default async function SpeakingPage() {
   const fullTestReady = sets.length > 0 && cards.some((c) => discussionOf.has(c.id));
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-8 pb-16">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-h1">Speaking</h1>
-        <p className="text-muted-foreground">
-          The full test with an AI examiner who asks the questions out loud, or one part at a time. Every part gets a band for each criterion and feedback.
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16">
+      {/* Completed = Part 1 sets and cue cards answered at least once, out of all published. */}
+      <PracticeHeader
+        title="Speaking"
+        progress={
+          <CompletionBar
+            completed={[...sets, ...cards].filter((t) => best.has(t.id)).length}
+            total={sets.length + cards.length}
+            noun={["Speaking topic", "Speaking topics"]}
+            ariaLabel="Speaking topics completed"
+            testId="speaking-progress"
+          />
+        }
+      >
+        <p>The full test with an AI examiner who asks the questions out loud, or one part at a time. Every part gets a band for each criterion and feedback.</p>
+      </PracticeHeader>
 
-      <section aria-label="Full test" className="flex flex-col gap-3 rounded-3xl bg-secondary p-6 sm:flex-row sm:items-center sm:justify-between" data-testid="full-test-cta">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-h2">Full test</h2>
-          <p className="text-sm text-muted-foreground">
-            Parts 1, 2 and 3 in about 12 minutes, then your overall band.{fullCost ? ` ${fullCost} credits, charged part by part.` : ""}
-          </p>
+      {/* The full test: a 3D green banner. */}
+      <section
+        aria-label="Full test"
+        className="flex flex-col gap-4 rounded-3xl bg-gradient-to-b from-[#62d7a5] to-brand-primary p-6 text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.08),0_14px_30px_-16px_rgb(15_164_103/0.8)] sm:flex-row sm:items-center sm:justify-between"
+        data-testid="full-test-cta"
+      >
+        <div className="flex items-start gap-4">
+          <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-full bg-white/25 ring-1 ring-white/60">
+            <Timer className="size-5" />
+          </span>
+          <div className="flex flex-col gap-1">
+            <h2 className="text-h2">Full test</h2>
+            <p className="text-sm text-brand-ink/80">
+              Parts 1, 2 and 3 in about 12 minutes, then your overall band.{fullCost ? ` ${fullCost} credits, charged part by part.` : ""}
+            </p>
+          </div>
         </div>
         {fullTestReady ? (
-          <Link href={speakingTestPath()} className={cn(buttonVariants(), "shrink-0")}>
-            <Timer /> Start the full test
+          <Link
+            href={speakingTestPath()}
+            className="inline-flex h-11 shrink-0 items-center gap-2 self-start rounded-full bg-brand-ink px-5 text-sm font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_10px_20px_-10px_rgb(8_34_43/0.7)] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink motion-reduce:hover:translate-y-0 sm:self-center"
+          >
+            Start the full test <ArrowRight className="size-4" aria-hidden />
           </Link>
         ) : (
-          <p className="text-sm text-muted-foreground">Coming soon: it needs more questions.</p>
+          <p className="text-sm text-brand-ink/80">Coming soon: it needs more questions.</p>
         )}
       </section>
 
@@ -65,13 +88,18 @@ export default async function SpeakingPage() {
         <section aria-label="Part 1 questions" className="flex flex-col gap-3">
           <h2 className="text-h2">Part 1: about you</h2>
           <p className="text-sm text-muted-foreground">4–5 short questions from the examiner.{cost("speaking_p1") ? ` ${cost("speaking_p1")} credits.` : ""}</p>
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sets.map((t) => (
-              <li key={t.id}>
-                <Link href={speakingExaminerPath(t.id)} className="flex items-center justify-between gap-3 rounded-2xl border border-foreground/5 bg-card p-4 text-sm shadow-sm hover:bg-secondary/40" data-testid="part1-item">
-                  <span className="font-medium">{t.title}</span>
-                  <span className="shrink-0 text-muted-foreground">{best.has(t.id) ? `Best ${best.get(t.id)!.toFixed(1)}` : <ArrowRight className="size-4" aria-hidden />}</span>
-                </Link>
+              <li key={t.id} data-testid="part1-item">
+                <PracticeCard
+                  href={speakingExaminerPath(t.id)}
+                  title={t.title}
+                  kindLabel="Part 1"
+                  icon={MessageCircle}
+                  status={best.has(t.id) ? `Best band ${best.get(t.id)!.toFixed(1)}` : "Not answered yet"}
+                  done={best.has(t.id)}
+                  verbs={{ start: "Start", again: "Answer again" }}
+                />
               </li>
             ))}
           </ul>
@@ -86,26 +114,24 @@ export default async function SpeakingPage() {
         {!cards?.length ? (
           <p className="text-muted-foreground">No cue cards yet. New ones are added regularly.</p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cards.map((c) => (
-              <li key={c.id} className="flex flex-col gap-3 rounded-3xl border border-foreground/5 bg-card p-5 shadow-sm" data-testid="cue-card-item">
-                <h3 className="text-h3">{c.title}</h3>
-                <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                  {(c.cue_card_points ?? []).map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-                <p className="text-sm text-muted-foreground">{best.has(c.id) ? `Best band ${best.get(c.id)!.toFixed(1)}` : "Not answered yet"}</p>
-                <div className="mt-auto flex flex-wrap gap-2">
-                  <Link href={speakingTopicPath(c.id)} className={buttonVariants()}>
-                    <Mic /> {best.has(c.id) ? "Answer again" : "Start"} <ArrowRight />
-                  </Link>
-                  {discussionOf.has(c.id) && (
-                    <Link href={speakingExaminerPath(discussionOf.get(c.id)!)} className={buttonVariants({ variant: "outline" })} data-testid="part3-link">
-                      <MessagesSquare /> Part 3
-                    </Link>
-                  )}
-                </div>
+              <li key={c.id} data-testid="cue-card-item">
+                <PracticeCard
+                  href={speakingTopicPath(c.id)}
+                  title={c.title}
+                  kindLabel="Part 2"
+                  icon={Mic}
+                  status={best.has(c.id) ? `Best band ${best.get(c.id)!.toFixed(1)}` : "Not answered yet"}
+                  detail={(c.cue_card_points ?? []).join(" · ")}
+                  done={best.has(c.id)}
+                  verbs={{ start: "Start", again: "Answer again" }}
+                  extraLink={
+                    discussionOf.has(c.id)
+                      ? { href: speakingExaminerPath(discussionOf.get(c.id)!), label: "Part 3", icon: MessagesSquare, testId: "part3-link" }
+                      : undefined
+                  }
+                />
               </li>
             ))}
           </ul>

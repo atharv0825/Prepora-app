@@ -1,18 +1,36 @@
-import styles from "./reading-progress.module.css";
+import styles from "./completion-bar.module.css";
 
-// Reading list header (replaces the monthly-limit meter there): how many of the listed tests the
+// Practice list headers (Reading, Listening, Writing, Speaking): how many of the listed items the
 // student has completed, as a compact 3D green bar beside the page title. The percentage rides on
 // the end of the fill as it grows. completed ÷ listed, so it adjusts by itself when admins publish
-// more tests. Server component; CSS-only animation, skipped with reduced motion.
+// more. Server component; CSS-only animation, skipped with reduced motion.
 
 export function completionPercent(completed: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((Math.min(completed, total) / total) * 100);
 }
 
-export function ReadingProgress({ completed, total, scope, className }: { completed: number; total: number; scope: string; className?: string }) {
+export function CompletionBar({
+  completed,
+  total,
+  noun,
+  ariaLabel,
+  testId,
+  className,
+}: {
+  completed: number;
+  total: number;
+  /** Singular and plural, e.g. ["Academic test", "Academic tests"]. */
+  noun: [string, string];
+  /** The progress bar's name, e.g. "Reading tests completed". */
+  ariaLabel: string;
+  testId: string;
+  className?: string;
+}) {
+  // Nothing published yet: nothing to complete, so no bar.
+  if (total === 0) return null;
   const pct = completionPercent(completed, total);
-  const label = `${completed} of ${total} ${scope} test${total === 1 ? "" : "s"} completed`;
+  const label = `${completed} of ${total} ${total === 1 ? noun[0] : noun[1]} completed`;
 
   return (
     <div className={`flex w-full flex-col gap-1.5 sm:w-72 ${className ?? ""}`}>
@@ -28,7 +46,7 @@ export function ReadingProgress({ completed, total, scope, className }: { comple
       </div>
       <div
         role="progressbar"
-        aria-label="Reading tests completed"
+        aria-label={ariaLabel}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
@@ -42,7 +60,7 @@ export function ReadingProgress({ completed, total, scope, className }: { comple
           />
         )}
       </div>
-      <p className="text-xs text-muted-foreground" data-testid="reading-progress">
+      <p className="text-xs text-muted-foreground" data-testid={testId}>
         {label} · {pct}%
       </p>
     </div>

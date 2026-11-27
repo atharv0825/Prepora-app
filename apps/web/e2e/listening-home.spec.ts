@@ -81,7 +81,8 @@ test("dashboard → Listening list → take a test → history → reopen the re
   await page.getByRole("region", { name: "Practise" }).getByRole("link", { name: /Listening/ }).click();
   await expect(page).toHaveURL(/\/app\/listening$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Listening");
-  await expect(page.getByTestId("allowance")).toHaveText("0 of 2 used");
+  // Completion bar on the list (the monthly limit moved to the test's start screen).
+  await expect(page.getByTestId("listening-progress")).toContainText(/^0 of \d+ Listening tests? completed · 0%$/);
   const cards = page.getByTestId("listening-test");
   await expect(cards.filter({ hasText: titles.free })).toContainText("Not taken yet");
   await expect(cards.filter({ hasText: titles.free }).getByRole("link", { name: /Start test/ })).toHaveAttribute("href", `/app/listening/${ids.free}`);
@@ -97,8 +98,12 @@ test("dashboard → Listening list → take a test → history → reopen the re
   expect(res.status).toBe(200);
   const band = listeningBand(1, 2).toFixed(1);
 
-  await page.reload();
+  // The start screen shows the monthly limit.
+  await page.goto(`/app/listening/${ids.free}`);
   await expect(page.getByTestId("allowance")).toHaveText("1 of 2 used");
+  await expect(page.getByRole("button", { name: /Start in exam mode/ })).toBeVisible();
+  await page.goto("/app/listening");
+  await expect(page.getByTestId("listening-progress")).toContainText(/^1 of \d+ Listening tests? completed/);
   await expect(cards.filter({ hasText: titles.free })).toContainText(`Taken 1 time · best band ${band}`);
   await expect(cards.filter({ hasText: titles.free }).getByRole("link", { name: /Take again/ })).toBeVisible();
   const history = page.getByRole("region", { name: "Your attempts" });

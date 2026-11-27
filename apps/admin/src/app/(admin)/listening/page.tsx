@@ -38,7 +38,9 @@ export default async function ListeningTestsPage() {
       <Card>
         <CardHeader>
           <CardTitle>New test</CardTitle>
-          <CardDescription>It starts as a draft. Students see it only once you publish it.</CardDescription>
+          <CardDescription>
+            It&rsquo;s numbered and named for you (Listening Test 1, 2…) and starts as a draft. Students see it only once you publish it.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <NewTestForm module="listening" />

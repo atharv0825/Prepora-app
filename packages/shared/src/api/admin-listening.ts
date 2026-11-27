@@ -68,6 +68,10 @@ const title = z.string().trim().min(1, "Enter a title").max(200, "200 characters
 export const ListeningTestDetails = z.object({ title, min_plan: PlanTier });
 export type ListeningTestDetails = z.infer<typeof ListeningTestDetails>;
 
+/** Creating a test: no title. The database numbers it and names it ("Listening Test 3"). */
+export const ListeningTestCreate = ListeningTestDetails.omit({ title: true });
+export type ListeningTestCreate = z.infer<typeof ListeningTestCreate>;
+
 /** A section's title and transcript (what is said, shown to students after they submit). */
 export const ListeningSectionInput = z.object({
   test_id: z.uuid(),

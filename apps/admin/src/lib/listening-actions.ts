@@ -9,6 +9,7 @@ import {
   ListeningQuestionInput,
   ListeningSectionAudio,
   ListeningSectionInput,
+  ListeningTestCreate,
   ListeningTestDetails,
   moveListeningQuestion as moveInOrder,
   nextQuestionNumber,
@@ -44,8 +45,10 @@ async function renumber(supabase: Supabase, testId: string, order?: string[]) {
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────────────────────
+// No title: the database gives the test the next number and names it ("Listening Test 3";
+// migration 20261203100000).
 export async function createListeningTest(_prev: BuilderState, form: FormData): Promise<BuilderState> {
-  const input = ListeningTestDetails.safeParse({ title: form.get("title"), min_plan: form.get("min_plan") });
+  const input = ListeningTestCreate.safeParse({ min_plan: form.get("min_plan") });
   if (!input.success) return { ok: false, message: "Check the highlighted fields.", fieldErrors: fieldErrors(input.error.issues) };
   const session = await signedIn();
   if (!session) return SESSION_ENDED;

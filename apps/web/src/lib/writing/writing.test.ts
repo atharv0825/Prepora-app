@@ -106,3 +106,18 @@ describe("history", () => {
     expect(recentAverage([])).toBeNull();
   });
 });
+
+describe("Task 1 / Task 2 pages", () => {
+  it("taskNote: Task 1 follows the test type; Task 2 is the same for both", async () => {
+    const { taskNote } = await import("./writing");
+    expect(taskNote(1, "academic")).toMatch(/report on a chart/);
+    expect(taskNote(1, "general")).toMatch(/^A letter/);
+    expect(taskNote(1, "all")).toMatch(/report \(Academic\) or a letter/);
+    expect(taskNote(2, "general")).toBe(taskNote(2, "academic"));
+  });
+  it("writingTaskListPath keeps the filter", async () => {
+    const { writingTaskListPath } = await import("../routes");
+    expect(writingTaskListPath(1)).toBe("/app/writing/tasks/1");
+    expect(writingTaskListPath(2, "general")).toBe("/app/writing/tasks/2?type=general");
+  });
+});

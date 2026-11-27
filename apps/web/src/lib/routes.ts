@@ -46,6 +46,8 @@ export const listeningAttemptPath = (attemptId: string) => `/app/listening/attem
 
 /** Writing pages with an id: the editor (M6-F1/F2; ?photo=1 opens the photo flow) and one submission's feedback (M6-F3). */
 export const writingTaskPath = (taskId: string, opts: { photo?: boolean } = {}) => `/app/writing/${taskId}${opts.photo ? "?photo=1" : ""}`;
+/** A Writing task's topics: /app/writing/tasks/1 (+ ?type=academic|general|all). */
+export const writingTaskListPath = (taskNo: 1 | 2, type?: string) => `/app/writing/tasks/${taskNo}${type ? `?type=${type}` : ""}`;
 export const writingSubmissionPath = (submissionId: string) => `/app/writing/submissions/${submissionId}`;
 
 /** Speaking pages with an id: a cue card's recorder (M7-F1/F2) and one scored answer (M7-F3). */

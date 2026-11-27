@@ -111,16 +111,33 @@ test("F1: dashboard → task list by test type; costs shown", async ({ page, con
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Writing");
   await expect(page.getByText(/Scoring costs 4 credits/)).toBeVisible();
 
-  // Academic (the profile's test type): the chart task and the essay, not the letter.
+  await expect(page.getByRole("region", { name: "Your Writing" })).toContainText("No scored answers yet");
+
+  // Task 1 and Task 2 side by side; each opens its own page of topics.
+  const groups = page.getByTestId("writing-group");
+  await expect(groups).toHaveCount(2);
+  await expect(groups.first()).toContainText("Task 1");
+  await expect(groups.last()).toContainText("Task 2");
+
+  // Task 1, Academic (the profile's test type): the chart task, not the letter.
+  await groups.first().click();
+  await expect(page).toHaveURL(/\/app\/writing\/tasks\/1\?type=academic$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Task 1");
   const cards = page.getByTestId("writing-task");
   await expect(cards.filter({ hasText: `E2E chart ${stamp}` })).toContainText("Task 1 · Academic report");
-  await expect(cards.filter({ hasText: `E2E essay ${stamp}` })).toContainText("Not written yet");
   await expect(cards.filter({ hasText: `E2E letter ${stamp}` })).toHaveCount(0);
-  await page.getByRole("link", { name: "General Training" }).click();
+  await expect(cards.filter({ hasText: `E2E essay ${stamp}` })).toHaveCount(0);
+  // The same filters on the task page: General Training shows the letter instead.
+  await page.getByRole("navigation", { name: "Test type" }).getByRole("link", { name: "General Training" }).click();
+  await expect(page).toHaveURL(/\/app\/writing\/tasks\/1\?type=general$/);
   await expect(cards.filter({ hasText: `E2E letter ${stamp}` })).toBeVisible();
   await expect(cards.filter({ hasText: `E2E chart ${stamp}` })).toHaveCount(0);
-  await expect(cards.filter({ hasText: `E2E essay ${stamp}` })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Your Writing" })).toContainText("No scored answers yet");
+
+  // Task 2: the essay, for both test types.
+  await page.goto("/app/writing/tasks/2");
+  await expect(cards.filter({ hasText: `E2E essay ${stamp}` })).toContainText("Not written yet");
+  await page.getByTestId("back-to-writing").click();
+  await expect(page).toHaveURL(/\/app\/writing\?type=academic$/);
 });
 
 test("F1: editor — word count, timer from the first word, autosave, chart image", async ({ page, context, baseURL }) => {
@@ -264,10 +281,12 @@ test("F4: history and band trend", async ({ page, context, baseURL }) => {
   // Keyboard: focusing a point shows its tooltip; the essay card shows its best band.
   await trend.getByRole("link").last().focus();
   await expect(page.getByRole("tooltip")).toContainText("6.5");
-  await expect(page.getByTestId("writing-task").filter({ hasText: `E2E essay ${stamp}` })).toContainText("Written 2 times · best band 6.5");
   await page.screenshot({ path: test.info().outputPath("writing-home.png"), fullPage: true });
   await trend.getByRole("link").last().click();
   await expect(page).toHaveURL(new RegExp(`/app/writing/submissions/${latest}$`));
+  // The essay card on the Task 2 page shows its best band.
+  await page.goto("/app/writing/tasks/2");
+  await expect(page.getByTestId("writing-task").filter({ hasText: `E2E essay ${stamp}` })).toContainText("Written 2 times · best band 6.5");
 });
 
 test("F2: photo upload — locked on Free; Gold reads a photo into the editor; QR on desktop", async ({ page, context, baseURL, isMobile }) => {

@@ -72,6 +72,7 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
         title="Writing"
         progress={
           <CompletionBar
+            module="writing"
             completed={[...task1, ...task2].filter((t) => summary.has(t.id)).length}
             total={task1.length + task2.length}
             noun={["Writing task", "Writing tasks"]}

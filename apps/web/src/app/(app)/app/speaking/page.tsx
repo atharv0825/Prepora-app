@@ -46,6 +46,7 @@ export default async function SpeakingPage() {
         title="Speaking"
         progress={
           <CompletionBar
+            module="speaking"
             completed={[...sets, ...cards].filter((t) => best.has(t.id)).length}
             total={sets.length + cards.length}
             noun={["Speaking topic", "Speaking topics"]}

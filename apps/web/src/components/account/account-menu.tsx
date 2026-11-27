@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Coins, LogOut, Monitor, Moon, Sun, UserRound } from "lucide-react";
 import {
@@ -25,17 +25,25 @@ import { useTheme } from "../theme/theme-provider";
  * Avatar button → menu with the person's name/email, Profile, Credits & usage (M3-F1),
  * Appearance (System / Light / Dark) and Log out (M1-F3).
  */
-export function AccountMenu({ name, email }: { name: string; email: string | null }) {
+export function AccountMenu({ name, email, avatarUrl }: { name: string; email: string | null; avatarUrl?: string | null }) {
   const [pending, startTransition] = useTransition();
+  // The Google photo from sign-in; the initials if there's none or it fails to load.
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = avatarUrl && !photoFailed ? avatarUrl : null;
   const { theme, setTheme } = useTheme();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Account menu for ${name}`}
-        className="flex size-11 cursor-pointer items-center justify-center rounded-full border border-brand-line bg-primary text-sm font-semibold text-primary-foreground outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/40 data-popup-open:ring-3 data-popup-open:ring-ring/30"
+        className="flex size-11 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-brand-line bg-primary text-sm font-semibold text-primary-foreground outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/40 data-popup-open:ring-3 data-popup-open:ring-ring/30"
       >
-        {initials(name)}
+        {photo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a remote Google avatar; images are unoptimized here anyway
+          <img src={photo} alt="" referrerPolicy="no-referrer" className="size-full object-cover" onError={() => setPhotoFailed(true)} />
+        ) : (
+          initials(name)
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuLabel>

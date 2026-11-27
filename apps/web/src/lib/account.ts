@@ -11,6 +11,12 @@ export function displayName(profileName: string | null | undefined, metadata: Me
   return text(profileName) ?? text(metadata?.full_name) ?? text(metadata?.name) ?? text(email) ?? "Account";
 }
 
+/** The profile photo Google gave at sign-in (avatar_url / picture); only https URLs, else null. */
+export function avatarUrl(metadata: Metadata): string | null {
+  const url = text(metadata?.avatar_url) ?? text(metadata?.picture);
+  return url && url.startsWith("https://") ? url : null;
+}
+
 /** Up to two initials for the avatar: "Atharv Babar" → "AB", "asha" → "A", "x@y.com" → "X". */
 export function initials(name: string): string {
   const words = name.split("@")[0]!.split(/[\s._-]+/).filter(Boolean);

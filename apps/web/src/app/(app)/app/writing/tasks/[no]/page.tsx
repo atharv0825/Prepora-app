@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { FilterPills } from "@/components/practice/filter-pills";
+import { FilterSelect } from "@/components/practice/filter-select";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
 import { PickCard } from "@/components/practice/pick-card";
@@ -51,6 +51,13 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
 
       <PracticeHeader
         title={`Task ${taskNo}`}
+        controls={
+          <FilterSelect
+            filters={FILTERS}
+            current={filter}
+            hrefs={{ academic: writingTaskListPath(taskNo, "academic"), general: writingTaskListPath(taskNo, "general"), all: writingTaskListPath(taskNo, "all") }}
+          />
+        }
         progress={
           <CompletionBar
             module="writing"
@@ -65,7 +72,6 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
         <p>{taskNote(taskNo, filter)}</p>
       </PracticeHeader>
 
-      <FilterPills filters={FILTERS} current={filter} hrefFor={(v) => writingTaskListPath(taskNo, v)} />
 
       <section aria-label={`Task ${taskNo} topics`}>
         {items.length === 0 ? (

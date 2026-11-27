@@ -128,7 +128,7 @@ test("F1: dashboard → task list by test type; costs shown", async ({ page, con
   await expect(cards.filter({ hasText: `E2E letter ${stamp}` })).toHaveCount(0);
   await expect(cards.filter({ hasText: `E2E essay ${stamp}` })).toHaveCount(0);
   // The same filters on the task page: General Training shows the letter instead.
-  await page.getByRole("navigation", { name: "Test type" }).getByRole("link", { name: "General Training" }).click();
+  await page.getByRole("combobox", { name: "Test type" }).selectOption("general");
   await expect(page).toHaveURL(/\/app\/writing\/tasks\/1\?type=general$/);
   await expect(cards.filter({ hasText: `E2E letter ${stamp}` })).toBeVisible();
   await expect(cards.filter({ hasText: `E2E chart ${stamp}` })).toHaveCount(0);

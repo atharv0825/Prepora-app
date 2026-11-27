@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AttemptHistory } from "@/components/reading/reading-results";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { FilterPills } from "@/components/practice/filter-pills";
+import { FilterSelect } from "@/components/practice/filter-select";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
 import { PickCard } from "@/components/practice/pick-card";
@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/credits";
 import { planLabel, testTypeLabel } from "@/lib/dashboard";
 import { validTimeZone } from "@/lib/onboarding";
 import { attemptSummary, listFilter, planAllows } from "@/lib/reading";
-import { readingTestPath, routes } from "@/lib/routes";
+import { filterHrefs, readingTestPath, routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount, getMyCredits } from "@/lib/supabase/session";
 
@@ -61,6 +61,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
           each test's start page. */}
       <PracticeHeader
         title="Reading"
+        controls={<FilterSelect filters={FILTERS} current={filter} hrefs={filterHrefs(routes.reading)} />}
         progress={
           <CompletionBar
             module="reading"
@@ -75,7 +76,6 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
         <p>Full tests with 60 minutes on the clock, marked instantly with a band score.</p>
       </PracticeHeader>
 
-      <FilterPills filters={FILTERS} current={filter} hrefFor={(v) => `${routes.reading}?type=${v}`} />
 
       <section aria-label="Tests">
         {!tests?.length ? (

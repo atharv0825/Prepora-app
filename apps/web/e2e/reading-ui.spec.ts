@@ -72,7 +72,7 @@ test("M4-F1: list filtered by test type, allowance, locked Gold test; dashboard 
   await expect(page).toHaveURL(/\/app\/reading$/);
 
   // The student's own type first.
-  await expect(page.getByRole("navigation", { name: "Test type" }).getByRole("link", { name: "General Training" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("combobox", { name: "Test type" })).toHaveValue("general");
   const cards = page.getByTestId("reading-test");
   await expect(cards.filter({ hasText: "Sample General Training Test" })).toHaveCount(1);
   await expect(cards.filter({ hasText: "Sample Academic Test" })).toHaveCount(0);
@@ -80,7 +80,7 @@ test("M4-F1: list filtered by test type, allowance, locked Gold test; dashboard 
   await expect(page.getByTestId("reading-progress")).toContainText(/^0 of \d+ General Training tests? completed · 0%$/);
   await expect(page.getByRole("progressbar", { name: "Reading tests completed" })).toHaveAttribute("aria-valuenow", "0");
 
-  await page.getByRole("link", { name: "Academic", exact: true }).click();
+  await page.getByRole("combobox", { name: "Test type" }).selectOption("academic");
   await expect(page).toHaveURL(/type=academic/);
   await expect(cards.filter({ hasText: "Sample Academic Test" })).toContainText("Not taken yet");
   const gold = cards.filter({ hasText: goldTitle });

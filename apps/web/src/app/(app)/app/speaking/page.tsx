@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, MessageCircle, Mic, Timer } from "lucide-react";
+import { ArrowUpRight, MessageCircle, Mic, Timer } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { GroupCard } from "@/components/practice/group-card";
@@ -57,8 +57,9 @@ export default async function SpeakingPage() {
         <p>The full test with an AI examiner who asks the questions out loud, or one part at a time. Every part gets a band for each criterion and feedback.</p>
       </PracticeHeader>
 
-      {/* Part 1 and Part 2 side by side, like the dashboard tiles; each opens its own page. */}
-      <section aria-label="Practice by part" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2">
+      {/* One soft panel, like the dashboard tiles: Part 1 | the full test | Part 2 (stacked on
+          phones). Each opens its own page; the full test is outlined as the main option. */}
+      <section aria-label="Practice by part" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 lg:grid-cols-3">
         <GroupCard
           href={speakingPartPath(1)}
           title="Part 1: about you"
@@ -71,6 +72,7 @@ export default async function SpeakingPage() {
           doneWord="answered"
           testId="speaking-group"
         />
+        <FullTestTile ready={fullTestReady} href={speakingTestPath()} cost={fullCost} />
         <GroupCard
           href={speakingPartPath(2)}
           title="Part 2: cue cards"
@@ -83,35 +85,6 @@ export default async function SpeakingPage() {
           doneWord="answered"
           testId="speaking-group"
         />
-      </section>
-
-      {/* The full test: a 3D green banner. */}
-      <section
-        aria-label="Full test"
-        className="flex flex-col gap-4 rounded-3xl bg-gradient-to-b from-[#62d7a5] to-brand-primary p-6 text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.08),0_14px_30px_-16px_rgb(15_164_103/0.8)] sm:flex-row sm:items-center sm:justify-between"
-        data-testid="full-test-cta"
-      >
-        <div className="flex items-start gap-4">
-          <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-full bg-white/25 ring-1 ring-white/60">
-            <Timer className="size-5" />
-          </span>
-          <div className="flex flex-col gap-1">
-            <h2 className="text-h2">Full test</h2>
-            <p className="text-sm text-brand-ink/80">
-              Parts 1, 2 and 3 in about 12 minutes, then your overall band.{fullCost ? ` ${fullCost} credits, charged part by part.` : ""}
-            </p>
-          </div>
-        </div>
-        {fullTestReady ? (
-          <Link
-            href={speakingTestPath()}
-            className="inline-flex h-11 shrink-0 items-center gap-2 self-start rounded-full bg-brand-ink px-5 text-sm font-medium text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_10px_20px_-10px_rgb(8_34_43/0.7)] transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink motion-reduce:hover:translate-y-0 sm:self-center"
-          >
-            Start the full test <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        ) : (
-          <p className="text-sm text-brand-ink/80">Coming soon: it needs more questions.</p>
-        )}
       </section>
 
       {tests && tests.length > 0 && (
@@ -159,6 +132,49 @@ export default async function SpeakingPage() {
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+/** The full test as a white tile between Part 1 and Part 2, outlined in green as the main option. */
+function FullTestTile({ ready, href, cost }: { ready: boolean; href: string; cost: number | null }) {
+  const body = (
+    <>
+      <span className="flex items-start justify-between gap-3">
+        <span aria-hidden className="grid size-12 shrink-0 place-items-center rounded-full bg-chart-speaking text-white ring-4 ring-chart-speaking/20">
+          <Timer className="size-5" />
+        </span>
+        {ready && (
+          <span aria-hidden className="grid size-10 place-items-center rounded-full bg-muted transition-colors group-hover:bg-foreground group-hover:text-background">
+            <ArrowUpRight className="size-4" />
+          </span>
+        )}
+      </span>
+      <span className="flex flex-col gap-1">
+        <span className="text-lg font-medium">Full test</span>
+        <span className="text-sm text-muted-foreground">
+          Parts 1, 2 and 3 in about 12 minutes, then your overall band.{cost ? ` ${cost} credits, charged part by part.` : ""}
+        </span>
+      </span>
+      <span className="mt-auto flex min-h-11 flex-wrap items-end justify-between gap-2 border-t border-border pt-4 text-xs">
+        <span className="text-muted-foreground">{ready ? "Part 1 → Part 2 → Part 3 with the AI examiner" : "Coming soon: it needs more questions."}</span>
+        {ready && <span className="rounded-full bg-primary px-2.5 py-1 font-medium text-primary-foreground">Overall band</span>}
+      </span>
+    </>
+  );
+  const tile = "group flex h-full flex-col gap-5 rounded-3xl bg-card p-5 text-card-foreground shadow-xs ring-2 ring-primary/70 sm:p-6";
+  return ready ? (
+    <Link
+      href={href}
+      aria-label="Start the full test"
+      className={`${tile} transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
+      data-testid="full-test-cta"
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className={tile} data-testid="full-test-cta">
+      {body}
     </div>
   );
 }

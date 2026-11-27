@@ -36,7 +36,7 @@ export function AccountMenu({ name, email, avatarUrl }: { name: string; email: s
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label={`Account menu for ${name}`}
-        className="flex size-11 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-brand-line bg-primary text-sm font-semibold text-primary-foreground outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/40 data-popup-open:ring-3 data-popup-open:ring-ring/30"
+        className="flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-brand-line bg-primary text-sm font-semibold text-primary-foreground outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/40 data-popup-open:ring-3 data-popup-open:ring-ring/30"
       >
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element -- a remote Google avatar; images are unoptimized here anyway

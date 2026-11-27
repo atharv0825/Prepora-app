@@ -1,11 +1,18 @@
 # M1-I1 — End-to-end tests (Playwright) against a LOCAL Supabase in the runner.
 # Real users are created with the local service role (Google can't be automated); nothing here
 # touches staging and no secrets are needed.
+#
+# When it runs (it takes ~6 min):
+#   - every push to develop (after a merge), so develop is always checked;
+#   - on a PR only when it has the `e2e` label: add the label to run it (it then re-runs on every
+#     push to that PR; remove the label to stop);
+#   - by hand: Actions → E2E → Run workflow (any branch).
 
 name: E2E
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "apps/web/**"
       - "packages/**"
@@ -21,10 +28,6 @@ on:
       - "pnpm-lock.yaml"
   workflow_dispatch:
 
-concurrency:
-  group: e2e-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   SUPABASE_CLI_VERSION: 2.116.0 # keep in sync with db-migrations.yml and the local CLI
   NEXT_TELEMETRY_DISABLED: 1
@@ -32,7 +35,18 @@ env:
 jobs:
   e2e:
     name: Playwright (local Supabase)
+    # PRs: only with the `e2e` label (and only once when labels are added: adding another label
+    # doesn't start it again). Pushes to develop and manual runs: always.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'e2e') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'e2e'))
     runs-on: ubuntu-latest
+    # On the job, not the workflow: a run whose job is skipped (e.g. another label was added)
+    # must not cancel an e2e run that is in progress.
+    concurrency:
+      group: e2e-${{ github.ref }}
+      cancel-in-progress: true
     timeout-minutes: 30
     steps:
       # Supabase's fixed host ports (54320-54329, supabase/config.toml) sit inside Linux's default

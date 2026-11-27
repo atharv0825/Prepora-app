@@ -8,6 +8,8 @@ import { displayName } from "@/lib/account";
 import { type CreditCosts, fetchCreditCosts, fetchMyCredits } from "@/lib/credits";
 import { fetchMyStreak } from "@/lib/streak";
 import { fetchMyDashboard } from "@/lib/dashboard-stats";
+import { fetchMyStudyPlan } from "@/lib/study";
+import type { MyStudyPlan } from "@prepora/shared/api/study-plan";
 import type { DashboardStats } from "@prepora/shared/api/dashboard";
 import { SupabaseConfigError } from "./env";
 import { createClient } from "./server";
@@ -77,6 +79,13 @@ export const getMyDashboard = cache(async (): Promise<DashboardStats | null> => 
   const user = await getCurrentUser();
   if (!user) return null;
   return fetchMyDashboard(await createClient());
+});
+
+/** The signed-in user's study plan (get_my_study_plan, M8.7), or null when signed out or on any error. */
+export const getMyStudyPlan = cache(async (): Promise<MyStudyPlan | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  return fetchMyStudyPlan(await createClient());
 });
 
 /** Active credit costs and labels (public table). Cached per request. */

@@ -4,6 +4,7 @@ import { CompletionBar } from "@/components/practice/completion-bar";
 import { FilterPills } from "@/components/practice/filter-pills";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
+import { PickCard } from "@/components/practice/pick-card";
 import { formatDate } from "@/lib/credits";
 import { planLabel, testTypeLabel } from "@/lib/dashboard";
 import { validTimeZone } from "@/lib/onboarding";
@@ -80,6 +81,9 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
           <p className="text-muted-foreground">No {filter === "all" ? "" : `${testTypeLabel(filter)} `}tests yet. New tests are added regularly.</p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <li>
+              <PickCard kind="reading_test" module="reading" note="A Reading test you haven't taken yet." />
+            </li>
             {tests.map((t) => {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);

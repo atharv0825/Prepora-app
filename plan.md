@@ -308,7 +308,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 |---|---|---|
 | M8.6-B1 | Backend | RPC `get_my_dashboard()` (own user only): per module the practice count, latest band and average of the last 5; the last 14 days in the student's time zone with count and average band. pgTAP tests. |
 | M8.6-C1 | Contract | Zod `DashboardStats` + helpers `estimatedBand()` (IELTS-rounded), `practiceShares()`, `weekSummary()`, with unit tests; `chart-*` module colour tokens (light + dark, palette-validated) and the accent palette in `packages/ui`. |
-| M8.6-F1 | Frontend | Dashboard redesign (UI design §7): pill header nav, "Start practising" button, a soft panel with stat cards (goal, credits, streak) and chart cards (band by module, practice mix, this week); dark mode and mobile. |
+| M8.6-F1 | Frontend | Dashboard redesign (UI design §7): pill header nav, "Start practising" button, a soft panel with stat cards (goal, streak; credits stay in the header chip) and chart cards (band by module, practice mix, this week); dark mode and mobile. |
 | M8.6-I1 | Integration | Playwright: empty states, then seeded tests show in all chart cards; header nav and the "Start practising" link. |
 
 **Exit:** a student sees their estimated band, what they practise most and how this week compares with the last, in light and dark mode, on phone and desktop.

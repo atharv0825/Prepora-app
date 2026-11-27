@@ -3966,3 +3966,42 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - After merge: `supabase db push` for staging and production (new function `get_my_dashboard`).
+
+
+## 2026-11-27 — Dashboard: no credits card, streak up top; demo practice data
+
+**Asked for:** remove AI credits from the dashboard, move Practice streak up, and add dummy data for the streak.
+
+**Changed** (still on `feature/dashboard-overview`, PR #5)
+- **AI credits card removed** from home. The balance stays in the header chip, and the Credits & usage page is unchanged.
+- **New grid:**
+  - wide screens: row 1 is **Your goal | Practice streak**; row 2 is **Band by module | Practice mix | This week** (a 6-column grid, so both rows fill);
+  - tablets: 2 columns, with This week full width;
+  - phones: one column.
+- e2e updated: `dashboard.spec`, `credits-ui.spec` and `journey.spec` no longer expect the home credits card. `dashboard.spec` checks that it's gone and that the header chip shows 18.
+
+**Demo data** (`scripts/demo/`)
+- `streak-demo-data.sql`: put the student's email in `v_email`, then run it in the Supabase SQL Editor (staging) or with psql (local).
+  - It adds 26 Reading/Listening attempts, dated in the student's own time zone: a current streak of 5 days, a best of 9, and scattered days back to 73 days ago. Bands climb from about 5.5 to 7.
+  - Every row is marked `answers = {"_demo": true}`. Running it again replaces the earlier demo rows.
+- `remove-streak-demo-data.sql` deletes only those marked rows.
+- **Not for production.**
+
+**Why the cards said "couldn't be loaded" in your screenshot**
+- `apps/web/.env.local` points to the hosted staging project.
+- `get_my_streak` (M8.5) and `get_my_dashboard` (M8.6) aren't on staging yet.
+- The CI "push migrations to staging" job can't run until the staging secrets are set in Prepora-app.
+
+**Verified**
+- Demo script on local Postgres, inside a rolled-back transaction, for a student in Asia/Kolkata:
+  - run twice: still 26 rows, not 52;
+  - `get_my_streak(84)` → current **5**, best **9**, **22** practice days;
+  - dashboard: Reading 13, Listening 13;
+  - the remove script leaves **0** rows. ✓
+- Web tsc and eslint ✓.
+- Playwright (desktop + mobile) for `dashboard`, `credits-ui` and `journey`, plus a screenshot run with the demo data: **26 passed** ✓.
+- I looked at the desktop screenshot: goal and streak in the top row, the three charts below. ✓
+
+**Manual steps for you**
+1. Apply the migrations to staging: `supabase link --project-ref <staging ref>`, then `supabase db push`. Or set the Prepora-app staging secrets and let CI push them after merge.
+2. Then run `scripts/demo/streak-demo-data.sql` in the staging SQL Editor with your email in `v_email`.

@@ -42,9 +42,9 @@ test.describe("home dashboard", () => {
     await expect(goal).toContainText("General Training");
     await expect(goal).toContainText("30 days to go");
 
-    const credits = page.getByRole("region", { name: "AI credits" });
-    await expect(credits).toContainText("18 credits"); // sign-up grant (M3-B4), shown since M3-F1
-    await expect(credits).toContainText("Free plan");
+    // M8.6: no credits card on home any more; the balance is the header chip.
+    await expect(page.getByRole("region", { name: "AI credits" })).toHaveCount(0);
+    await expect(page.getByRole("banner").getByRole("link", { name: /credits and usage/i })).toHaveText("18");
 
     const modules = page.getByRole("region", { name: "Practise" }).getByRole("listitem");
     await expect(modules).toHaveCount(4);

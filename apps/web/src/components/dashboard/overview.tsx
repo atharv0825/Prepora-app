@@ -6,7 +6,6 @@ import {
   BookOpen,
   CalendarDays,
   Check,
-  Coins,
   Flame,
   Headphones,
   Mic,
@@ -14,7 +13,6 @@ import {
   Target,
   type LucideIcon,
 } from "lucide-react";
-import { type CreditBalance, spendableToday } from "@prepora/shared/api/credits";
 import {
   type DashboardModuleKey,
   type DashboardStats,
@@ -31,7 +29,7 @@ import type { ExamCountdown } from "@/lib/dashboard";
 import { formatBand } from "@/lib/onboarding";
 import { routes } from "@/lib/routes";
 
-// Home dashboard overview (M8.6): three stat cards (goal, credits, streak) and three chart cards
+// Home dashboard overview (M8.6): two stat cards (goal, streak) and three chart cards
 // (band by module, practice mix, this week). Server components; the charts are plain SVG/CSS
 // with CSS-only hover, every value is also written out as text (legend rows, labels), so
 // nothing depends on colour or hover alone.
@@ -120,14 +118,16 @@ export function GoalCard({
   testType,
   countdown,
   estimate,
+  className,
 }: {
+  className?: string;
   targetBand: string | null;
   testType: string | null;
   countdown: ExamCountdown;
   estimate: number | null;
 }) {
   return (
-    <section aria-labelledby="goal-heading" className={cardClass}>
+    <section aria-labelledby="goal-heading" className={cn(cardClass, className)}>
       <StatHeader id="goal-heading" title="Your goal" icon={Target} iconClass="bg-primary text-primary-foreground ring-primary/20" />
       <p className="flex items-start gap-2">
         <span className="text-5xl leading-none font-light tracking-tight tabular-nums">{targetBand ?? "—"}</span>
@@ -166,35 +166,6 @@ function Countdown({ countdown }: { countdown: ExamCountdown }) {
     case "none":
       return <span>Exam: Not booked yet</span>;
   }
-}
-
-/** Balance, what's left today and a link to "Credits & usage" (M3-F1). */
-export function CreditsCard({ plan, credits }: { plan: string; credits: CreditBalance | null }) {
-  return (
-    <section aria-labelledby="credits-heading" className={cardClass}>
-      <StatHeader
-        id="credits-heading"
-        title="AI credits"
-        icon={Coins}
-        iconClass="bg-chart-reading text-white ring-chart-reading/20"
-        link={{ href: routes.credits, label: "Credits & usage" }}
-      />
-      {credits ? (
-        <>
-          <p className="flex items-start gap-2">
-            <span className="text-5xl leading-none font-light tracking-tight tabular-nums">{credits.balance}</span>{" "}
-            <span className="pt-1 text-sm text-muted-foreground">{credits.balance === 1 ? "credit" : "credits"}</span>
-          </p>
-          <div className="mt-auto flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{spendableToday(credits)} left to use today</p>
-            <Pill>{plan} plan</Pill>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">Your balance couldn&apos;t be loaded just now.</p>
-      )}
-    </section>
-  );
 }
 
 /** Days in a row with any scored practice, the best run, and this week at a glance (M8.5-F1). */
@@ -258,10 +229,10 @@ export function StreakCard({ streak, className }: { streak: Streak | null; class
 /** A module's recent average shown the IELTS way (half bands: 7.75 → 8.0), or null. */
 const moduleBand = (recent: number | null) => (recent !== null ? ieltsRound(recent) : null);
 
-export function BandCard({ stats }: { stats: DashboardStats | null }) {
+export function BandCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
   const estimate = stats ? estimatedBand(stats.modules) : null;
   return (
-    <section aria-labelledby="bands-heading" className={cardClass}>
+    <section aria-labelledby="bands-heading" className={cn(cardClass, className)}>
       <h2 id="bands-heading" className="text-lg font-medium">
         Band by module
       </h2>
@@ -346,7 +317,7 @@ function Unavailable() {
 const R = 42;
 const CIRC = 2 * Math.PI * R;
 
-export function MixCard({ stats }: { stats: DashboardStats | null }) {
+export function MixCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
   const total = stats ? totalPractice(stats.modules) : 0;
   const shares = stats ? practiceShares(stats.modules) : null;
   // Arcs with a small gap between them (the surface shows through), starting at 12 o'clock.
@@ -363,7 +334,7 @@ export function MixCard({ stats }: { stats: DashboardStats | null }) {
       }) ?? [];
 
   return (
-    <section aria-labelledby="mix-heading" className={cardClass}>
+    <section aria-labelledby="mix-heading" className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="mix-heading" className="text-lg font-medium">
           Practice mix
@@ -445,7 +416,7 @@ function smoothPath(points: readonly [number, number][]): string {
   return d;
 }
 
-export function TrendCard({ stats }: { stats: DashboardStats | null }) {
+export function TrendCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
   const week = stats ? weekSummary(stats.days) : null;
   const max = week ? Math.max(1, ...week.thisWeek.map((d) => d.count), ...week.lastWeek.map((d) => d.count)) : 1;
   // x: the middle of each of 7 columns; y: 8 (top padding) … 92 (baseline).
@@ -456,7 +427,7 @@ export function TrendCard({ stats }: { stats: DashboardStats | null }) {
     week?.thisWeekBand != null && week.lastWeekBand != null ? Math.round((week.thisWeekBand - week.lastWeekBand) * 10) / 10 : 0;
 
   return (
-    <section aria-labelledby="trend-heading" className={cn(cardClass, "md:col-span-2 xl:col-span-1")}>
+    <section aria-labelledby="trend-heading" className={cn(cardClass, className)}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="trend-heading" className="text-lg font-medium">
           This week

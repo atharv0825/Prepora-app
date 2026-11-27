@@ -5,26 +5,25 @@ import { ArrowRight } from "lucide-react";
 import { estimatedBand } from "@prepora/shared/api/dashboard";
 import { needsOnboarding } from "@prepora/shared/api/onboarding";
 import { ModuleGrid } from "@/components/dashboard/dashboard-cards";
-import { BandCard, CreditsCard, GoalCard, MixCard, StreakCard, TrendCard } from "@/components/dashboard/overview";
+import { BandCard, GoalCard, MixCard, StreakCard, TrendCard } from "@/components/dashboard/overview";
 import {
   dashboardModules,
   examCountdown,
   firstName,
   greeting,
   hourIn,
-  planLabel,
   recommendedModule,
   testTypeLabel,
 } from "@/lib/dashboard";
 import { formatBand, localDate, validTimeZone } from "@/lib/onboarding";
 import { routes } from "@/lib/routes";
-import { getAccount, getMyCredits, getMyDashboard, getMyStreak } from "@/lib/supabase/session";
+import { getAccount, getMyDashboard, getMyStreak } from "@/lib/supabase/session";
 
 export const metadata: Metadata = { title: "Home · Prepora", robots: { index: false } };
 
 // Signed-in home dashboard (M2-F3, redesigned in M8.6): greeting and a "Start practising" button,
-// then on a soft panel three stat cards (goal + exam countdown, AI credits, practice streak) and
-// three chart cards (band by module, practice mix, this week), then the four module tiles. The
+// then on a soft panel two stat cards (goal + exam countdown, practice streak; the credit
+// balance is the header chip) and three chart cards (band by module, practice mix, this week), then the four module tiles. The
 // layout provides the header and the session check.
 export default async function AppHome() {
   const account = await getAccount();
@@ -38,7 +37,7 @@ export default async function AppHome() {
   const timeZone = validTimeZone(profile?.timezone);
   const today = localDate(timeZone);
   // Credits are shared with the layout's header chip (cached per request).
-  const [credits, streak, stats] = await Promise.all([getMyCredits(), getMyStreak(), getMyDashboard()]);
+  const [streak, stats] = await Promise.all([getMyStreak(), getMyDashboard()]);
   const recommended = recommendedModule(dashboardModules);
   const start = dashboardModules.find((m) => m.key === recommended);
 
@@ -61,19 +60,20 @@ export default async function AppHome() {
         )}
       </div>
 
-      <div className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Phones: one column. Tablets: 2 columns, the trend full width. Wide: goal + streak, then
+          the three charts (a 6-column grid so both rows fill evenly). */}
+      <div className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2 xl:grid-cols-6">
         <GoalCard
+          className="xl:col-span-3"
           targetBand={profile?.target_band != null ? formatBand(profile.target_band) : null}
           testType={testTypeLabel(profile?.test_type)}
           countdown={examCountdown(profile?.exam_date, today)}
           estimate={stats ? (estimatedBand(stats.modules)?.band ?? null) : null}
         />
-        <CreditsCard plan={planLabel(credits?.plan ?? profile?.plan)} credits={credits} />
-        {/* Full width under the two cards on tablets; a third column on wide screens. */}
-        <StreakCard streak={streak} className="md:col-span-2 xl:col-span-1" />
-        <BandCard stats={stats} />
-        <MixCard stats={stats} />
-        <TrendCard stats={stats} />
+        <StreakCard streak={streak} className="xl:col-span-3" />
+        <BandCard stats={stats} className="xl:col-span-2" />
+        <MixCard stats={stats} className="xl:col-span-2" />
+        <TrendCard stats={stats} className="md:col-span-2 xl:col-span-2" />
       </div>
 
       <ModuleGrid modules={dashboardModules} recommended={recommended} />

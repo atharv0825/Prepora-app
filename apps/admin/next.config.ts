@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_COMMIT_SHA: sha,
     NEXT_PUBLIC_SENTRY_RELEASE: releaseName("admin", pkg.version, sha),
   },
+  // Reading import: documents up to 10 MB go through a Server Function (default limit 1 MB).
+  experimental: { serverActions: { bodySizeLimit: "10mb" } },
   // No Cloudflare Images binding (see wrangler.jsonc).
   images: { unoptimized: true },
   // The admin must never be indexed or framed.

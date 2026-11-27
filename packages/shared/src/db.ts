@@ -974,6 +974,15 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_import_reading_content: {
+        Args: {
+          p_mode: string
+          p_passages: Json
+          p_questions: Json
+          p_test_id: string
+        }
+        Returns: Json
+      }
       admin_list_users: {
         Args: {
           p_country?: string

@@ -33,6 +33,7 @@ export function QuestionList({
   questions,
   canAdd,
   fullText,
+  extraActions,
 }: {
   module?: BuilderModule;
   testId: string;
@@ -42,6 +43,8 @@ export function QuestionList({
   /** False when the test (Reading: 40) or section (Listening: 10) is full. */
   canAdd: boolean;
   fullText: string;
+  /** Shown next to "Add question" (Reading: the import buttons). */
+  extraActions?: React.ReactNode;
 }) {
   const move = module === "reading" ? moveReadingQuestion : moveListeningQuestion;
   const remove = module === "reading" ? deleteReadingQuestion : deleteListeningQuestion;
@@ -132,11 +135,12 @@ export function QuestionList({
           onDone={() => setEditing(null)}
         />
       ) : (
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" disabled={pending || editing !== null || !canAdd} onClick={() => setEditing("new")}>
             <Plus /> Add question
           </Button>
-          {!canAdd && <span className="ml-3 text-xs text-muted-foreground">{fullText}</span>}
+          {extraActions}
+          {!canAdd && <span className="text-xs text-muted-foreground">{fullText}</span>}
         </div>
       )}
     </div>

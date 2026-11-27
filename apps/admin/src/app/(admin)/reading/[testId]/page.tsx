@@ -8,6 +8,7 @@ import { buttonVariants } from "@prepora/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@prepora/ui/components/card";
 import { PassageEditor } from "@/components/reading/passage-editor";
 import { QuestionList } from "@/components/reading/question-list";
+import { ImportButtons, ReadingImport } from "@/components/reading/reading-import";
 import { StatusActions } from "@/components/reading/status-actions";
 import { statusBadge } from "@/components/reading/status";
 import { TestDetailsForm } from "@/components/reading/test-details-form";
@@ -18,7 +19,8 @@ export const metadata: Metadata = { title: "Reading builder" };
 
 // M4-A1: the Reading builder. Test details → 3 passages → each passage's questions (a form per
 // type) → preview as a student → publish. Loaded through admin_get_reading_test (staff only),
-// which includes the answer keys; every save re-renders this page.
+// which includes the answer keys; every save re-renders this page. "Import" (Paste content /
+// Upload document) fills the same passages and questions from a draft, after a preview.
 export default async function ReadingBuilderPage({ params }: PageProps<"/reading/[testId]">) {
   const { testId } = await params;
   if (!ContentId.safeParse(testId).success) notFound();
@@ -98,6 +100,13 @@ export default async function ReadingBuilderPage({ params }: PageProps<"/reading
         </CardContent>
       </Card>
 
+      <ReadingImport
+        testId={test.id}
+        testType={test.test_type}
+        existingQuestions={questions.length}
+        existingPassages={passages.map((p) => p.order_no)}
+      />
+
       {[1, 2, 3].map((n) => {
         const passage = byOrder.get(n);
         const own = passage ? questions.filter((q) => q.passage_id === passage.id) : [];
@@ -114,7 +123,13 @@ export default async function ReadingBuilderPage({ params }: PageProps<"/reading
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-8">
-              <PassageEditor key={passage?.updated_at ?? "new"} testId={test.id} orderNo={n} passage={passage} />
+              <PassageEditor
+                key={passage?.updated_at ?? "new"}
+                testId={test.id}
+                orderNo={n}
+                passage={passage}
+                extraActions={<ImportButtons passage={n} />}
+              />
               {passage && (
                 <section aria-label={`Passage ${n} questions`} className="flex flex-col gap-3 border-t border-border pt-6">
                   <h3 className="font-semibold">Questions</h3>
@@ -124,6 +139,7 @@ export default async function ReadingBuilderPage({ params }: PageProps<"/reading
                     questions={own}
                     canAdd={questions.length < 40}
                     fullText="40 questions: the test is full."
+                    extraActions={<ImportButtons passage={n} />}
                   />
                 </section>
               )}

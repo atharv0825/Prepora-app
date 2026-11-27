@@ -31,6 +31,13 @@ test.describe("home dashboard", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Meera$/);
     // M8.6: "Start practising" goes to the recommended module; the header pills (wide screens) mark Dashboard.
     await expect(page.getByRole("link", { name: "Start practising" })).toHaveAttribute("href", "/app/reading");
+    // Live touches: the status, a tip with text, and "Next tip" changes it.
+    await expect(page.getByTestId("live-status")).toContainText("Live · Updated just now");
+    const tip = page.getByTestId("tip");
+    await expect(tip).toHaveText(/^Tip: \S.{20,}/);
+    const first = await tip.textContent();
+    await page.getByRole("button", { name: "Next tip" }).click();
+    await expect(tip).not.toHaveText(first!);
     if (!test.info().project.name.match(/mobile|ios/)) {
       const nav = page.getByRole("navigation", { name: "Main" });
       await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");

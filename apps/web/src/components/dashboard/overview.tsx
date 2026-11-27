@@ -22,7 +22,9 @@ import { ieltsRound } from "@prepora/shared/ielts/bands";
 import { cn } from "@prepora/ui/lib/utils";
 import type { ExamCountdown } from "@/lib/dashboard";
 import { formatBand } from "@/lib/onboarding";
+import { CountUp } from "./count-up";
 import { MODULE_STYLE, hatch } from "./module-style";
+import mo from "./motion.module.css";
 import { routes } from "@/lib/routes";
 
 // Home dashboard overview (M8.6): two stat cards (goal, streak) and three chart cards
@@ -32,6 +34,9 @@ import { routes } from "@/lib/routes";
 //
 // Colours: one per module (chart-reading/listening/writing/speaking in packages/ui), checked
 // with the dataviz palette validator in light and dark; marks carry a hatch texture as well.
+
+/** Entrance: cards rise in one after another (motion.module.css; off with reduced motion). */
+const rise = (i = 0) => ({ className: mo.rise, style: { "--i": i } as React.CSSProperties });
 
 // ── Shared pieces ───────────────────────────────────────────────────────────────────────────
 const cardClass = "flex flex-col gap-5 rounded-3xl bg-card p-5 text-card-foreground shadow-xs sm:p-6";
@@ -44,10 +49,10 @@ const dayMonth = (date: string) =>
   new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-function IconCircle({ icon: Icon, className }: { icon: LucideIcon; className: string }) {
+function IconCircle({ icon: Icon, className, iconClass }: { icon: LucideIcon; className: string; iconClass?: string }) {
   return (
     <span className={cn("grid size-12 shrink-0 place-items-center rounded-full ring-4", className)}>
-      <Icon className="size-5" aria-hidden />
+      <Icon className={cn("size-5", iconClass)} aria-hidden />
     </span>
   );
 }
@@ -86,11 +91,25 @@ function Change({ value, suffix, label }: { value: number; suffix: string; label
   );
 }
 
-function StatHeader({ id, title, icon, iconClass, link }: { id: string; title: string; icon: LucideIcon; iconClass: string; link?: { href: string; label: string } }) {
+function StatHeader({
+  id,
+  title,
+  icon,
+  iconClass,
+  iconMotion,
+  link,
+}: {
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  iconClass: string;
+  iconMotion?: string;
+  link?: { href: string; label: string };
+}) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-center gap-3">
-        <IconCircle icon={icon} className={iconClass} />
+        <IconCircle icon={icon} className={iconClass} iconClass={iconMotion} />
         <h2 id={id} className="max-w-[7rem] text-base leading-snug font-medium">
           {title}
         </h2>
@@ -107,18 +126,23 @@ export function GoalCard({
   countdown,
   estimate,
   className,
+  index = 0,
 }: {
   className?: string;
+  /** Entrance order. */
+  index?: number;
   targetBand: string | null;
   testType: string | null;
   countdown: ExamCountdown;
   estimate: number | null;
 }) {
   return (
-    <section aria-labelledby="goal-heading" className={cn(cardClass, className)}>
+    <section aria-labelledby="goal-heading" className={cn(cardClass, rise(index).className, className)} style={rise(index).style}>
       <StatHeader id="goal-heading" title="Your goal" icon={Target} iconClass="bg-primary text-primary-foreground ring-primary/20" />
       <p className="flex items-start gap-2">
-        <span className="text-5xl leading-none font-light tracking-tight tabular-nums">{targetBand ?? "—"}</span>
+        <span className="text-5xl leading-none font-light tracking-tight tabular-nums">
+          {targetBand !== null ? <CountUp value={Number(targetBand)} decimals={1} /> : "—"}
+        </span>
         <span className="pt-1 text-sm text-muted-foreground">
           target band
           {estimate !== null && targetBand !== null && (
@@ -128,6 +152,7 @@ export function GoalCard({
           )}
         </span>
       </p>
+      {estimate !== null && targetBand !== null && <GoalGauge estimate={estimate} target={Number(targetBand)} />}
       <div className="mt-auto flex items-center justify-between gap-3">
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <CalendarDays className="size-4" aria-hidden />
@@ -136,6 +161,33 @@ export function GoalCard({
         {testType && <Pill>{testType}</Pill>}
       </div>
     </section>
+  );
+}
+
+/** Estimate → target as a 3D bar out of 9, the target marked; grows in on load. */
+function GoalGauge({ estimate, target }: { estimate: number; target: number }) {
+  const reached = estimate >= target;
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="goal-gauge">
+      <div
+        role="meter"
+        aria-label="Estimated band towards your target"
+        aria-valuemin={0}
+        aria-valuemax={9}
+        aria-valuenow={estimate}
+        aria-valuetext={`${formatBand(estimate)} of target ${formatBand(target)}`}
+        className="relative h-3 rounded-full bg-muted p-0.5 shadow-[inset_0_2px_3px_rgb(8_34_43/0.15)]"
+      >
+        <div
+          className={cn("h-full rounded-full bg-gradient-to-b from-[#62d7a5] via-brand-primary to-brand-logo shadow-[inset_0_1px_0_rgb(255_255_255/0.55)]", mo.growX)}
+          style={{ width: `${(Math.min(estimate, 9) / 9) * 100}%` }}
+        />
+        <span aria-hidden className="absolute -top-1 bottom-[-0.25rem] w-0.5 rounded-full bg-brand-ink" style={{ left: `${(target / 9) * 100}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {reached ? "You're at your target. Keep it there!" : `${formatBand(target - estimate)} to go to reach ${formatBand(target)}`}
+      </p>
+    </div>
   );
 }
 
@@ -157,14 +209,15 @@ function Countdown({ countdown }: { countdown: ExamCountdown }) {
 }
 
 /** Days in a row with any scored practice, the best run, and this week at a glance (M8.5-F1). */
-export function StreakCard({ streak, className }: { streak: Streak | null; className?: string }) {
+export function StreakCard({ streak, className, index = 0 }: { streak: Streak | null; className?: string; index?: number }) {
   return (
-    <section aria-labelledby="streak-heading" className={cn(cardClass, className)}>
+    <section aria-labelledby="streak-heading" className={cn(cardClass, rise(index).className, className)} style={rise(index).style}>
       <StatHeader
         id="streak-heading"
         title="Practice streak"
         icon={Flame}
         iconClass="bg-accent-pink text-brand-ink ring-accent-pink/25"
+        iconMotion={mo.flicker}
         link={{ href: routes.profile, label: "Streak calendar on your profile" }}
       />
       {streak ? (
@@ -172,7 +225,7 @@ export function StreakCard({ streak, className }: { streak: Streak | null; class
           <div className="flex flex-col gap-1">
             <p className="flex items-start gap-2">
               <span className="text-5xl leading-none font-light tracking-tight tabular-nums" data-testid="streak-current">
-                {streak.current}
+                <CountUp value={streak.current} />
               </span>{" "}
               <span className="pt-1 text-sm text-muted-foreground">
                 {streak.current === 1 ? "day" : "days"} in a row
@@ -182,7 +235,7 @@ export function StreakCard({ streak, className }: { streak: Streak | null; class
             <p className="text-sm text-muted-foreground">{streakMessage(streak)}</p>
           </div>
           <ol className="mt-auto flex items-center justify-between gap-1" aria-label="The last 7 days">
-            {lastSevenDays(streak).map((d) => (
+            {lastSevenDays(streak).map((d, i) => (
               <li
                 key={d.date}
                 className="flex flex-col items-center gap-1"
@@ -192,10 +245,12 @@ export function StreakCard({ streak, className }: { streak: Streak | null; class
                   aria-hidden
                   className={cn(
                     "grid size-8 place-items-center rounded-full border-2 border-card",
-                    d.practised ? "bg-accent-pink text-brand-ink" : "bg-muted",
+                    d.practised ? cn("bg-accent-pink text-brand-ink", mo.pop) : "bg-muted",
                     d.today && "outline-2 outline-offset-1 outline-foreground",
-                    d.today && !d.practised && "outline-dashed",
+                    // Today not done yet: a gentle pulse to nudge.
+                    d.today && !d.practised && cn("relative outline-dashed text-brand-primary", mo.pulse),
                   )}
+                  style={{ "--i": i } as React.CSSProperties}
                 >
                   {d.practised && <Check className="size-4" />}
                 </span>
@@ -217,10 +272,10 @@ export function StreakCard({ streak, className }: { streak: Streak | null; class
 /** A module's recent average shown the IELTS way (half bands: 7.75 → 8.0), or null. */
 const moduleBand = (recent: number | null) => (recent !== null ? ieltsRound(recent) : null);
 
-export function BandCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
+export function BandCard({ stats, className, index = 0 }: { stats: DashboardStats | null; className?: string; index?: number }) {
   const estimate = stats ? estimatedBand(stats.modules) : null;
   return (
-    <section aria-labelledby="bands-heading" className={cn(cardClass, className)}>
+    <section aria-labelledby="bands-heading" className={cn(cardClass, rise(index).className, className)} style={rise(index).style}>
       <h2 id="bands-heading" className="text-lg font-medium">
         Band by module
       </h2>
@@ -231,7 +286,7 @@ export function BandCard({ stats, className }: { stats: DashboardStats | null; c
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
               <p className="text-5xl leading-none font-light tracking-tight tabular-nums" data-testid="estimated-band">
-                {estimate ? formatBand(estimate.band) : "—"}
+                {estimate ? <CountUp value={estimate.band} decimals={1} /> : "—"}
               </p>
               <p className="text-xs text-muted-foreground">
                 {estimate
@@ -259,14 +314,14 @@ export function BandCard({ stats, className }: { stats: DashboardStats | null; c
           </div>
           {/* Bars: height = recent band out of 9. Decorative copy of the list above. */}
           <div className="grid min-h-40 flex-1 grid-cols-4 items-end gap-2" aria-hidden>
-            {stats.modules.map((m) => {
+            {stats.modules.map((m, i) => {
               const meta = MODULES[m.module];
               const shown = moduleBand(m.recent_band);
               const pct = shown !== null ? Math.max(12, (shown / 9) * 100) : 0;
               return (
                 <div key={m.module} className="group relative flex h-full flex-col justify-end">
                   {shown !== null ? (
-                    <div className={cn("relative rounded-2xl", meta.bg)} style={{ height: `${pct}%`, ...hatch }}>
+                    <div className={cn("relative rounded-2xl", meta.bg, mo.growY)} style={{ height: `${pct}%`, ...hatch, "--i": i } as React.CSSProperties}>
                       <span className="absolute top-2 left-2 rounded-full bg-card px-2 py-0.5 text-[0.6875rem] font-medium text-card-foreground tabular-nums">
                         {formatBand(shown!)}
                       </span>
@@ -305,7 +360,7 @@ function Unavailable() {
 const R = 42;
 const CIRC = 2 * Math.PI * R;
 
-export function MixCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
+export function MixCard({ stats, className, index = 0 }: { stats: DashboardStats | null; className?: string; index?: number }) {
   const total = stats ? totalPractice(stats.modules) : 0;
   const shares = stats ? practiceShares(stats.modules) : null;
   // Arcs with a small gap between them (the surface shows through), starting at 12 o'clock.
@@ -322,7 +377,7 @@ export function MixCard({ stats, className }: { stats: DashboardStats | null; cl
       }) ?? [];
 
   return (
-    <section aria-labelledby="mix-heading" className={cn(cardClass, className)}>
+    <section aria-labelledby="mix-heading" className={cn(cardClass, rise(index).className, className)} style={rise(index).style}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="mix-heading" className="text-lg font-medium">
           Practice mix
@@ -335,6 +390,7 @@ export function MixCard({ stats, className }: { stats: DashboardStats | null; cl
         <>
           <div className="relative mx-auto size-44">
             <svg viewBox="0 0 100 100" className="size-full -rotate-90" aria-hidden>
+              <g className={mo.spinIn}>
               <circle cx="50" cy="50" r={R} fill="none" className="stroke-muted" strokeWidth="9" />
               {arcs.map((a) => (
                 <circle
@@ -350,16 +406,17 @@ export function MixCard({ stats, className }: { stats: DashboardStats | null; cl
                   strokeDashoffset={-a.offset}
                 />
               ))}
+              </g>
             </svg>
             <p className="absolute inset-0 grid place-content-center text-center">
               <span className="text-4xl leading-none font-light tabular-nums" data-testid="practice-total">
-                {total}
+                <CountUp value={total} />
               </span>
               <span className="text-xs text-muted-foreground">{total === 1 ? "practice" : "practices"}</span>
             </p>
           </div>
           <ul className="flex flex-col gap-3" aria-label="Practice by module">
-            {stats.modules.map((m) => {
+            {stats.modules.map((m, i) => {
               const meta = MODULES[m.module];
               const share = shares![m.module];
               return (
@@ -373,7 +430,7 @@ export function MixCard({ stats, className }: { stats: DashboardStats | null; cl
                     </span>
                   </p>
                   <span className="block h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-                    <span className={cn("block h-full rounded-full", meta.bg)} style={{ width: `${share}%`, ...hatch }} />
+                    <span className={cn("block h-full rounded-full", meta.bg, mo.growX)} style={{ width: `${share}%`, ...hatch, "--i": i } as React.CSSProperties} />
                   </span>
                 </li>
               );
@@ -404,7 +461,7 @@ function smoothPath(points: readonly [number, number][]): string {
   return d;
 }
 
-export function TrendCard({ stats, className }: { stats: DashboardStats | null; className?: string }) {
+export function TrendCard({ stats, className, index = 0 }: { stats: DashboardStats | null; className?: string; index?: number }) {
   const week = stats ? weekSummary(stats.days) : null;
   const max = week ? Math.max(1, ...week.thisWeek.map((d) => d.count), ...week.lastWeek.map((d) => d.count)) : 1;
   // x: the middle of each of 7 columns; y: 8 (top padding) … 92 (baseline).
@@ -415,7 +472,7 @@ export function TrendCard({ stats, className }: { stats: DashboardStats | null; 
     week?.thisWeekBand != null && week.lastWeekBand != null ? Math.round((week.thisWeekBand - week.lastWeekBand) * 10) / 10 : 0;
 
   return (
-    <section aria-labelledby="trend-heading" className={cn(cardClass, className)}>
+    <section aria-labelledby="trend-heading" className={cn(cardClass, rise(index).className, className)} style={rise(index).style}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="trend-heading" className="text-lg font-medium">
           This week
@@ -441,8 +498,8 @@ export function TrendCard({ stats, className }: { stats: DashboardStats | null; 
                 {[8, 50, 92].map((gy) => (
                   <line key={gy} x1="0" x2="100" y1={gy} y2={gy} className="stroke-border" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
                 ))}
-                <path d={smoothPath(points(week.lastWeek))} fill="none" className="stroke-muted-foreground" strokeWidth="2" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
-                <path d={smoothPath(points(week.thisWeek))} fill="none" className="stroke-foreground" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                <path d={smoothPath(points(week.lastWeek))} fill="none" className={cn("stroke-muted-foreground", mo.fadeIn)} strokeWidth="2" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+                <path d={smoothPath(points(week.thisWeek))} pathLength={1} fill="none" className={cn("stroke-foreground", mo.draw)} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
               </svg>
               {/* One column per day: hover target, dot, tooltip and a crosshair. */}
               <ol className="absolute inset-0 grid grid-cols-7" aria-label="Practice per day this week">
@@ -461,6 +518,7 @@ export function TrendCard({ stats, className }: { stats: DashboardStats | null; 
                         className={cn(
                           "absolute left-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-foreground",
                           !today && "opacity-0 group-hover:opacity-100",
+                          today && cn("text-foreground", mo.pulse),
                         )}
                         style={{ top: `${y(d.count)}%` }}
                       />
@@ -492,7 +550,7 @@ export function TrendCard({ stats, className }: { stats: DashboardStats | null; 
               <dt className="text-xs text-muted-foreground">Practice this week</dt>
               <dd className="flex items-start gap-1.5">
                 <span className="text-3xl leading-none font-light tabular-nums" data-testid="week-count">
-                  {week.thisWeekCount}
+                  <CountUp value={week.thisWeekCount} />
                 </span>
                 {week.change !== null && <Change value={week.change} suffix="%" label="on last week" />}
               </dd>

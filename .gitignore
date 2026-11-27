@@ -21,3 +21,8 @@ supabase/functions/_eval/writing_essays.local.json
 # Speaking eval (M7-B5): people's recordings and their manifest stay local, never committed
 supabase/functions/_eval/speaking/recordings/
 supabase/functions/_eval/speaking/recordings.local.json
+
+# Markdown stays local (plans, logs, docs, notes): only README.md files are committed.
+*.md
+!README.md
+!**/README.md

@@ -13,7 +13,7 @@ import {
   type ImportResult,
 } from "./reading-import";
 
-const SAMPLE = readFileSync(new URL("./fixtures/reading-import-sample.md", import.meta.url), "utf8");
+const SAMPLE = readFileSync(new URL("./fixtures/reading-import-sample.txt", import.meta.url), "utf8");
 const parsed = parseReadingDraft(SAMPLE, { testType: "academic" });
 const q = (r: ImportResult, n: number) => r.questions.find((x) => x.number === n)!;
 /** What would be saved for question n: the builder's own conversion, then the shared contract. */

@@ -717,6 +717,62 @@ export type Database = {
           },
         ]
       }
+      study_plan_items: {
+        Row: {
+          day: number
+          kind: Database["public"]["Enums"]["study_item_kind"]
+          order_no: number
+          template_id: string
+        }
+        Insert: {
+          day: number
+          kind: Database["public"]["Enums"]["study_item_kind"]
+          order_no: number
+          template_id: string
+        }
+        Update: {
+          day?: number
+          kind?: Database["public"]["Enums"]["study_item_kind"]
+          order_no?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_plan_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "study_plan_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_plan_templates: {
+        Row: {
+          active: boolean
+          created_at: string
+          days: number
+          id: string
+          name: string
+          test_type: Database["public"]["Enums"]["ielts_test_type"] | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          days: number
+          id?: string
+          name: string
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          days?: number
+          id?: string
+          name?: string
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+        }
+        Relationships: []
+      }
       test_attempts: {
         Row: {
           answers: Json
@@ -788,6 +844,76 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_study_plan_picks: {
+        Row: {
+          day: number
+          item_id: string | null
+          kind: Database["public"]["Enums"]["study_item_kind"]
+          order_no: number
+          picked_at: string
+          plan_id: string
+        }
+        Insert: {
+          day: number
+          item_id?: string | null
+          kind: Database["public"]["Enums"]["study_item_kind"]
+          order_no: number
+          picked_at?: string
+          plan_id: string
+        }
+        Update: {
+          day?: number
+          item_id?: string | null
+          kind?: Database["public"]["Enums"]["study_item_kind"]
+          order_no?: number
+          picked_at?: string
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_study_plan_picks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "user_study_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_study_plans: {
+        Row: {
+          id: string
+          started_at: string
+          started_on: string
+          status: string
+          template_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          started_at?: string
+          started_on: string
+          status?: string
+          template_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          started_at?: string
+          started_on?: string
+          status?: string
+          template_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_study_plans_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "study_plan_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waitlist: {
         Row: {
@@ -1047,6 +1173,7 @@ export type Database = {
         }[]
       }
       allowance_period_start: { Args: never; Returns: string }
+      assign_my_study_plan: { Args: { p_restart?: boolean }; Returns: Json }
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }
       credits_spent_today: { Args: { p_user_id: string }; Returns: number }
@@ -1061,6 +1188,7 @@ export type Database = {
       get_my_credits: { Args: never; Returns: Json }
       get_my_dashboard: { Args: never; Returns: Json }
       get_my_streak: { Args: { p_days?: number }; Returns: Json }
+      get_my_study_plan: { Args: never; Returns: Json }
       get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {
         Args: {
@@ -1085,6 +1213,13 @@ export type Database = {
       }
       jsonb_changes: { Args: { p_after: Json; p_before: Json }; Returns: Json }
       lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
+      pick_next: {
+        Args: {
+          p_exclude?: string[]
+          p_kind: Database["public"]["Enums"]["study_item_kind"]
+        }
+        Returns: Json
+      }
       plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
       plan_rank: {
         Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
@@ -1109,6 +1244,35 @@ export type Database = {
       signup_full_name: { Args: { meta: Json }; Returns: string }
       spend_credits: {
         Args: { p_action_key: string; p_ref_id?: string; p_user_id: string }
+        Returns: Json
+      }
+      study_candidates: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["study_item_kind"]
+          p_user: string
+        }
+        Returns: {
+          extra: Json
+          item_id: string
+          last_done: string
+          title: string
+        }[]
+      }
+      study_done_since: {
+        Args: {
+          p_item: string
+          p_kind: Database["public"]["Enums"]["study_item_kind"]
+          p_since: string
+          p_user: string
+        }
+        Returns: boolean
+      }
+      study_pick: {
+        Args: {
+          p_exclude: string[]
+          p_kind: Database["public"]["Enums"]["study_item_kind"]
+          p_user: string
+        }
         Returns: Json
       }
       use_allowance: {
@@ -1169,6 +1333,14 @@ export type Database = {
         | "short_answer"
       speaking_session_mode: "part1" | "part2" | "part3" | "full_test"
       speaking_session_status: "in_progress" | "completed" | "abandoned"
+      study_item_kind:
+        | "reading_test"
+        | "listening_test"
+        | "writing_t1"
+        | "writing_t2"
+        | "speaking_p1"
+        | "speaking_p2"
+        | "speaking_full"
       test_module: "reading" | "listening"
       writing_input_mode: "typed" | "photo"
     }
@@ -1343,6 +1515,15 @@ export const Constants = {
       ],
       speaking_session_mode: ["part1", "part2", "part3", "full_test"],
       speaking_session_status: ["in_progress", "completed", "abandoned"],
+      study_item_kind: [
+        "reading_test",
+        "listening_test",
+        "writing_t1",
+        "writing_t2",
+        "speaking_p1",
+        "speaking_p2",
+        "speaking_full",
+      ],
       test_module: ["reading", "listening"],
       writing_input_mode: ["typed", "photo"],
     },

@@ -9,6 +9,7 @@ import { routes } from "@/lib/routes";
 // screens only; on phones the dashboard's module tiles and the account menu cover the same.
 
 const items = [
+  { label: "Plan", href: routes.plan },
   { label: "Dashboard", href: routes.app, exact: true },
   { label: "Reading", href: routes.reading },
   { label: "Listening", href: routes.listening },

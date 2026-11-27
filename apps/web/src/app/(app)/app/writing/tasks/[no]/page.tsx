@@ -6,6 +6,7 @@ import { CompletionBar } from "@/components/practice/completion-bar";
 import { FilterPills } from "@/components/practice/filter-pills";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
+import { PickCard } from "@/components/practice/pick-card";
 import { testTypeLabel } from "@/lib/dashboard";
 import { listFilter } from "@/lib/reading";
 import { routes, writingTaskListPath, writingTaskPath } from "@/lib/routes";
@@ -70,6 +71,9 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
           <p className="text-muted-foreground">No {scope}Task {taskNo} topics yet. New ones are added regularly.</p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <li>
+              <PickCard kind={taskNo === 1 ? "writing_t1" : "writing_t2"} module="writing" note={`A Task ${taskNo} topic you haven't written yet.`} />
+            </li>
             {items.map((t) => {
               const s = summary.get(t.id);
               return (

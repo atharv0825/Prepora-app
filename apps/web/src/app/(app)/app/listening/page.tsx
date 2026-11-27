@@ -3,6 +3,7 @@ import { Headphones } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
+import { PickCard } from "@/components/practice/pick-card";
 import { AttemptHistory } from "@/components/reading/reading-results";
 import { formatDate } from "@/lib/credits";
 import { planLabel } from "@/lib/dashboard";
@@ -71,6 +72,9 @@ export default async function ListeningListPage() {
           <p className="text-muted-foreground">No Listening tests yet. New tests are added regularly.</p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <li>
+              <PickCard kind="listening_test" module="listening" note="A Listening test you haven't taken yet." />
+            </li>
             {tests.map((t) => {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);

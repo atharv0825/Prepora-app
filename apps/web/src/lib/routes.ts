@@ -30,6 +30,7 @@ export const routes = {
   listening: "/app/listening", // Listening home: test list, allowance, attempts
   writing: "/app/writing", // M6-F1/F4: task list (+ ?type=academic|general|all), history and band trend
   speaking: "/app/speaking", // M7-F2/M8-F3: the full test, Parts 1–3 practice, the student's tests and answers
+  plan: "/app/plan", // M8.7-F2: the student's study plan
   privacy: "/privacy", // M11
   terms: "/terms", // M11
   deleteAccount: "/account/delete", // M11 (required by Play Store, design doc §4)
@@ -48,6 +49,8 @@ export const listeningAttemptPath = (attemptId: string) => `/app/listening/attem
 export const writingTaskPath = (taskId: string, opts: { photo?: boolean } = {}) => `/app/writing/${taskId}${opts.photo ? "?photo=1" : ""}`;
 /** A Writing task's topics: /app/writing/tasks/1 (+ ?type=academic|general|all). */
 export const writingTaskListPath = (taskNo: 1 | 2, type?: string) => `/app/writing/tasks/${taskNo}${type ? `?type=${type}` : ""}`;
+/** M8.7-F1 "Pick for me": redirects to a random item of that kind the student hasn't done. */
+export const pickPath = (kind: string) => `/app/pick/${kind}`;
 export const writingSubmissionPath = (submissionId: string) => `/app/writing/submissions/${submissionId}`;
 
 /** Speaking pages with an id: a cue card's recorder (M7-F1/F2) and one scored answer (M7-F3). */

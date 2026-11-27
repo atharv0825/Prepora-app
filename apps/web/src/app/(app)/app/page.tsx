@@ -7,6 +7,7 @@ import { needsOnboarding } from "@prepora/shared/api/onboarding";
 import { ModuleGrid } from "@/components/dashboard/dashboard-cards";
 import { LiveStatus } from "@/components/dashboard/live-status";
 import motion from "@/components/dashboard/motion.module.css";
+import { TodaysPlanCard } from "@/components/dashboard/plan-card";
 import { TipRotator } from "@/components/dashboard/tip-rotator";
 import { ChartsTeaser } from "@/components/dashboard/charts-teaser";
 import { BandCard, GoalCard, MixCard, StreakCard, TrendCard } from "@/components/dashboard/overview";
@@ -21,7 +22,7 @@ import {
 } from "@/lib/dashboard";
 import { formatBand, localDate, validTimeZone } from "@/lib/onboarding";
 import { routes } from "@/lib/routes";
-import { getAccount, getMyDashboard, getMyStreak } from "@/lib/supabase/session";
+import { getAccount, getMyDashboard, getMyStreak, getMyStudyPlan } from "@/lib/supabase/session";
 
 export const metadata: Metadata = { title: "Home · Prepora", robots: { index: false } };
 
@@ -41,7 +42,7 @@ export default async function AppHome() {
   const timeZone = validTimeZone(profile?.timezone);
   const today = localDate(timeZone);
   // Credits are shared with the layout's header chip (cached per request).
-  const [streak, stats] = await Promise.all([getMyStreak(), getMyDashboard()]);
+  const [streak, stats, plan] = await Promise.all([getMyStreak(), getMyDashboard(), getMyStudyPlan()]);
   // Recommended next: the module practised least (exam order on a tie).
   const recommended = recommendedModule(dashboardModules, stats ? Object.fromEntries(stats.modules.map((m) => [m.module, m.count])) : undefined);
   const start = dashboardModules.find((m) => m.key === recommended);
@@ -82,6 +83,8 @@ export default async function AppHome() {
           estimate={stats ? (estimatedBand(stats.modules)?.band ?? null) : null}
         />
         <StreakCard index={1} streak={streak} className="xl:col-span-3" />
+        {/* M8.7-F3: today's plan, or an invitation to follow one. */}
+        <TodaysPlanCard plan={plan} className={`md:col-span-2 xl:col-span-6 ${motion.rise}`} style={{ "--i": 2 } as React.CSSProperties} />
         {/* First visit (nothing scored yet): a blurred sample with an invitation instead of three
             empty charts. The real cards take over after the first practice. */}
         {stats && totalPractice(stats.modules) === 0 ? (

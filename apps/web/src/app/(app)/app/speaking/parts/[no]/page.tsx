@@ -5,6 +5,7 @@ import { ArrowLeft, MessageCircle, MessagesSquare, Mic } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
+import { PickCard } from "@/components/practice/pick-card";
 import { routes, speakingExaminerPath, speakingTopicPath } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount } from "@/lib/supabase/session";
@@ -62,6 +63,9 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
           <p className="text-muted-foreground">No {noun[1]} yet. New ones are added regularly.</p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <li>
+              <PickCard kind={part === 1 ? "speaking_p1" : "speaking_p2"} module="speaking" note={part === 1 ? "A Part 1 topic you haven't answered yet." : "A cue card you haven't answered yet."} />
+            </li>
             {items.map((t) =>
               part === 1 ? (
                 <li key={t.id} data-testid="part1-item">

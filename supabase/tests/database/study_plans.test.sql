@@ -23,11 +23,12 @@ update public.listening_tests set status = 'archived' where status = 'published'
 update public.writing_tasks set status = 'archived' where status = 'published';
 update public.speaking_topics set status = 'archived' where status = 'published';
 
-insert into public.reading_tests (id, title, test_type, min_plan, source, status) values
-  ('5a100000-0000-0000-0000-000000000001', 'R academic A', 'academic', 'free', 'admin', 'draft'),
-  ('5a100000-0000-0000-0000-000000000002', 'R academic B', 'academic', 'free', 'admin', 'draft'),
-  ('5a100000-0000-0000-0000-000000000003', 'R general', 'general', 'free', 'admin', 'draft'),
-  ('5a100000-0000-0000-0000-000000000004', 'R gold', 'academic', 'gold', 'admin', 'draft');
+-- Triggers are off here, so test_no (normally given by a trigger) is set by hand.
+insert into public.reading_tests (id, title, test_type, min_plan, source, status, test_no) values
+  ('5a100000-0000-0000-0000-000000000001', 'R academic A', 'academic', 'free', 'admin', 'draft', 901),
+  ('5a100000-0000-0000-0000-000000000002', 'R academic B', 'academic', 'free', 'admin', 'draft', 902),
+  ('5a100000-0000-0000-0000-000000000003', 'R general', 'general', 'free', 'admin', 'draft', 901),
+  ('5a100000-0000-0000-0000-000000000004', 'R gold', 'academic', 'gold', 'admin', 'draft', 904);
 update public.reading_tests set status = 'published', published_at = now() where id::text like '5a100000%';
 
 insert into public.writing_tasks (id, task_no, test_type, title, prompt, status, published_at) values

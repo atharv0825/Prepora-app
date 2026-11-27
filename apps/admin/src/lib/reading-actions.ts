@@ -11,6 +11,7 @@ import {
   questionOrder,
   ReadingPassageInput,
   ReadingQuestionInput,
+  ReadingTestCreate,
   ReadingTestDetails,
 } from "@prepora/shared/api/admin-reading";
 import type { Json } from "@prepora/shared/db";
@@ -47,9 +48,10 @@ async function renumber(supabase: Supabase, testId: string, order?: string[]) {
 const builderPath = (testId: string) => `/reading/${testId}`;
 
 // ── Tests ───────────────────────────────────────────────────────────────────────────────────
+// No title: the database gives the test the next number of its type and names it
+// ("Academic Test 3", "General Training Test 2"; migration 20261203090000).
 export async function createReadingTest(_prev: BuilderState, form: FormData): Promise<BuilderState> {
-  const input = ReadingTestDetails.safeParse({
-    title: form.get("title"),
+  const input = ReadingTestCreate.safeParse({
     test_type: form.get("test_type"),
     min_plan: form.get("min_plan"),
   });

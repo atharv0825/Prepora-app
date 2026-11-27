@@ -172,6 +172,14 @@ Deno.serve(
     const { count: running } = await db.from("listening_audio_jobs").select("id", { count: "exact", head: true }).eq("section_id", section.id).eq("status", "running");
 
     const store = storeFrom(admin);
+    // The S3 API endpoint needs signed requests: browsers can't play from it.
+    if (store && /\.r2\.cloudflarestorage\.com/i.test(store.base)) {
+      throw new HttpError(
+        503,
+        "internal",
+        "R2_PUBLIC_URL is the bucket's private API endpoint. Set it to the bucket's public address (its r2.dev URL or custom domain).",
+      );
+    }
 
     // ── Delete ──
     if (input.action === "delete") {
@@ -197,7 +205,9 @@ Deno.serve(
     const plan = planned.plan;
     const hash = await audioHash(plan);
 
-    if (cachedAudio(section, hash)) {
+    // Reuse the saved audio only if it's at the current public address (a changed R2_PUBLIC_URL
+    // regenerates, instead of handing back a URL that doesn't play).
+    if (cachedAudio(section, hash) && !!store && section.audio_url!.startsWith(`${store.base}/`)) {
       log({ event: "tts_cached", test_id: test.id, section: section.order_no, chars: 0, chars_saved: plan.chars });
       return { status: "cached", audio_url: section.audio_url, chars: 0, estimated_chars: plan.chars };
     }

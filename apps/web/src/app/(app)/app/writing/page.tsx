@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Camera } from "lucide-react";
+import { Camera, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { FilterPills } from "@/components/practice/filter-pills";
 import { PracticeHeader } from "@/components/practice/page-header";
-import { TaskGroupCard } from "@/components/writing/task-group-card";
+import { GroupCard } from "@/components/practice/group-card";
 import { BandTrend } from "@/components/writing/band-trend";
 import { formatDate } from "@/lib/credits";
 import { validTimeZone } from "@/lib/onboarding";
@@ -95,13 +95,18 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
         {([1, 2] as const).map((no) => {
           const items = no === 1 ? task1 : task2;
           return (
-            <TaskGroupCard
+            <GroupCard
               key={no}
               href={writingTaskListPath(no, filter)}
-              taskNo={no}
+              title={`Task ${no}`}
               note={taskNote(no, filter)}
-              topics={items.length}
-              written={items.filter((t) => summary.has(t.id)).length}
+              icon={no === 1 ? FileText : PenLine}
+              module="writing"
+              noun={["topic", "topics"]}
+              total={items.length}
+              done={items.filter((t) => summary.has(t.id)).length}
+              doneWord="written"
+              testId="writing-group"
             />
           );
         })}

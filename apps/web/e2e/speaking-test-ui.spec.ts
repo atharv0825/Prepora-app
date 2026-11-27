@@ -120,9 +120,13 @@ test("M8-F2 entry: the home offers the full test; its topics go in the URL; the 
   await student(context, baseURL!, "Tia Test");
   await page.goto("/app/speaking");
   await expect(page.getByTestId("full-test-cta")).toContainText("15 credits, charged part by part");
+  // Part 1 sets and cue cards (with their Part 3 link) are on their own pages.
+  await page.goto("/app/speaking/parts/1");
   await expect(page.getByTestId("part1-item").filter({ hasText: `E2E hometown ${stamp}` })).toBeVisible();
+  await page.goto("/app/speaking/parts/2");
   const card = page.getByTestId("cue-card-item").filter({ hasText: `E2E a park ${stamp}` });
   await expect(card.getByTestId("part3-link")).toHaveAttribute("href", /\/app\/speaking\/examiner\/[0-9a-f-]{36}$/);
+  await page.getByTestId("back-to-speaking").click();
 
   await page.getByRole("link", { name: "Start the full test" }).click();
   await expect(page).toHaveURL(/\/app\/speaking\/test\?p1=[0-9a-f-]{36}&card=[0-9a-f-]{36}&p3=[0-9a-f-]{36}$/);

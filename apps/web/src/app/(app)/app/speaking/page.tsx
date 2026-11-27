@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, MessageCircle, MessagesSquare, Mic, Timer } from "lucide-react";
+import { ArrowRight, MessageCircle, Mic, Timer } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
 import { PracticeHeader } from "@/components/practice/page-header";
-import { PracticeCard } from "@/components/practice/practice-card";
+import { GroupCard } from "@/components/practice/group-card";
 import { formatDate } from "@/lib/credits";
 import { validTimeZone } from "@/lib/onboarding";
-import { speakingExaminerPath, speakingResponsePath, speakingSessionPath, speakingTestPath, speakingTopicPath } from "@/lib/routes";
+import { speakingPartPath, speakingResponsePath, speakingSessionPath, speakingTestPath } from "@/lib/routes";
+import { speakingPartNote } from "@/lib/speaking/speaking";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount } from "@/lib/supabase/session";
 
 export const metadata: Metadata = { title: "Speaking · Prepora", robots: { index: false } };
 
-// Speaking home (M7-F2, M8-F3): the full test with the AI examiner, Part 1 question sets, Part 2
-// cue cards (each with its Part 3 discussion when there is one), what each costs, and the
-// student's history: full tests with their overall band, and every scored part. Read through RLS.
+// Speaking home (M7-F2, M8-F3; layout like Writing): Part 1 and Part 2 as tiles that open their own
+// pages of topics (/app/speaking/parts/1, /2; a cue card keeps its Part 3 link), the full test with
+// the AI examiner below them, and the student's history: full tests with their overall band, and
+// every scored part. Read through RLS.
 export default async function SpeakingPage() {
   const account = await getAccount();
   if (!account) return null; // the layout redirects first
@@ -55,6 +57,34 @@ export default async function SpeakingPage() {
         <p>The full test with an AI examiner who asks the questions out loud, or one part at a time. Every part gets a band for each criterion and feedback.</p>
       </PracticeHeader>
 
+      {/* Part 1 and Part 2 side by side, like the dashboard tiles; each opens its own page. */}
+      <section aria-label="Practice by part" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2">
+        <GroupCard
+          href={speakingPartPath(1)}
+          title="Part 1: about you"
+          note={speakingPartNote(1, cost)}
+          icon={MessageCircle}
+          module="speaking"
+          noun={["topic", "topics"]}
+          total={sets.length}
+          done={sets.filter((t) => best.has(t.id)).length}
+          doneWord="answered"
+          testId="speaking-group"
+        />
+        <GroupCard
+          href={speakingPartPath(2)}
+          title="Part 2: cue cards"
+          note={speakingPartNote(2, cost)}
+          icon={Mic}
+          module="speaking"
+          noun={["cue card", "cue cards"]}
+          total={cards.length}
+          done={cards.filter((t) => best.has(t.id)).length}
+          doneWord="answered"
+          testId="speaking-group"
+        />
+      </section>
+
       {/* The full test: a 3D green banner. */}
       <section
         aria-label="Full test"
@@ -81,60 +111,6 @@ export default async function SpeakingPage() {
           </Link>
         ) : (
           <p className="text-sm text-brand-ink/80">Coming soon: it needs more questions.</p>
-        )}
-      </section>
-
-      {sets.length > 0 && (
-        <section aria-label="Part 1 questions" className="flex flex-col gap-3">
-          <h2 className="text-h2">Part 1: about you</h2>
-          <p className="text-sm text-muted-foreground">4–5 short questions from the examiner.{cost("speaking_p1") ? ` ${cost("speaking_p1")} credits.` : ""}</p>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sets.map((t) => (
-              <li key={t.id} data-testid="part1-item">
-                <PracticeCard
-                  href={speakingExaminerPath(t.id)}
-                  title={t.title}
-                  kindLabel="Part 1"
-                  icon={MessageCircle}
-                  status={best.has(t.id) ? `Best band ${best.get(t.id)!.toFixed(1)}` : "Not answered yet"}
-                  done={best.has(t.id)}
-                  verbs={{ start: "Start", again: "Answer again" }}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section aria-label="Cue cards" className="flex flex-col gap-3">
-        <h2 className="text-h2">Part 2: cue cards</h2>
-        <p className="text-sm text-muted-foreground">
-          1 minute to prepare, then speak for up to 2 minutes.{cost("speaking_p2") ? ` ${cost("speaking_p2")} credits.` : ""} Part 3 discusses the card&apos;s theme{cost("speaking_p3") ? ` (${cost("speaking_p3")} credits)` : ""}.
-        </p>
-        {!cards?.length ? (
-          <p className="text-muted-foreground">No cue cards yet. New ones are added regularly.</p>
-        ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {cards.map((c) => (
-              <li key={c.id} data-testid="cue-card-item">
-                <PracticeCard
-                  href={speakingTopicPath(c.id)}
-                  title={c.title}
-                  kindLabel="Part 2"
-                  icon={Mic}
-                  status={best.has(c.id) ? `Best band ${best.get(c.id)!.toFixed(1)}` : "Not answered yet"}
-                  detail={(c.cue_card_points ?? []).join(" · ")}
-                  done={best.has(c.id)}
-                  verbs={{ start: "Start", again: "Answer again" }}
-                  extraLink={
-                    discussionOf.has(c.id)
-                      ? { href: speakingExaminerPath(discussionOf.get(c.id)!), label: "Part 3", icon: MessagesSquare, testId: "part3-link" }
-                      : undefined
-                  }
-                />
-              </li>
-            ))}
-          </ul>
         )}
       </section>
 

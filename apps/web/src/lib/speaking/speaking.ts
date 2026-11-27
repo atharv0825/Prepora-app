@@ -145,3 +145,14 @@ export function mmss(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** What each practice part is, with its credit cost when known (Speaking home tiles and part pages). */
+export function speakingPartNote(part: 1 | 2, cost: (actionKey: string) => number | undefined): string {
+  if (part === 1) {
+    const c = cost("speaking_p1");
+    return `4–5 short questions from the examiner.${c ? ` ${c} credits.` : ""}`;
+  }
+  const c2 = cost("speaking_p2");
+  const c3 = cost("speaking_p3");
+  return `1 minute to prepare, then speak for up to 2 minutes.${c2 ? ` ${c2} credits.` : ""} Part 3 discusses the card's theme${c3 ? ` (${c3} credits)` : ""}.`;
+}

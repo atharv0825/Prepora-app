@@ -52,6 +52,8 @@ export const writingSubmissionPath = (submissionId: string) => `/app/writing/sub
 
 /** Speaking pages with an id: a cue card's recorder (M7-F1/F2) and one scored answer (M7-F3). */
 export const speakingTopicPath = (topicId: string) => `/app/speaking/${topicId}`;
+/** Speaking Part 1 question sets or Part 2 cue cards: /app/speaking/parts/1 or /2. */
+export const speakingPartPath = (part: 1 | 2) => `/app/speaking/parts/${part}`;
 export const speakingResponsePath = (responseId: string) => `/app/speaking/responses/${responseId}`;
 /** M8-F1: practise Part 1 (a question set) or Part 3 (a discussion) with the AI examiner. */
 export const speakingExaminerPath = (topicId: string) => `/app/speaking/examiner/${topicId}`;

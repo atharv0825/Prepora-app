@@ -3878,6 +3878,27 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 - Re-enter the repo and `staging` environment secrets in Prepora-app (listed in the previous message).
 
 
+## 2026-11-27 — UI design: accent palette (pink + green)
+
+**Added** to `Prepora_UI_Design.md`, in the colour section: a table of four accent tokens plus rules for using them.
+- `accent-pink` `#FA699E`
+- `accent-rose` `#FF9FC7`
+- `accent-petal` `#FFE7F0`
+- `accent-lime` `#4ADD82`
+
+The brand palette and `brand-primary` `#3FC48C` are unchanged.
+
+**Contrast (WCAG):**
+- On white, none of the four is readable as text: 2.8, 1.9, 1.2 and 1.8 : 1.
+- With `#08222B` text on them, all pass: 5.9, 8.7, 14.1 and 9.4 : 1.
+- So the doc says: dark text on the accents, never accent-coloured text on white, and no white text on them.
+
+**Verified**
+- I computed the contrast ratios with the WCAG relative-luminance formula.
+- Doc only; there are no code or theme (CSS token) changes yet.
+
+**Manual steps for you**
+- Decide where the accents should appear. Then I can add them as theme tokens in `packages/ui` and use them.
 ## 2026-11-27 — CI: E2E on PRs only with the `e2e` label
 
 **Why:** Playwright takes about 6 minutes, and it ran twice per change: once on the PR, then again on develop after merging.

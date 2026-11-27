@@ -33,6 +33,21 @@ This page uses the same layout ideas as the reference shot, in a clean **white**
   - **Small touches:** status dots and the "Most popular" pill use `#3FC48C`/teal.
   - **Text** is always `#08222B` (or `#1C5F66` / grey for secondary text), never green.
 
+- **Accent palette (pink + green):** an extra set of accent colours. It sits beside the brand palette above and doesn't replace it: `brand-primary` `#3FC48C` stays the primary colour.
+
+| Token | Value | Use |
+|---|---|---|
+| `accent-pink` | `#FA699E` | Strong pink: accent fills (badges, pills, chart series, illustrations) with `#08222B` text on top (5.9 : 1) |
+| `accent-rose` | `#FF9FC7` | Light pink: softer fills, hover states and decorative shapes, with `#08222B` text (8.7 : 1) |
+| `accent-petal` | `#FFE7F0` | Pale pink **component surface**, the pink counterpart of `brand-foam` `#EAFAF0`: `#08222B` text (14.1 : 1), `#8C3F3F` / `#1C5F66` secondary text (6.2 : 1) |
+| `accent-lime` | `#4ADD82` | Bright green: success / "done" highlights, progress fills and celebration touches, with `#08222B` text (9.4 : 1) |
+
+- **Using the accent colours:**
+  - **Never use them for text on white,** and never put white text on them. All four are too light: `#FA699E` 2.8 : 1, `#FF9FC7` 1.9 : 1, `#4ADD82` 1.8 : 1 on white. Text on them is always `#08222B`.
+  - **Not on their own as borders or icons on white:** below the 3 : 1 needed for UI parts. Pair them with an `#08222B` icon or label, or use them as a filled shape behind dark text.
+  - **`accent-lime` vs `brand-primary`:** `#4ADD82` is brighter than `#3FC48C`, so keep it for highlights and success states, not for primary buttons. That way a button always looks like a button.
+  - **Pink and mint together:** a pink surface (`#FFE7F0`) sits well next to a mint one (`#EAFAF0`). Keep one accent surface per section, so emphasis still comes from one place.
+
 - **Fonts:**
   - Headings: *Hanken Grotesk*, light to regular weight, large, with tight letter spacing.
   - Body text: *Hanken Grotesk*, 16px.

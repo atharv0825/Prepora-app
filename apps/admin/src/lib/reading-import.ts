@@ -15,8 +15,25 @@
 //   Notes for the builder                   ← shown as warnings, never imported
 //
 // Anything it can't place becomes a warning in the preview; nothing is guessed silently.
-import type { ReadingQuestionType } from "@prepora/shared/ielts/reading";
-import { emptyDraft, type QuestionDraft } from "./reading-builder";
+//
+// The Listening builder's "Import questions" uses the SAME parser (module: "listening"), with:
+//   * the 13 Listening types: "Label the map/plan … correct letter" → map labelling, "Label the
+//     diagram" → diagram labelling (word bank when there's a lettered box), "Complete the form" →
+//     note/table completion, "Write the correct letter … next to questions" + a list → matching;
+//   * numbers written inside the gap, as forms and notes do ("Address: 2 ……… Road"), several
+//     per line, bullets, table rows ("| Hotel | £45 | 5 ……… |"), and numbers without a dot
+//     ("15 Library ………");
+//   * a completion group's sub-headings ("Accommodation") kept before the questions under them;
+//   * transcripts skipped, never read as questions: a "Transcript" / "Audioscript" heading, or
+//     speaker lines ("Man: …") found among the questions;
+//   * map and diagram questions flagged "needs image": they're imported without the picture.
+import { type ListeningQuestionType, parseListeningQuestion } from "@prepora/shared/ielts/listening";
+import { parseReadingQuestion } from "@prepora/shared/ielts/reading";
+import { speakerLabel } from "../../../../supabase/functions/_shared/listening_tts";
+import { contentFromDraft, emptyDraft, type QuestionDraft } from "./reading-builder";
+
+export type ImportModule = "reading" | "listening";
+type QType = ListeningQuestionType;
 
 // ── Types ───────────────────────────────────────────────────────────────────────────────────
 export type ImportedPassage = {
@@ -36,7 +53,7 @@ export type ImportedQuestion = {
   /** The passage slot (1–3) it belongs to. */
   passage: number;
   /** Null when the instructions didn't say which type; the admin picks one in the preview. */
-  q_type: ReadingQuestionType | null;
+  q_type: QType | null;
   prompt: string;
   /** MCQ choices, without their letters. */
   choices: string[];
@@ -75,7 +92,8 @@ export type ImportWarningKind =
   | "word_limit"
   | "group_count"
   | "builder_note"
-  | "too_many";
+  | "too_many"
+  | "transcript";
 
 export type ImportWarning = { kind: ImportWarningKind; message: string; number?: number };
 
@@ -112,8 +130,42 @@ const NUMBERED = /^\s*(?:\*\*|__)?(\d{1,2})(?:\*\*|__)?\s*[.)](?:\*\*|__)?\s+(.+
 const ROMAN = /^\s*(?:\*\*|__)?(x{0,1}(?:ix|iv|v?i{0,3}))(?:\*\*|__)?\s*[.)](?:\*\*|__)?\s+(.+)$/;
 
 const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5 };
-const GAP_TYPES: ReadingQuestionType[] = ["sentence_completion", "summary_completion", "note_table_completion", "flowchart_completion"];
-const TYPED_TYPES: ReadingQuestionType[] = [...GAP_TYPES, "short_answer"];
+const GAP_TYPES: QType[] = ["sentence_completion", "summary_completion", "note_table_completion", "flowchart_completion"];
+const TYPED_TYPES: QType[] = [...GAP_TYPES, "short_answer"];
+/** Answered from a lettered word box when the group has one. */
+const BANK_TYPES: QType[] = ["summary_completion", "flowchart_completion", "diagram_labelling"];
+
+// Listening headings and lines.
+/** "Section 2", "PART 3 – Questions 21–30". */
+const SECTION_HEAD = /^(?:section|part)\s+([1-4])\b\s*[:.\-–—]?\s*(.*)$/i;
+const TRANSCRIPT_HEAD = /^(?:transcript|audio\s*-?\s*script|tape\s*-?\s*script|recording\s+script)s?\b\s*[:.\-–—]?\s*(?:\(.*\))?\s*$/i;
+/** A question number written in the gap: "2 ………", "(3) ____", "£ 4 …". */
+const INLINE_GAP = /(^|[\s(£$€:|])\(?(\d{1,2})\)?\s*((?:\.\s?){2,}\.*|…+|_{2,})/g;
+const NUMBER_NO_DOT = /^(\d{1,2})\s+(\S.*)$/;
+const TRAILING_GAP = /\s*(?:(?:\.\s?){2,}\.*|…+|_{2,})\s*$/;
+const SPEAKER_WORDS = new Set([
+  "man", "woman", "boy", "girl", "speaker", "narrator", "presenter", "announcer", "tutor", "lecturer", "professor",
+  "prof", "dr", "student", "receptionist", "interviewer", "guide", "agent", "assistant", "customer", "caller", "host",
+  "officer", "manager", "mr", "mrs", "ms", "miss", "male", "female",
+]);
+
+/** A line of a transcript ("Man: Good morning, how can I help?"), not a form field ("Name: ……"). */
+function isTranscriptLine(line: string): boolean {
+  const l = speakerLabel(line);
+  if (!l) return false;
+  const first = l.label.toLowerCase().split(/\s+/)[0]!.replace(/\./g, "");
+  return SPEAKER_WORDS.has(first) && (l.rest.match(/[\p{L}'’-]+/gu) ?? []).length >= 4 && !/(?:\.\s?){3,}|…|_{2,}/.test(l.rest);
+}
+
+/** "• text", "- text", "* text" → "text"; a table row "| a | b |" → "a | b" ("" for a |---| rule). */
+function listeningLine(line: string): string {
+  let l = line.trim().replace(/^[•●▪◦‣\-*]\s+/, "");
+  if (l.includes("|")) {
+    if (/^\|?\s*:?-{3,}/.test(l)) return "";
+    l = l.replace(/^\|\s*/, "").replace(/\s*\|$/, "").replace(/\s*\|\s*/g, " | ");
+  }
+  return l;
+}
 
 /** Gaps written as dots, an ellipsis, underscores or "[gap]" → the builder's "___". */
 export function normalizeGaps(text: string): string {
@@ -128,7 +180,7 @@ const wordCount = (text: string) => (text.match(/[\p{L}\p{N}'’-]+/gu) ?? []).l
 
 // ── Instructions → type and rules ───────────────────────────────────────────────────────────
 type GroupRules = {
-  q_type: ReadingQuestionType | null;
+  q_type: QType | null;
   needs_image: boolean;
   max_words: number | null;
   number_allowed: boolean;
@@ -139,13 +191,24 @@ type GroupRules = {
 };
 
 /** What a group's instructions say: its type, word limit and other rules. */
-export function rulesFromInstructions(text: string, hasRomanList: boolean, hasLetterList: boolean): GroupRules {
+export function rulesFromInstructions(text: string, hasRomanList: boolean, hasLetterList: boolean, module: ImportModule = "reading"): GroupRules {
   const t = text.replace(/\s+/g, " ");
   const has = (re: RegExp) => re.test(t);
-  const needs_image = has(/label the (?:diagram|map|plan|picture|drawing)|(?:diagram|map|plan|picture) below/i);
+  const listening = module === "listening";
+  const needs_image = listening
+    ? has(/label the (?:diagram|map|plan|picture|drawing)|(?:diagram|map|plan|picture|drawing) below|complete the (?:map|plan|diagram)/i)
+    : has(/label the (?:diagram|map|plan|picture|drawing)|(?:diagram|map|plan|picture) below/i);
 
-  let q_type: ReadingQuestionType | null = null;
-  if (has(/yes\b.*\bno\b.*not given|claims? of the writer|views? of the writer/i)) q_type = "ynng";
+  let q_type: QType | null = null;
+  if (listening && needs_image) {
+    // Places lettered on a map or plan → map labelling. Labels written on a diagram (or chosen from a
+    // lettered box), or written on a map → diagram labelling.
+    const letters = has(/correct letter|letters?,?\s+[A-Z]\s*(?:-|–|—|to)\s*[A-Z]\b/i);
+    q_type = has(/\b(?:map|plan)\b/i) && letters && !hasLetterList ? "map_labelling" : "diagram_labelling";
+  } else if (listening && has(/next to (?:questions|numbers)|write the correct letter/i) && hasLetterList && !has(/choose the correct letter/i)) {
+    q_type = "matching_features";
+  } else if (listening && has(/\bform\b/i) && !has(/correct letter/i)) q_type = "note_table_completion";
+  else if (has(/yes\b.*\bno\b.*not given|claims? of the writer|views? of the writer/i)) q_type = "ynng";
   else if (has(/true\b.*\bfalse\b.*not given/i)) q_type = "tfng";
   else if (has(/list of headings|correct heading|matching headings/i) || (hasRomanList && has(/heading/i))) q_type = "matching_headings";
   else if (has(/which (?:paragraph|section) contains|matching information/i)) q_type = "matching_information";
@@ -216,10 +279,14 @@ export function judgementLabel(value: string): string {
 export function draftFromImported(q: ImportedQuestion): QuestionDraft {
   const type = q.q_type ?? "short_answer";
   const d = emptyDraft(type);
-  d.prompt = GAP_TYPES.includes(type) ? normalizeGaps(q.prompt) : q.prompt.trim();
+  d.prompt = GAP_TYPES.includes(type) || type === "diagram_labelling" ? normalizeGaps(q.prompt) : q.prompt.trim();
   d.explanation = q.explanation;
   const answer = q.answer.trim();
   switch (type) {
+    case "map_labelling":
+      // The picture and its lettered places are added in the builder (needs_image).
+      d.label = answer.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1);
+      break;
     case "mcq":
       d.choices = [...q.choices];
       d.select = q.select;
@@ -244,7 +311,7 @@ export function draftFromImported(q: ImportedQuestion): QuestionDraft {
       d.label = answer.toUpperCase();
       break;
     default:
-      if ((type === "summary_completion" || type === "flowchart_completion") && q.bank) {
+      if (BANK_TYPES.includes(type) && q.bank) {
         d.bank = true;
         d.list = [...q.list];
         d.label = answer.toUpperCase();
@@ -258,6 +325,42 @@ export function draftFromImported(q: ImportedQuestion): QuestionDraft {
   return d;
 }
 
+// ── Checking an imported question ───────────────────────────────────────────────────────────
+const isPicture = (t: QType | null) => t === "map_labelling" || t === "diagram_labelling";
+const STAND_IN = { image_url: "https://picture.invalid/pending.png", image_alt: "Picture to be added" };
+
+export type CheckedImport = {
+  /** What's saved: for a map or diagram question still without its picture, without picture fields. */
+  content: { q_type: QType; prompt: string; options: Record<string, unknown>; answer: unknown };
+  error: string | null;
+  /** Saved without its picture: the admin adds it in the builder before publishing. */
+  needsImage: boolean;
+};
+
+/**
+ * An imported question through the manual form's conversion and the shared contract (Reading or
+ * Listening). A map or diagram question has no picture yet: everything else is checked with a
+ * stand-in picture (and the map's places A, B, … up to the answer), then saved without it.
+ */
+export function checkImported(item: ImportedQuestion, module: ImportModule): CheckedImport | { content: null; error: string; needsImage: false } {
+  if (!item.q_type) return { content: null, error: "Choose the question type.", needsImage: false };
+  const content = contentFromDraft(draftFromImported(item));
+  const first = (issues: readonly { message: string }[]) => issues[0]?.message ?? "Invalid";
+  if (module === "listening" && isPicture(content.q_type)) {
+    const rest = Object.fromEntries(Object.entries(content.options).filter(([k]) => !["image_url", "image_alt", "marker", "locations"].includes(k)));
+    const letter = (content.answer as { label?: string }).label ?? "";
+    const places = Math.max(2, /^[A-Z]$/.test(letter) ? letter.charCodeAt(0) - 64 : 2);
+    const standIn =
+      content.q_type === "map_labelling"
+        ? { ...STAND_IN, locations: Array.from({ length: Math.min(12, places) }, (_, i) => ({ label: String.fromCharCode(65 + i), x: 10 + i, y: 10 + i })) }
+        : { ...rest, ...STAND_IN, marker: { x: 50, y: 50 } };
+    const parsed = parseListeningQuestion({ ...content, options: standIn });
+    return { content: { ...content, options: content.q_type === "map_labelling" ? {} : rest }, error: parsed.success ? null : first(parsed.error.issues), needsImage: true };
+  }
+  const parsed = module === "listening" ? parseListeningQuestion(content) : parseReadingQuestion(content);
+  return { content, error: parsed.success ? null : first(parsed.error.issues), needsImage: false };
+}
+
 // ── The parser ──────────────────────────────────────────────────────────────────────────────
 type Group = {
   from: number;
@@ -268,23 +371,112 @@ type Group = {
   letterList: string[];
   questions: { number: number; text: string[]; choices: string[] }[];
   rules: GroupRules | null;
+  /** Listening completion groups: the last sub-heading ("Accommodation"), put before the questions under it. */
+  context: string | null;
+  /** Listening: a sub-heading just before the first question (becomes the context). */
+  pending: string | null;
+  /** From "SECTION 1 Questions 1–10": dropped quietly when the real groups follow under it. */
+  sectionHeading: boolean;
 };
 
 type PassageDraft = { order_no: number; title: string; paragraphs: { letter: string | null; lines: string[] }[] };
 
+const COMPLETION: QType[] = [...GAP_TYPES, "diagram_labelling"];
+
+/** "Accommodation – Address: ___ Road": a completion question under a sub-heading gets it first. */
+function withContext(gr: Group, prompt: string): string {
+  const context = gr.context ?? gr.pending;
+  if (!context || !gr.rules?.q_type || !COMPLETION.includes(gr.rules.q_type)) return prompt;
+  return prompt.toLowerCase().startsWith(context.toLowerCase()) ? prompt : `${context} – ${prompt}`;
+}
+
+/** A line before a group's first question that reads as a sub-heading ("Visitor centre"), not an instruction. */
+function subHeading(line: string): string | null {
+  const l = bare(line);
+  if (l.length > 60 || /[.!?:]$/.test(l) || /^example\b/i.test(l) || l === l.toUpperCase()) return null;
+  return /\b(?:write|complete|choose|answer|label|questions?|below|box|letters?)\b/i.test(l) ? null : l;
+}
+
+const UNDOTTED_LETTER = /^([A-Z])\s+(\S.*)$/;
+
 /**
- * Parses a draft into passages, questions and warnings. `testType` only changes the checks
- * (Academic passages should have at least 4 paragraphs).
+ * Listening's extra question lines. Returns true when the line was used: numbers in gaps (one
+ * question per gap), numbers without a dot, and a completion group's sub-headings.
  */
-export function parseReadingDraft(text: string, opts: { testType?: "academic" | "general" } = {}): ImportResult {
+function listeningQuestion(gr: Group, l: string): boolean {
+  const inRange = (n: number) => n >= gr.from && n <= gr.to;
+  const rules = () => (gr.rules ??= rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, gr.letterList.length > 0, "listening"));
+  const dotted = l.match(NUMBERED);
+  if (dotted && inRange(Number(dotted[1]))) return false; // "11. …": the shared handling
+
+  // "A It is close to the station." (no dot after the letter): an MCQ choice or a list item, but
+  // only when it's the next letter expected, so a sentence starting "A …" isn't taken for one.
+  const lettered = LETTERED.test(l) ? null : l.match(UNDOTTED_LETTER);
+  if (lettered) {
+    const index = lettered[1]!.charCodeAt(0) - 65;
+    const current = gr.questions[gr.questions.length - 1];
+    if (current && gr.rules?.q_type === "mcq" && index === current.choices.length) {
+      current.choices.push(lettered[2]!.trim());
+      return true;
+    }
+    if (!current && index === gr.letterList.length && l.length <= 160) {
+      gr.letterList.push(lettered[2]!.trim());
+      return true;
+    }
+  }
+
+  const gaps = [...l.matchAll(INLINE_GAP)].filter((m) => inRange(Number(m[2])));
+  if (gaps.length) {
+    const completion = COMPLETION.includes(rules().q_type ?? "note_table_completion");
+    for (const m of gaps) {
+      const n = Number(m[2]);
+      // This question's gap → ___; the line's other numbered gaps → (k), so it reads as on paper.
+      const prompt = l
+        .replace(INLINE_GAP, (all, pre: string, num: string) => (inRange(Number(num)) ? `${pre}${Number(num) === n ? (completion ? "___" : "") : `(${num})`}` : all))
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      gr.questions.push({ number: n, text: [completion ? withContext(gr, prompt) : prompt], choices: [] });
+    }
+    return true;
+  }
+
+  const plain = l.match(NUMBER_NO_DOT);
+  if (plain && inRange(Number(plain[1]))) {
+    const completion = COMPLETION.includes(rules().q_type ?? "short_answer");
+    const text = completion ? withContext(gr, plain[2]!.trim()) : plain[2]!.replace(TRAILING_GAP, "").trim();
+    gr.questions.push({ number: Number(plain[1]), text: [text], choices: [] });
+    return true;
+  }
+
+  // In a form, notes or a table, a line between questions is a sub-heading, not a wrapped question.
+  if (gr.questions.length && gr.rules?.q_type && COMPLETION.includes(gr.rules.q_type) && !LETTERED.test(l)) {
+    if (!/^example\b/i.test(l) && l.length <= 100) gr.context = bare(l).replace(/[:\s]+$/, "");
+    return true;
+  }
+  return false;
+}
+
+export type ParseOptions = {
+  /** Reading only: Academic passages should have at least 4 paragraphs. */
+  testType?: "academic" | "general";
+  /** "listening": the Listening builder's import (see the top of this file). */
+  module?: ImportModule;
+};
+
+/** Parses a draft into passages (Reading), questions and warnings. */
+export function parseReadingDraft(text: string, opts: ParseOptions = {}): ImportResult {
+  const kind = opts.module ?? "reading";
+  const listening = kind === "listening";
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const warnings: ImportWarning[] = [];
   const notes: string[] = [];
   const passages: PassageDraft[] = [];
   const groups: Group[] = [];
   const key = new Map<number, { answer: string; explanation: string }>();
+  let transcriptWords = 0;
+  let fromSectionHeading = false;
 
-  type Section = "preamble" | "passage" | "questions" | "answers" | "notes";
+  type Section = "preamble" | "passage" | "questions" | "answers" | "notes" | "transcript";
   // Widened on purpose: startPassage() changes it inside the loop.
   let section = "preamble" as Section;
   let passage: PassageDraft | null = null;
@@ -303,7 +495,7 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
 
   for (const raw of lines) {
     const line = raw.trim();
-    const b = bare(line);
+    let b = bare(line);
     if (!line) {
       blank = true;
       continue;
@@ -318,10 +510,27 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
       section = "answers";
       continue;
     }
+    if (listening && section !== "notes" && TRANSCRIPT_HEAD.test(b)) {
+      section = "transcript";
+      continue;
+    }
+    if (listening && section !== "answers" && section !== "notes") {
+      // "Section 2" / "Part 2": what follows (until "Questions …") isn't questions. "SECTION 1
+      // Questions 1–10" is a group heading.
+      const head = b.match(SECTION_HEAD);
+      fromSectionHeading = !!head;
+      if (head) {
+        if (!QUESTIONS.test(head[2]!.trim())) {
+          section = "preamble";
+          continue;
+        }
+        b = head[2]!.trim();
+      }
+    }
     const p = b.match(PASSAGE);
     const rest = p?.[3]?.trim() ?? "";
     // A heading has a separator, nothing after the number, or a capitalised title.
-    if (p && (p[2] || !rest || /^[A-Z"“'‘]/.test(rest)) && section !== "answers" && section !== "notes") {
+    if (!listening && p && (p[2] || !rest || /^[A-Z"“'‘]/.test(rest)) && section !== "answers" && section !== "notes") {
       startPassage(Number(p[1]), rest.replace(/^[*_]+|[*_]+$/g, "").trim());
       continue;
     }
@@ -338,6 +547,9 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
         letterList: [],
         questions: [],
         rules: null,
+        context: null,
+        pending: null,
+        sectionHeading: fromSectionHeading,
       };
       groups.push(group);
       section = "questions";
@@ -370,7 +582,7 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
       case "preamble":
         // Text before any "Passage N" heading: a lettered paragraph starts passage 1 (a single
         // passage pasted without its heading); anything else (the test's title) is skipped.
-        if (LETTERED.test(line)) {
+        if (!listening && LETTERED.test(line)) {
           startPassage(null, "");
           addParagraphLine(passages[passages.length - 1]!, line, true);
           blank = false;
@@ -389,20 +601,35 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
         break;
       }
 
+      case "transcript":
+        transcriptWords += wordCount(line);
+        break;
+
       case "questions": {
         const gr = groups[groups.length - 1]!;
-        const num = line.match(NUMBERED);
-        const roman = line.match(ROMAN);
-        const letter = line.match(LETTERED);
+        let qline = line;
+        if (listening) {
+          // A transcript pasted among the questions, without its heading: skipped.
+          if (isTranscriptLine(line)) {
+            section = "transcript";
+            transcriptWords += wordCount(line);
+            break;
+          }
+          qline = listeningLine(line);
+          if (!qline || listeningQuestion(gr, qline)) break;
+        }
+        const num = qline.match(NUMBERED);
+        const roman = qline.match(ROMAN);
+        const letter = qline.match(LETTERED);
         const current = gr.questions[gr.questions.length - 1];
         if (num) {
           // The instructions are complete once the first question appears.
-          gr.rules ??= rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, gr.letterList.length > 0);
-          gr.questions.push({ number: Number(num[1]), text: [num[2]!.trim()], choices: [] });
+          gr.rules ??= rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, gr.letterList.length > 0, kind);
+          gr.questions.push({ number: Number(num[1]), text: [withContext(gr, num[2]!.trim())], choices: [] });
         } else if (roman && roman[1]) {
           gr.romanList.push(roman[2]!.trim());
         } else if (letter) {
-          const isMcq = (gr.rules ?? rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, true)).q_type === "mcq";
+          const isMcq = (gr.rules ?? rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, true, kind)).q_type === "mcq";
           if (isMcq && current) current.choices.push(letter[2]!.trim());
           else if (isMcq && !current) {
             if (!warnedOrphan) {
@@ -412,14 +639,21 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
           } else gr.letterList.push(letter[2]!.trim());
         } else if (current && !gr.letterList.length) {
           // A wrapped line: of the last choice, or of the question.
-          if (current.choices.length) current.choices[current.choices.length - 1] += ` ${line}`;
-          else current.text.push(line);
+          if (current.choices.length) current.choices[current.choices.length - 1] += ` ${qline}`;
+          else current.text.push(qline);
         } else if (!current) {
-          gr.instructions.push(b);
+          gr.instructions.push(listening ? bare(qline) : b);
+          if (listening && !/^example\b/i.test(bare(qline))) gr.pending = subHeading(qline);
         }
         break;
       }
     }
+  }
+  if (transcriptWords) {
+    warnings.push({
+      kind: "transcript",
+      message: `A transcript (${transcriptWords} words) was skipped: only questions are imported. Put it in the section's Transcript box.`,
+    });
   }
 
   // ── Passages ──
@@ -450,10 +684,11 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
   // ── Questions ──
   const questions: ImportedQuestion[] = [];
   for (const gr of groups) {
-    const rules = gr.rules ?? rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, gr.letterList.length > 0);
+    const rules = gr.rules ?? rulesFromInstructions(gr.instructions.join(" "), gr.romanList.length > 0, gr.letterList.length > 0, kind);
     const instructions = gr.instructions.join(" ").replace(/\s+/g, " ").trim();
     const range = gr.from === gr.to ? `Question ${gr.from}` : `Questions ${gr.from}–${gr.to}`;
     if (!gr.questions.length) {
+      if (gr.sectionHeading) continue;
       warnings.push({
         kind: "group_count",
         message: `${range}: no numbered questions found under the heading. (Word's automatic numbering isn't kept: type the numbers, e.g. "${gr.from}. …".)`,
@@ -463,8 +698,8 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
     if (!rules.q_type) {
       warnings.push({ kind: "unknown_type", number: gr.from, message: `${range}: couldn't tell the question type from "${instructions.slice(0, 80)}". Choose it in the preview.` });
     }
-    const typed = rules.q_type !== null && TYPED_TYPES.includes(rules.q_type);
-    const bank = (rules.q_type === "summary_completion" || rules.q_type === "flowchart_completion") && gr.letterList.length > 0;
+    const bank = rules.q_type !== null && BANK_TYPES.includes(rules.q_type) && gr.letterList.length > 0;
+    const typed = rules.q_type !== null && (TYPED_TYPES.includes(rules.q_type) || rules.q_type === "diagram_labelling");
     if (typed && !bank && rules.max_words === null) {
       warnings.push({ kind: "word_limit", number: gr.from, message: `${range}: no word limit found in the instructions; set to 2 words. Check it in the preview.` });
     }
@@ -472,7 +707,9 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
       warnings.push({
         kind: "needs_image",
         number: gr.from,
-        message: `${range} ${gr.from === gr.to ? "refers" : "refer"} to a picture that isn't in the text. Reading questions have no picture field: describe it in the question or passage, or replace the question.`,
+        message: listening
+          ? `${range} ${gr.from === gr.to ? "refers" : "refer"} to a picture: imported without it. Add the picture${rules.q_type === "map_labelling" ? " and its lettered places" : " and each question's marker"} in the builder before publishing.`
+          : `${range} ${gr.from === gr.to ? "refers" : "refer"} to a picture that isn't in the text. Reading questions have no picture field: describe it in the question or passage, or replace the question.`,
       });
     }
     const passageLetters = outPassages.find((pd) => pd.order_no === gr.passage)?.letters ?? [];
@@ -532,7 +769,8 @@ export function parseReadingDraft(text: string, opts: { testType?: "academic" | 
       warnings.push({ kind: "numbering", message: `Question numbers skip from ${sorted[i - 1]} to ${sorted[i]}.` });
     }
   }
-  if (questions.length > 40) warnings.push({ kind: "too_many", message: `${questions.length} questions found; a test has 40 at most.` });
+  if (listening && questions.length > 10) warnings.push({ kind: "too_many", message: `${questions.length} questions found; a section has 10 at most.` });
+  else if (questions.length > 40) warnings.push({ kind: "too_many", message: `${questions.length} questions found; a test has 40 at most.` });
   for (const n of key.keys()) {
     if (!seen.has(n)) warnings.push({ kind: "unmatched_answer", number: n, message: `The answer key has question ${n}, which isn't in the questions.` });
   }
@@ -587,6 +825,7 @@ function answerFormatWarning(q: ImportedQuestion, warnings: ImportWarning[]) {
       break;
     case "matching_information":
     case "matching_features":
+    case "map_labelling":
       if (!/^[A-Z]$/i.test(a)) bad("a letter");
       break;
     default:

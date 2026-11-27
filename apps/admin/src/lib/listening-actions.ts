@@ -111,7 +111,17 @@ export async function deleteListeningTest(testId: string): Promise<BuilderState>
 }
 
 // ── Sections ────────────────────────────────────────────────────────────────────────────────
-type SectionValues = { title?: string; transcript?: string | null; audio_url?: string; duration_sec?: number | null };
+type SectionValues = { title?: string; transcript?: string | null; audio_url?: string; duration_sec?: number | null; tts_voices?: Record<string, string> };
+
+/** The voices picker's hidden JSON field; anything unreadable counts as "no choices". */
+function voicesField(raw: FormDataEntryValue | null): unknown {
+  if (typeof raw !== "string" || !raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
 
 async function upsertSection(supabase: Supabase, testId: string, orderNo: number, values: SectionValues) {
   const { data: existing, error: findError } = await supabase
@@ -127,19 +137,20 @@ async function upsertSection(supabase: Supabase, testId: string, orderNo: number
   return error;
 }
 
-/** Title and transcript. */
+/** Title, transcript and the voice per speaker (for generated audio). */
 export async function saveListeningSection(_prev: BuilderState, form: FormData): Promise<BuilderState> {
   const input = ListeningSectionInput.safeParse({
     test_id: form.get("test_id"),
     order_no: form.get("order_no"),
     title: form.get("title"),
     transcript: form.get("transcript") ?? "",
+    tts_voices: voicesField(form.get("tts_voices")),
   });
   if (!input.success) return { ok: false, message: "Check the highlighted fields.", fieldErrors: fieldErrors(input.error.issues) };
   const session = await signedIn();
   if (!session) return SESSION_ENDED;
-  const { test_id, order_no, title, transcript } = input.data;
-  const error = await upsertSection(session.supabase, test_id, order_no, { title, transcript: transcript || null });
+  const { test_id, order_no, title, transcript, tts_voices } = input.data;
+  const error = await upsertSection(session.supabase, test_id, order_no, { title, transcript: transcript || null, tts_voices });
   if (error) return failure("save section", error);
   revalidatePath(builderPath(test_id));
   return { ok: true, message: `Section ${order_no} saved.`, savedAt: Date.now() };

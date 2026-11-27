@@ -8,6 +8,7 @@ import { Badge } from "@prepora/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@prepora/ui/components/card";
 import { SectionEditor } from "@/components/listening/section-editor";
 import { QuestionList } from "@/components/reading/question-list";
+import { ImportQuestionsButton, ReadingImport } from "@/components/reading/reading-import";
 import { StatusActions } from "@/components/reading/status-actions";
 import { statusBadge } from "@/components/reading/status";
 import { TestDetailsForm } from "@/components/reading/test-details-form";
@@ -27,7 +28,7 @@ export default async function ListeningBuilderPage({ params }: PageProps<"/liste
   const { data, error } = await supabase.rpc("admin_get_listening_test", { p_test_id: testId });
   if (error?.code === "P0002") notFound();
   if (error) throw new Error(`admin_get_listening_test failed: ${error.code}`);
-  const { test, sections, questions } = AdminListeningTest.parse(data);
+  const { test, sections, questions, tts_chars_used } = AdminListeningTest.parse(data);
   const check = listeningPublishCheck({ sections, questions });
   const byOrder = new Map(sections.map((s) => [s.order_no, s]));
 
@@ -107,7 +108,14 @@ export default async function ListeningBuilderPage({ params }: PageProps<"/liste
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-8">
-              <SectionEditor key={section?.updated_at ?? "new"} testId={test.id} orderNo={n} section={section} />
+              <SectionEditor
+                key={section?.updated_at ?? "new"}
+                testId={test.id}
+                testStatus={test.status}
+                orderNo={n}
+                section={section}
+                ttsCharsUsed={tts_chars_used}
+              />
               {section && (
                 <section aria-label={`Section ${n} questions`} className="flex flex-col gap-3 border-t border-border pt-6">
                   <h3 className="font-semibold">Questions</h3>
@@ -118,7 +126,9 @@ export default async function ListeningBuilderPage({ params }: PageProps<"/liste
                     questions={own}
                     canAdd={own.length < 10}
                     fullText="10 questions: this section is full."
+                    extraActions={<ImportQuestionsButton section={n} />}
                   />
+                  <ReadingImport module="listening" testId={test.id} section={n} existingQuestions={own.length} />
                 </section>
               )}
             </CardContent>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
-import { listeningQuestionTypeLabels } from "@prepora/shared/api/admin-listening";
+import { ArrowDown, ArrowUp, ImageOff, Pencil, Plus, Trash2 } from "lucide-react";
+import { listeningQuestionTypeLabels, needsImage } from "@prepora/shared/api/admin-listening";
 import { Badge } from "@prepora/ui/components/badge";
 import { Button } from "@prepora/ui/components/button";
 import { toast } from "@prepora/ui/components/sonner";
@@ -90,6 +90,11 @@ export function QuestionList({
                       Answer: <span className="font-medium text-foreground">{answerSummary(q)}</span>
                     </span>
                     {!q.explanation && <span className="text-amber-700">No explanation</span>}
+                    {module === "listening" && needsImage(q) && (
+                      <Badge variant="outline" className="gap-1 text-amber-800" data-testid="needs-image">
+                        <ImageOff className="size-3" aria-hidden /> Needs image: edit to add it
+                      </Badge>
+                    )}
                   </span>
                 </span>
               </span>

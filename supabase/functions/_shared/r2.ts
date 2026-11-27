@@ -60,7 +60,7 @@ export function uriEncode(value: string): string {
 }
 
 export interface PresignInput {
-  method: "GET" | "PUT";
+  method: "GET" | "PUT" | "DELETE";
   /** e.g. "<account>.r2.cloudflarestorage.com" */
   host: string;
   /** "/bucket/key", unencoded. */
@@ -142,3 +142,31 @@ export async function audioUpload(
   });
   return { upload_url, public_url: `${config.publicUrl}/${key.split("/").map(uriEncode).join("/")}` };
 }
+
+/**
+ * A presigned request for one object, for server-side writes (generate-listening-audio uploads
+ * the generated MP3 in one PUT and deletes replaced or removed recordings).
+ */
+export async function objectRequestUrl(
+  config: R2Config,
+  method: "PUT" | "DELETE",
+  key: string,
+  contentType?: string,
+  now = new Date(),
+): Promise<string> {
+  return presignUrl({
+    method,
+    host: `${config.accountId}.r2.cloudflarestorage.com`,
+    path: `/${config.bucket}/${key}`,
+    region: "auto",
+    service: "s3",
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    date: now,
+    expiresIn: 300,
+    headers: contentType ? { "content-type": contentType } : undefined,
+  });
+}
+
+/** The public URL of an object in the bucket. */
+export const publicObjectUrl = (config: R2Config, key: string) => `${config.publicUrl}/${key.split("/").map(uriEncode).join("/")}`;

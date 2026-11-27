@@ -7,6 +7,7 @@ import { handleStub, STUB_OCR_PAGE } from "./ai_stub.ts";
 import { buildOcrRequest, buildScoringRequest, OCR_SETTINGS, SCORING_SETTINGS } from "./prompts/writing.ts";
 import { OcrModelOutput, ScoredWriting } from "./writing_schemas.ts";
 import { keepFoundCorrections, writingTaskBand } from "./writing.ts";
+import { mp3Info } from "./listening_tts.ts";
 
 function assert(cond: unknown, msg = "assertion failed"): asserts cond {
   if (!cond) throw new Error(msg);
@@ -170,4 +171,24 @@ Deno.test("Part 1/3 scoring via the stub: the conversation, combined signals, a 
     assertEquals(speakingPartBand(out.data.scores), 6);
   }
   assert(conversationTranscript(answers).startsWith("Examiner: Where is your hometown?\nYou: "), "stored transcript");
+});
+
+Deno.test("the stub's text-to-speech: real (silent) MP3 frames, longer for more text; STUB_FAIL → 500", async () => {
+  const speak = async (input: Record<string, string>) =>
+    await handleStub(
+      new Request("http://stub/v1/text:synthesize", {
+        method: "POST",
+        body: JSON.stringify({ input, voice: { languageCode: "en-GB", name: "en-GB-Standard-A" }, audioConfig: { audioEncoding: "MP3" } }),
+      }),
+      true,
+    );
+  const decode = async (res: Response) => Uint8Array.from(atob(((await res.json()) as { audioContent: string }).audioContent), (c) => c.charCodeAt(0));
+  const short = await speak({ ssml: '<speak>Hello there.<break time="500ms"/></speak>' });
+  assertEquals(short.status, 200);
+  const shortInfo = mp3Info(await decode(short));
+  assert(shortInfo.frames > 0 && shortInfo.seconds >= 1, "a short line is about a second of audio");
+  const long = mp3Info(await decode(await speak({ text: "A much longer sentence about the museum's new west wing and its café. ".repeat(4) })));
+  assert(long.seconds > shortInfo.seconds * 5, "more text, more audio");
+  assertEquals((await speak({ text: "Please STUB_FAIL now" })).status, 500);
+  assertEquals((await speak({ text: "  " })).status, 400);
 });

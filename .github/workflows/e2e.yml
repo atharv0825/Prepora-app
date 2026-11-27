@@ -71,6 +71,8 @@ jobs:
       # M6-I1/M7-B3: score-writing, ocr-writing, score-speaking and examiner-turn call the ai-stub
       # function instead of DeepSeek (text) and Gemini (speech to text, OCR): no AI calls in CI.
       # DEEPSEEK_API_URL and GEMINI_API_URL point at it through the local gateway; AI_STUB=1 turns it on.
+      # generate-listening-audio: text-to-speech from the stub too (GOOGLE_TTS_API_URL), and the audio
+      # in a Storage bucket instead of R2 (LISTENING_AUDIO_STORE), at the URL the tests can fetch.
       - name: Placeholder R2 and AI settings for the edge runtime
         run: |
           cat > supabase/functions/.env <<'ENV'
@@ -84,6 +86,10 @@ jobs:
           AI_STUB=1
           GEMINI_API_KEY=e2e-stub
           GEMINI_API_URL=http://kong:8000/functions/v1/ai-stub
+          GOOGLE_TTS_API_KEY=e2e-stub
+          GOOGLE_TTS_API_URL=http://kong:8000/functions/v1/ai-stub
+          LISTENING_AUDIO_STORE=supabase-storage
+          LISTENING_AUDIO_DEV_PUBLIC_URL=http://127.0.0.1:54321
           ENV
       # Only what the tests use: Postgres, Auth (GoTrue), PostgREST, Storage (the M5-B3 image
       # bucket), the Kong gateway and the edge runtime, which serves supabase/functions

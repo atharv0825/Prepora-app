@@ -339,6 +339,7 @@ export type Database = {
           published_at: string | null
           source: Database["public"]["Enums"]["content_source"]
           status: Database["public"]["Enums"]["content_status"]
+          test_no: number
           title: string
           updated_at: string
         }
@@ -350,7 +351,8 @@ export type Database = {
           published_at?: string | null
           source?: Database["public"]["Enums"]["content_source"]
           status?: Database["public"]["Enums"]["content_status"]
-          title: string
+          test_no?: number
+          title?: string
           updated_at?: string
         }
         Update: {
@@ -361,6 +363,7 @@ export type Database = {
           published_at?: string | null
           source?: Database["public"]["Enums"]["content_source"]
           status?: Database["public"]["Enums"]["content_status"]
+          test_no?: number
           title?: string
           updated_at?: string
         }

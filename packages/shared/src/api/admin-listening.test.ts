@@ -5,6 +5,7 @@ import {
   ListeningQuestionInput,
   ListeningSectionAudio,
   ListeningSectionInput,
+  ListeningTestCreate,
   moveListeningQuestion,
   nextQuestionNumber,
 } from "./admin-listening";
@@ -112,5 +113,12 @@ describe("Listening publish checklist (M5-A1)", () => {
       "Section 4 has no questions.",
       "No explanation for question 11. Students see one with their results.",
     ]);
+  });
+});
+
+describe("creating a Listening test", () => {
+  it("needs no title (the database names it)", () => {
+    expect(ListeningTestCreate.parse({ title: "ignored", min_plan: "gold" })).toEqual({ min_plan: "gold" });
+    expect(ListeningTestCreate.safeParse({ min_plan: "platinum-plus" }).success).toBe(false);
   });
 });

@@ -18,8 +18,8 @@ type Details = { title: string; test_type?: "academic" | "general"; min_plan: st
  * lowest plan that can take the test (M4-A1, M5-A1). Without a test id it creates a new draft
  * and opens it in the builder.
  *
- * A new Reading test has no Title field: the database numbers it per type and names it
- * ("Academic Test 3"). It can be renamed afterwards in the builder.
+ * A new test has no Title field: the database numbers it and names it ("Academic Test 3",
+ * "Listening Test 2"). It can be renamed afterwards in the builder.
  */
 export function TestDetailsForm({
   module = "reading",
@@ -45,8 +45,9 @@ export function TestDetailsForm({
   }, { ok: true, message: "" });
   const errors = state.fieldErrors ?? {};
   const id = (name: string) => `${testId ?? "new"}-${name}`;
-  const askTitle = !(module === "reading" && !testId);
-  const cols = module === "reading" && askTitle ? "sm:grid-cols-[2fr_1fr_1fr_auto]" : "sm:grid-cols-[2fr_1fr_auto]";
+  const askTitle = Boolean(testId);
+  // Reading's new form: Type, Plan, button. Listening's: Plan, button (2fr / auto, an existing class).
+  const cols = module === "reading" ? (askTitle ? "sm:grid-cols-[2fr_1fr_1fr_auto]" : "sm:grid-cols-[2fr_1fr_auto]") : askTitle ? "sm:grid-cols-[2fr_1fr_auto]" : "sm:grid-cols-[2fr_auto]";
 
   return (
     <form onSubmit={submitKeepingInput(action)} className={`grid gap-4 sm:items-end ${cols}`} aria-label="Test details">

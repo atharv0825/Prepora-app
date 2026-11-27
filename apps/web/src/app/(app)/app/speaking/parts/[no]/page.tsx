@@ -47,6 +47,7 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
         title={part === 1 ? "Part 1: about you" : "Part 2: cue cards"}
         progress={
           <CompletionBar
+            module="speaking"
             completed={items.filter((t) => best.has(t.id)).length}
             total={items.length}
             noun={noun}

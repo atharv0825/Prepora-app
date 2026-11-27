@@ -56,6 +56,7 @@ export default async function ListeningListPage() {
         title="Listening"
         progress={
           <CompletionBar
+            module="listening"
             completed={(tests ?? []).filter((t) => summary.has(t.id)).length}
             total={tests?.length ?? 0}
             noun={["Listening test", "Listening tests"]}

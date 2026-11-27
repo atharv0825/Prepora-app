@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Camera } from "lucide-react";
-import { cn } from "cn";
-import { Badge } from "@prepora/ui/components/badge";
-import { buttonVariants } from "@prepora/ui/components/button";
+import { Camera, PenLine } from "lucide-react";
+import { CompletionBar } from "@/components/practice/completion-bar";
+import { FilterPills } from "@/components/practice/filter-pills";
+import { PracticeHeader } from "@/components/practice/page-header";
+import { PracticeCard } from "@/components/practice/practice-card";
 import { BandTrend } from "@/components/writing/band-trend";
 import { formatDate } from "@/lib/credits";
 import { testTypeLabel } from "@/lib/dashboard";
@@ -66,32 +67,29 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
   const t2Cost = cost("writing_t2");
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-8 pb-16">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-h1">Writing</h1>
-        <p className="text-muted-foreground">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16">
+      {/* Completed = tasks written at least once, out of the tasks shown (adjusts by itself). */}
+      <PracticeHeader
+        title="Writing"
+        progress={
+          <CompletionBar
+            completed={[...task1, ...task2].filter((t) => summary.has(t.id)).length}
+            total={task1.length + task2.length}
+            noun={["Writing task", "Writing tasks"]}
+            ariaLabel="Writing tasks completed"
+            testId="writing-progress"
+          />
+        }
+      >
+        <p>
           Write Task 1 and Task 2 on the clock, by typing or on paper, and get a band for each criterion with corrections.
           {t1Cost !== undefined && t2Cost !== undefined && (
             <> Scoring costs {t1Cost === t2Cost ? `${t1Cost} credits` : `${t1Cost} credits for Task 1 and ${t2Cost} for Task 2`}.</>
           )}
         </p>
-      </div>
+      </PracticeHeader>
 
-      <nav aria-label="Test type" className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.value}
-            href={`${routes.writing}?type=${f.value}`}
-            aria-current={filter === f.value ? "page" : undefined}
-            className={cn(
-              "rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-              filter === f.value ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 hover:border-primary",
-            )}
-          >
-            {f.label}
-          </Link>
-        ))}
-      </nav>
+      <FilterPills filters={FILTERS} current={filter} hrefFor={(v) => `${routes.writing}?type=${v}`} />
 
       {[
         { title: "Task 1", note: filter === "general" ? "A letter, 150 words, 20 minutes." : filter === "academic" ? "A report on a chart or diagram, 150 words, 20 minutes." : "A report (Academic) or a letter (General Training), 150 words, 20 minutes.", items: task1 },
@@ -107,21 +105,20 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
               No {filter === "all" || group.title === "Task 2" ? "" : `${testTypeLabel(filter)} `}tasks yet. New tasks are added regularly.
             </p>
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2">
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {group.items.map((t) => {
                 const s = summary.get(t.id);
                 return (
-                  <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 shadow-sm" data-testid="writing-task">
-                    <div>
-                      <Badge variant="secondary">{taskKindLabel(t.task_no, t.test_type)}</Badge>
-                    </div>
-                    <h3 className="text-h3">{t.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {s ? `Written ${s.count} ${s.count === 1 ? "time" : "times"} · best band ${s.best.toFixed(1)}` : "Not written yet"}
-                    </p>
-                    <Link href={writingTaskPath(t.id)} className={cn(buttonVariants(), "mt-auto self-start")}>
-                      {s ? "Write again" : "Start writing"} <ArrowRight />
-                    </Link>
+                  <li key={t.id} data-testid="writing-task">
+                    <PracticeCard
+                      href={writingTaskPath(t.id)}
+                      title={t.title}
+                      kindLabel={taskKindLabel(t.task_no, t.test_type)}
+                      icon={PenLine}
+                      status={s ? `Written ${s.count} ${s.count === 1 ? "time" : "times"} · best band ${s.best.toFixed(1)}` : "Not written yet"}
+                      done={!!s}
+                      verbs={{ start: "Start writing", again: "Write again" }}
+                    />
                   </li>
                 );
               })}

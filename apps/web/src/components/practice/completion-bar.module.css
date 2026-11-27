@@ -1,4 +1,4 @@
-/* Reading completion bar (reading-progress.tsx): the fill grows from 0 to its width and the
+/* Practice completion bar (completion-bar.tsx): the fill grows from 0 to its width and the
    percentage bubble rides on its end. The final width/position are inline styles; the keyframes
    only say where to start, so there's nothing to resolve at animation time. */
 

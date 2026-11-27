@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Headphones, Repeat } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CalendarCheck, Headphones, Repeat } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "@prepora/ui/components/button";
+import { useCredits } from "@/components/credits/credits-provider";
+import { routes } from "@/lib/routes";
 import {
   Dialog,
   DialogClose,
@@ -116,6 +120,8 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
 
   if (!mode) {
     return (
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+        <MonthlyAllowance />
       <div className="grid gap-4 sm:grid-cols-2" data-testid="mode-choice">
         <ModeCard
           icon={<Headphones />}
@@ -132,6 +138,7 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
           onClick={() => begin("practice")}
           outline
         />
+      </div>
       </div>
     );
   }
@@ -193,16 +200,54 @@ function ModeCard({
   onClick: () => void;
   outline?: boolean;
 }) {
+  // White card with an outline (green for the recommended exam mode, like the dashboard tiles) and
+  // a 3D button: green for exam mode, white for practice.
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6 shadow-sm">
-      <span className="grid size-11 place-items-center rounded-2xl bg-secondary [&_svg]:size-5">{icon}</span>
+    <div className={cn("flex flex-col gap-4 rounded-3xl bg-card p-6 shadow-sm", outline ? "ring-1 ring-border" : "ring-2 ring-primary/70")}>
+      <span className="grid size-11 place-items-center rounded-full bg-accent text-accent-green ring-4 ring-primary/15 [&_svg]:size-5">{icon}</span>
       <div className="flex flex-col gap-1.5">
         <h2 className="text-h3">{title}</h2>
         <p className="text-sm text-muted-foreground">{body}</p>
       </div>
-      <Button className="mt-auto self-start" variant={outline ? "outline" : "default"} onClick={onClick}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "mt-auto inline-flex h-11 items-center gap-2 self-start rounded-full px-5 text-sm font-medium transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0",
+          outline
+            ? "bg-gradient-to-b from-white to-brand-foam text-brand-ink ring-1 ring-brand-mist shadow-[inset_0_1px_0_white,0_8px_16px_-10px_rgb(8_34_43/0.4)] dark:from-[#164c58] dark:to-[#0f3b47] dark:text-foreground dark:ring-white/10"
+            : "bg-gradient-to-b from-[#62d7a5] to-brand-primary text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_10px_20px_-10px_rgb(15_164_103/0.8)]",
+        )}
+      >
         {action}
-      </Button>
+        <span aria-hidden className="grid size-6 place-items-center rounded-full bg-brand-ink text-white">
+          <ArrowRight className="size-3.5" />
+        </span>
+      </button>
     </div>
+  );
+}
+
+/** "Listening tests this month: 1 of 2 used" (moved here from the list), with the used-up notice. */
+function MonthlyAllowance() {
+  const { credits } = useCredits();
+  const allowance = credits?.allowances.find((a) => a.type === "listening_tests") ?? null;
+  if (!allowance) return null;
+  return (
+    <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+      <span aria-hidden className="grid size-7 place-items-center rounded-full bg-accent text-accent-green">
+        <CalendarCheck className="size-3.5" />
+      </span>
+      Listening tests this month: <span data-testid="allowance">{allowance.used} of {allowance.limit} used</span>
+      {allowance.used >= allowance.limit && (
+        <span className="text-foreground">
+          · You&apos;ve used this month&apos;s Listening tests.{" "}
+          <Link href={routes.upgrade} className="font-medium underline underline-offset-4">
+            See plans
+          </Link>{" "}
+          for more.
+        </span>
+      )}
+    </p>
   );
 }

@@ -59,30 +59,38 @@ const darkTint = (accent: string, top: number, bottom: number) =>
 
 export function doneStyle(m: PracticeModule): CSSProperties {
   const t = THEMES[m];
-  return surface(
+  return {
+    // The outline as a real border (inline, both modes), so it shows even without the classes.
+    border: `1px solid color-mix(in srgb, ${t.accent} 45%, transparent)`,
+    ...surface(
     {
       bg: `linear-gradient(to bottom, #ffffff, ${t.tint})`,
-      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(8 34 43 / 0.35), 0 0 0 1px ${t.tintRing}`,
+      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(8 34 43 / 0.35)`,
     },
     {
       bg: darkTint(t.accent, 6, 14),
-      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 22px -12px rgb(0 0 0 / 0.6), 0 0 0 1px color-mix(in srgb, ${t.accent} 45%, transparent)`,
+      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 22px -12px rgb(0 0 0 / 0.6)`,
     },
-  );
+    ),
+  };
 }
 
 export function pickStyle(m: PracticeModule): CSSProperties {
   const t = THEMES[m];
-  return surface(
+  return {
+    // A solid border in the section colour (inline, both modes).
+    border: `2px solid ${t.accent}`,
+    ...surface(
     {
       bg: `linear-gradient(to bottom, #ffffff, ${t.pickTint})`,
-      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(${t.rgb} / 0.6), 0 0 0 2px ${t.accent}`,
+      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(${t.rgb} / 0.6)`,
     },
     {
       bg: darkTint(t.accent, 14, 26),
-      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 22px -12px rgb(0 0 0 / 0.6), 0 0 0 2px ${t.accent}`,
+      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 22px -12px rgb(0 0 0 / 0.6)`,
     },
-  );
+    ),
+  };
 }
 
 export function accentStyle(m: PracticeModule): CSSProperties {

@@ -1059,6 +1059,7 @@ export type Database = {
       get_listening_attempt: { Args: { p_attempt_id: string }; Returns: Json }
       get_listening_test: { Args: { p_test_id: string }; Returns: Json }
       get_my_credits: { Args: never; Returns: Json }
+      get_my_dashboard: { Args: never; Returns: Json }
       get_my_streak: { Args: { p_days?: number }; Returns: Json }
       get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {

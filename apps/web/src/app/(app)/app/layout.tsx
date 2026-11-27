@@ -5,6 +5,7 @@ import { CreditChip } from "@/components/credits/credit-chip";
 import { CreditsProvider } from "@/components/credits/credits-provider";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Logo } from "@/components/layout/logo";
+import { AppNav } from "@/components/layout/app-nav";
 import { routes } from "@/lib/routes";
 import { themeScript } from "@/lib/theme";
 import { getAccount, getCreditCosts, getMyCredits } from "@/lib/supabase/session";
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             <header className="sticky top-0 z-40 border-b border-foreground/5 bg-background/80 backdrop-blur-xl">
               <div className="container-page flex h-16 items-center justify-between">
                 <Logo />
+                <AppNav />
                 <div className="flex items-center gap-2 sm:gap-3">
                   <CreditChip />
                   <AccountMenu name={account.name} email={account.email} />

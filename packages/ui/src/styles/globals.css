@@ -48,6 +48,11 @@
   --color-brand-primary: #3fc48c;
   --color-brand-rust: #8c3f3f;
   --color-brand-logo: #0fa467; /* logo square green; wordmark (3.2 : 1, large text only) */
+  /* Accent palette (Prepora_UI_Design.md): never as text on white; dark text on top. */
+  --color-accent-pink: #fa699e;
+  --color-accent-rose: #ff9fc7;
+  --color-accent-petal: #ffe7f0;
+  --color-accent-lime: #4add82;
 
   --color-brand-black: #0a0a0a;
   --color-brand-surface: #141414;
@@ -107,6 +112,12 @@
   --color-ring: var(--ring);
   --color-accent-green: var(--accent-green);
   --color-accent-teal: var(--accent-teal);
+  /* One colour per IELTS module in charts (dashboard). Validated with the dataviz palette
+     checker: light vs white, dark vs the dark card; always shown with a label or texture. */
+  --color-chart-reading: var(--chart-reading);
+  --color-chart-listening: var(--chart-listening);
+  --color-chart-writing: var(--chart-writing);
+  --color-chart-speaking: var(--chart-speaking);
 
   /* --radius = 16px → rounded-lg 16px, rounded-xl ≈ 22px (cards: design asks 20–24px). */
   --radius-sm: calc(var(--radius) * 0.5);
@@ -142,6 +153,11 @@
   /* Accents on white: dark teal 7.3 : 1, sea 3.8 : 1 (large text / icons only). */
   --accent-green: #1c5f66;
   --accent-teal: #37918a;
+  /* Module chart colours (light): blue, amber, pink, green. */
+  --chart-reading: #2f6fdb;
+  --chart-listening: #e08a00;
+  --chart-writing: #f472a8;
+  --chart-speaking: #138a50;
   /* Errors/destructive (7.2 : 1 on white). Always paired with text or an icon. */
   --destructive: #8c3f3f;
 }
@@ -194,6 +210,11 @@
   --ring: #3fc48c;
   --accent-green: #3fc48c;
   --accent-teal: #a7e6c9;
+  /* Module chart colours (dark): own steps, checked against the #0F3B47 card. */
+  --chart-reading: #4f8ef2;
+  --chart-listening: #d08000;
+  --chart-writing: #e8659e;
+  --chart-speaking: #22a862;
   --destructive: #e08a8a;
 }
 

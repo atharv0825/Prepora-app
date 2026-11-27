@@ -21,16 +21,13 @@ test.describe("credits UI (signed in)", () => {
 
   const chip = (page: Page) => page.getByRole("banner").getByRole("link", { name: /credits and usage/i });
 
-  test("a new user sees 18 credits in the header, on home and on Credits & usage", async ({ page, context, baseURL }) => {
+  test("a new user sees 18 credits in the header and on Credits & usage", async ({ page, context, baseURL }) => {
     await signIn(context, baseURL!);
     await page.goto("/app");
 
     await expect(chip(page)).toHaveText("18");
     await expect(chip(page)).toHaveAccessibleName("18 credits. Credits and usage");
-    const card = page.getByRole("region", { name: "AI credits" });
-    await expect(card).toContainText("18 credits");
-    await expect(card).toContainText("8 left to use today");
-    await expect(card).toContainText("Free plan");
+    // The home dashboard no longer has a credits card (M8.6): the chip and Credits & usage show it.
 
     await chip(page).click();
     await expect(page).toHaveURL(/\/app\/credits$/);

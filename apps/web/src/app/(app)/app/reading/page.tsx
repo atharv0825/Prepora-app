@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Lock } from "lucide-react";
 import { cn } from "cn";
-import { Badge } from "@prepora/ui/components/badge";
-import { buttonVariants } from "@prepora/ui/components/button";
-import { allowanceRemaining } from "@prepora/shared/api/credits";
 import { AllowanceMeter } from "@/components/allowance-meter";
 import { AttemptHistory } from "@/components/reading/reading-results";
+import { TestCard } from "@/components/reading/test-card";
 import { formatDate } from "@/lib/credits";
 import { planLabel, testTypeLabel } from "@/lib/dashboard";
 import { validTimeZone } from "@/lib/onboarding";
@@ -49,7 +46,6 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
 
   const plan = credits?.plan ?? profile?.plan ?? "free";
   const allowance = credits?.allowances.find((a) => a.type === "reading_tests") ?? null;
-  const remaining = allowance ? allowanceRemaining(allowance) : null;
   const summary = attemptSummary(attempts ?? []);
   // Titles for the history, including tests not in the current filter.
   const titleOf = new Map<string, string>((tests ?? []).map((t) => [t.id, t.title]));
@@ -60,7 +56,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
   }
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-8 pb-16">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16">
       <div className="flex flex-col gap-2">
         <h1 className="text-h1">Reading</h1>
         <p className="text-muted-foreground">Full tests with 60 minutes on the clock, marked instantly with a band score.</p>
@@ -88,37 +84,21 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
         {!tests?.length ? (
           <p className="text-muted-foreground">No {filter === "all" ? "" : `${testTypeLabel(filter)} `}tests yet. New tests are added regularly.</p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {tests.map((t) => {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);
               return (
-                <li key={t.id} className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 shadow-sm" data-testid="reading-test">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{testTypeLabel(t.test_type)}</Badge>
-                    {t.min_plan !== "free" && (
-                      <Badge variant="outline">
-                        {!open && <Lock aria-hidden />}
-                        {planLabel(t.min_plan)}
-                      </Badge>
-                    )}
-                  </div>
-                  <h2 className="text-h3">{t.title}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {s ? `Taken ${s.count} ${s.count === 1 ? "time" : "times"} · best band ${s.best.toFixed(1)}` : "Not taken yet"}
-                  </p>
-                  {open ? (
-                    <Link
-                      href={readingTestPath(t.id)}
-                      className={cn(buttonVariants({ variant: remaining === 0 ? "outline" : "default" }), "mt-auto self-start")}
-                    >
-                      {s ? "Take again" : "Start test"} <ArrowRight />
-                    </Link>
-                  ) : (
-                    <Link href={routes.upgrade} className={cn(buttonVariants({ variant: "outline" }), "mt-auto self-start")}>
-                      Unlock with {planLabel(t.min_plan)}
-                    </Link>
-                  )}
+                <li key={t.id} data-testid="reading-test">
+                  <TestCard
+                    href={open ? readingTestPath(t.id) : routes.upgrade}
+                    title={t.title}
+                    typeLabel={testTypeLabel(t.test_type) ?? "Reading"}
+                    status={s ? `Taken ${s.count} ${s.count === 1 ? "time" : "times"} · best band ${s.best.toFixed(1)}` : "Not taken yet"}
+                    taken={!!s}
+                    lockedPlan={open ? null : planLabel(t.min_plan)}
+                    planTag={t.min_plan !== "free" ? planLabel(t.min_plan) : null}
+                  />
                 </li>
               );
             })}

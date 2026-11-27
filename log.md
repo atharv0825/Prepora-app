@@ -3920,3 +3920,117 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - None. Add the `e2e` label on PRs you want checked before merging.
+
+
+## 2026-11-27 — M8.6: dashboard overview redesign
+
+**Asked for:** a dashboard like a reference "project management overview" shot: a soft grey panel of white cards, coloured icon circles, big numbers, a bar chart, a donut and a two-line trend. I kept its layout and feel in Prepora's own colours; the reference's branding and content aren't copied.
+
+**Built**
+- **M8.6-B1** migration `20261130090000_dashboard_stats.sql`: `get_my_dashboard()`.
+  - Caller only: anon can't call it; signed out raises 42501.
+  - Per module (Reading and Listening from `test_attempts`, Writing from `writing_submissions`, Speaking parts from `speaking_responses`): count, latest band, and average of the last 5.
+  - The last 14 days in the student's time zone, each with count and average band.
+  - Nothing stored.
+- **M8.6-C1**
+  - `packages/shared/src/api/dashboard.ts`: the zod `DashboardStats` contract.
+    - `estimatedBand()`: the IELTS-rounded mean of the practised modules.
+    - `practiceShares()`: whole percents that add up to 100.
+    - `weekSummary()`: this week vs last, a % change, and count-weighted average bands.
+  - `packages/ui` theme:
+    - `chart-reading/listening/writing/speaking` tokens with their own dark steps;
+    - the accent palette (`accent-pink`, `-rose`, `-petal`, `-lime`) as colours.
+- **M8.6-F1**
+  - `components/dashboard/overview.tsx`: the goal, credits and streak stat cards, and the Band by module, Practice mix and This week chart cards. The charts are server-rendered SVG/CSS with CSS-only hover tooltips, so there's no chart library and no client JS.
+  - `components/layout/app-nav.tsx`: header pill nav, wide screens only.
+  - The page has a "Start practising" button to the recommended module.
+  - `dashboard-cards.tsx` now holds only the module tiles.
+- **Colours:**
+  - I checked the module palette with the dataviz validator (colour-blind separation, lightness, chroma, contrast).
+  - Light: `#2F6FDB` / `#E08A00` / `#F472A8` / `#138A50`; all checks pass. The low-contrast warning is answered by text labels.
+  - Dark: `#4F8EF2` / `#D08000` / `#E8659E` / `#22A862`; the colour-blind separation is 7.1, inside the allowed band only with secondary encoding, which the hatch texture and labels provide.
+  - I rejected the first candidates: pink next to green failed the colour-blindness check (ΔE 3–5).
+  - Module bands are shown IELTS-rounded (half bands), for example 7.75 → 8.0.
+- **Docs:** UI design §7 "Student dashboard"; plan milestone **M8.6**.
+
+**Tests**
+- pgTAP `dashboard_stats.test.sql` (17): access; modules in exam order; counts, latest, last-5 average; 14 days, oldest first; per-day counts and averages; the 14-day cut-off; another user's practice; the Kolkata 00:30 time-zone boundary.
+- vitest `dashboard.test.ts` (8).
+- e2e `dashboard.spec.ts`: empty states; after seeding, the estimated band, the module legend, the mix total, the week count and today's label; the nav pill `aria-current`; the "Start practising" link.
+
+**Verified** (Docker is working again)
+- pgTAP: `dashboard_stats` **17/17**, `streaks` **22/22** (first local run of the final streak version) ✓.
+- `pnpm test` **636 passed** ✓; web tsc and eslint ✓.
+- Playwright against local Supabase: `dashboard` + `credits-ui` + `journey`, desktop and mobile, **24 passed** ✓; dashboard again after the last change, **6 passed** ✓.
+- **Looked at screenshots** in light and dark, desktop and mobile, with seeded data. They showed the missing colours (stale `.next` CSS), a Speaking seed problem, squashed bars and the 7.8 band; all fixed and checked again.
+
+**Manual steps for you**
+- After merge: `supabase db push` for staging and production (new function `get_my_dashboard`).
+
+
+## 2026-11-27 — Dashboard: no credits card, streak up top; demo practice data
+
+**Asked for:** remove AI credits from the dashboard, move Practice streak up, and add dummy data for the streak.
+
+**Changed** (still on `feature/dashboard-overview`, PR #5)
+- **AI credits card removed** from home. The balance stays in the header chip, and the Credits & usage page is unchanged.
+- **New grid:**
+  - wide screens: row 1 is **Your goal | Practice streak**; row 2 is **Band by module | Practice mix | This week** (a 6-column grid, so both rows fill);
+  - tablets: 2 columns, with This week full width;
+  - phones: one column.
+- e2e updated: `dashboard.spec`, `credits-ui.spec` and `journey.spec` no longer expect the home credits card. `dashboard.spec` checks that it's gone and that the header chip shows 18.
+
+**Demo data** (`scripts/demo/`)
+- `streak-demo-data.sql`: put the student's email in `v_email`, then run it in the Supabase SQL Editor (staging) or with psql (local).
+  - It adds 26 Reading/Listening attempts, dated in the student's own time zone: a current streak of 5 days, a best of 9, and scattered days back to 73 days ago. Bands climb from about 5.5 to 7.
+  - Every row is marked `answers = {"_demo": true}`. Running it again replaces the earlier demo rows.
+- `remove-streak-demo-data.sql` deletes only those marked rows.
+- **Not for production.**
+
+**Why the cards said "couldn't be loaded" in your screenshot**
+- `apps/web/.env.local` points to the hosted staging project.
+- `get_my_streak` (M8.5) and `get_my_dashboard` (M8.6) aren't on staging yet.
+- The CI "push migrations to staging" job can't run until the staging secrets are set in Prepora-app.
+
+**Verified**
+- Demo script on local Postgres, inside a rolled-back transaction, for a student in Asia/Kolkata:
+  - run twice: still 26 rows, not 52;
+  - `get_my_streak(84)` → current **5**, best **9**, **22** practice days;
+  - dashboard: Reading 13, Listening 13;
+  - the remove script leaves **0** rows. ✓
+- Web tsc and eslint ✓.
+- Playwright (desktop + mobile) for `dashboard`, `credits-ui` and `journey`, plus a screenshot run with the demo data: **26 passed** ✓.
+- I looked at the desktop screenshot: goal and streak in the top row, the three charts below. ✓
+
+**Manual steps for you**
+1. Apply the migrations to staging: `supabase link --project-ref <staging ref>`, then `supabase db push`. Or set the Prepora-app staging secrets and let CI push them after merge.
+2. Then run `scripts/demo/streak-demo-data.sql` in the staging SQL Editor with your email in `v_email`.
+
+
+## 2026-11-27 — Dashboard: module tiles restyled; "Recommended next" = least practised
+
+**Asked for:** fix the Practise cards: match the new dashboard style. In the old tiles, the "Recommended next" line also pushed the other titles out of line.
+
+**Changed** (`feature/dashboard-overview`, PR #5)
+- `components/dashboard/dashboard-cards.tsx`: the tiles are white cards on the same soft panel, 4 across on wide screens.
+  - The module's chart colour on its icon circle, and a round ↗ that turns dark on hover.
+  - A footer of the same height on every tile: "N practices · Latest 7.5", or "Not started yet".
+  - The recommended tile gets a green outline and a "Recommended next" pill.
+- `components/dashboard/module-style.ts`: the module colours, icons and hatch, now shared by the charts and the tiles.
+- `lib/dashboard.ts` `recommendedModule(modules, counts)`: the **least practised** available module, exam order on a tie, so a new student still gets Reading. The "Start practising" button follows it.
+
+**Tests**
+- vitest `dashboard.test.ts`: +1 (least practised; ties; only available modules).
+- e2e `dashboard.spec.ts`:
+  - new student: every tile says "Not started yet";
+  - after 2 Reading tests: Reading shows "2 practices · Latest 7.0", "Recommended next" moves to Listening, and "Start practising" links to `/app/listening`.
+
+**Verified**
+- `pnpm test` ✓; web tsc and eslint ✓.
+- Playwright `dashboard.spec` on desktop and mobile ✓.
+- Screenshots: light and dark on desktop, light on mobile; with demo data, Reading 13 · 7.5, Listening 13 · 7.0, Writing recommended. I found and fixed one footer that sat 4px off.
+
+**Note:** your local `scripts/demo/streak-demo-data.sql` has your email filled in. That edit is deliberately **not committed**, so the public repo keeps the placeholder. Before switching branches, undo it with `git checkout -- scripts/demo/streak-demo-data.sql`, or keep the edit.
+
+**Manual steps for you**
+- None beyond merging PR #5.

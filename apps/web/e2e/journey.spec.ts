@@ -62,8 +62,7 @@ test.describe("M2 journey", () => {
       await expect(goal).toContainText("7.5");
       await expect(goal).toContainText("Academic");
       await expect(goal).toContainText("45 days to go");
-      // The sign-up grant (M3-B4), in the home card and the header chip (M3-F1).
-      await expect(page.getByRole("region", { name: "AI credits" })).toContainText("18 credits");
+      // The sign-up grant (M3-B4), in the header chip (M3-F1).
       await expect(page.getByRole("banner").getByRole("link", { name: /credits and usage/i })).toHaveText("18");
       await expect(page.getByRole("region", { name: "Practise" }).getByRole("listitem")).toHaveCount(4);
 

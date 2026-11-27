@@ -26,11 +26,17 @@ export const dashboardModules: readonly DashboardModule[] = [
 ];
 
 /**
- * The tile highlighted in green (UI design: "the next recommended module"). For now the first
- * available module; null while none is built. Later milestones can base it on practice history.
+ * The "Recommended next" module: the available one practised least so far (`counts`, from the
+ * dashboard overview), exam order on a tie, so a new student starts with Reading. Without counts,
+ * the first available module. Null while none is available.
  */
-export function recommendedModule(modules: readonly DashboardModule[]): ModuleKey | null {
-  return modules.find((m) => m.status === "available")?.key ?? null;
+export function recommendedModule(
+  modules: readonly DashboardModule[],
+  counts?: Partial<Record<ModuleKey, number>>,
+): ModuleKey | null {
+  const available = modules.filter((m) => m.status === "available");
+  if (!available.length) return null;
+  return available.reduce((best, m) => ((counts?.[m.key] ?? 0) < (counts?.[best.key] ?? 0) ? m : best)).key;
 }
 
 // ── Greeting ────────────────────────────────────────────────────────────────────────────────

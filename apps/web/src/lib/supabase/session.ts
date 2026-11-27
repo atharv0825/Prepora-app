@@ -7,6 +7,8 @@ import type { Profile } from "@prepora/shared/types/profile";
 import { displayName } from "@/lib/account";
 import { type CreditCosts, fetchCreditCosts, fetchMyCredits } from "@/lib/credits";
 import { fetchMyStreak } from "@/lib/streak";
+import { fetchMyDashboard } from "@/lib/dashboard-stats";
+import type { DashboardStats } from "@prepora/shared/api/dashboard";
 import { SupabaseConfigError } from "./env";
 import { createClient } from "./server";
 
@@ -68,6 +70,13 @@ export const getMyStreak = cache(async (days: number = 7): Promise<Streak | null
   const user = await getCurrentUser();
   if (!user) return null;
   return fetchMyStreak(await createClient(), days);
+});
+
+/** The signed-in user's dashboard overview (get_my_dashboard), or null when signed out or on any error. */
+export const getMyDashboard = cache(async (): Promise<DashboardStats | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  return fetchMyDashboard(await createClient());
 });
 
 /** Active credit costs and labels (public table). Cached per request. */

@@ -4123,3 +4123,22 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - None beyond merging PR #5.
+
+
+## 2026-11-27 — PR #6: migration drift on the staging dry run (fixed by merging develop)
+
+**What happened:** the "Dry-run against staging" job on PR #6 failed because staging has migration `20261130090000` (the M8.6 dashboard) and the PR branch didn't. That migration had been pushed to staging from `feature/dashboard-overview` before PR #5 merged.
+
+**Not done (on purpose):** `supabase migration repair --status reverted 20261130090000` and `supabase db pull`, which the CI summary suggested.
+- Repair would have marked an applied migration as reverted, so the next push would try to create `get_my_dashboard` again and fail.
+- Pull would have created a duplicate migration file.
+
+**Fix:** PR #5 was merged, so develop has the file. develop was merged into `feature/reading-import` (`ae41cca`, on GitHub); my identical local merge was dropped.
+
+**Verified** (after the merge)
+- `node scripts/gen-db-types.mjs --check`: types are up to date ✓.
+- Admin and web tsc ✓.
+- vitest: **659 passed** ✓.
+
+**Manual steps for you**
+- None. Re-check PR #6 once CI finishes.

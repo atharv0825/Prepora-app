@@ -15,10 +15,9 @@ export function CreditChip() {
       href={routes.credits}
       aria-label={credits ? `${credits.balance} credits. Credits and usage` : "Credits and usage"}
       className={cn(
-        "flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium tabular-nums outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/40",
-        empty
-          ? "border-destructive/40 text-destructive hover:bg-destructive/5"
-          : "border-brand-line bg-secondary text-secondary-foreground hover:bg-secondary/70",
+        // Simple: the coin and the number, no pill. Red when there are none left.
+        "flex h-11 items-center gap-1.5 rounded-full px-2 text-sm font-medium tabular-nums outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/40",
+        empty ? "text-destructive" : "text-foreground/80 hover:text-foreground",
       )}
     >
       <Coins className="size-4" aria-hidden />

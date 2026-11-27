@@ -18,7 +18,9 @@ export function PracticeHeader({
         <h1 className="text-h1">{title}</h1>
         <div className="text-muted-foreground">{children}</div>
       </div>
-      {controls && <div className="flex sm:flex-1 sm:justify-center">{controls}</div>}
+      {/* The space between the text and the bar, with the control in its middle. Inline styles, so a
+          stale dev stylesheet can't drop the centring. */}
+      {controls && <div style={{ display: "flex", flex: "1 1 0%", justifyContent: "center", minWidth: 0 }}>{controls}</div>}
       <div className="shrink-0">{progress}</div>
     </div>
   );

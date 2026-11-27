@@ -1,5 +1,6 @@
-// A practice page's header: title and description on the left, an optional control (the test-type
-// dropdown) in between, and the completion bar on the right (stacked on phones).
+// A practice page's header: title and description on the left, the completion bar on the right,
+// and an optional control (the test-type dropdown) centred in the space between them (stacked on
+// phones).
 export function PracticeHeader({
   title,
   children,
@@ -17,10 +18,8 @@ export function PracticeHeader({
         <h1 className="text-h1">{title}</h1>
         <div className="text-muted-foreground">{children}</div>
       </div>
-      <div className="flex shrink-0 flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
-        {controls}
-        {progress}
-      </div>
+      {controls && <div className="flex sm:flex-1 sm:justify-center">{controls}</div>}
+      <div className="shrink-0">{progress}</div>
     </div>
   );
 }

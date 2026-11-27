@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Camera, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { FilterSelect } from "@/components/practice/filter-select";
+import { Dropdown } from "@/components/ui/dropdown";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { GroupCard } from "@/components/practice/group-card";
 import { BandTrend } from "@/components/writing/band-trend";
@@ -70,7 +70,7 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
       {/* Completed = tasks written at least once, out of the tasks shown (adjusts by itself). */}
       <PracticeHeader
         title="Writing"
-        controls={<FilterSelect filters={FILTERS} current={filter} hrefs={filterHrefs(routes.writing)} />}
+        controls={<Dropdown label="Test type" options={FILTERS} value={filter} hrefs={filterHrefs(routes.writing)} />}
         progress={
           <CompletionBar
             module="writing"

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { FilterSelect } from "@/components/practice/filter-select";
+import { Dropdown } from "@/components/ui/dropdown";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
 import { PickCard } from "@/components/practice/pick-card";
@@ -52,10 +52,7 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
       <PracticeHeader
         title={`Task ${taskNo}`}
         controls={
-          <FilterSelect
-            filters={FILTERS}
-            current={filter}
-            hrefs={{ academic: writingTaskListPath(taskNo, "academic"), general: writingTaskListPath(taskNo, "general"), all: writingTaskListPath(taskNo, "all") }}
+          <Dropdown label="Test type" options={FILTERS} value={filter} hrefs={{ academic: writingTaskListPath(taskNo, "academic"), general: writingTaskListPath(taskNo, "general"), all: writingTaskListPath(taskNo, "all") }}
           />
         }
         progress={

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AttemptHistory } from "@/components/reading/reading-results";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { FilterSelect } from "@/components/practice/filter-select";
+import { Dropdown } from "@/components/ui/dropdown";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { PracticeCard } from "@/components/practice/practice-card";
 import { PickCard } from "@/components/practice/pick-card";
@@ -61,7 +61,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
           each test's start page. */}
       <PracticeHeader
         title="Reading"
-        controls={<FilterSelect filters={FILTERS} current={filter} hrefs={filterHrefs(routes.reading)} />}
+        controls={<Dropdown label="Test type" options={FILTERS} value={filter} hrefs={filterHrefs(routes.reading)} />}
         progress={
           <CompletionBar
             module="reading"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayName, initials } from "./account";
+import { avatarUrl, displayName, initials } from "./account";
 
 describe("displayName", () => {
   it("prefers the profile name, then Google's, then the email", () => {
@@ -25,5 +25,15 @@ describe("initials", () => {
     ["", "?"],
   ])("%s → %s", (name, out) => {
     expect(initials(name)).toBe(out);
+  });
+});
+
+describe("avatarUrl", () => {
+  it("the Google photo from sign-in, https only", () => {
+    expect(avatarUrl({ avatar_url: "https://lh3.googleusercontent.com/a/x" })).toBe("https://lh3.googleusercontent.com/a/x");
+    expect(avatarUrl({ picture: "https://lh3.googleusercontent.com/a/y" })).toBe("https://lh3.googleusercontent.com/a/y");
+    expect(avatarUrl({ avatar_url: "http://example.com/a.png" })).toBeNull();
+    expect(avatarUrl({})).toBeNull();
+    expect(avatarUrl(null)).toBeNull();
   });
 });

@@ -45,7 +45,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
                 <AppNav />
                 <div className="flex items-center gap-2 sm:gap-3">
                   <CreditChip />
-                  <AccountMenu name={account.name} email={account.email} />
+                  <AccountMenu name={account.name} email={account.email} avatarUrl={account.avatarUrl} />
                 </div>
               </div>
             </header>

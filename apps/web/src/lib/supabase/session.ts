@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import type { CreditBalance } from "@prepora/shared/api/credits";
 import type { Streak } from "@prepora/shared/api/streak";
 import type { Profile } from "@prepora/shared/types/profile";
-import { displayName } from "@/lib/account";
+import { avatarUrl, displayName } from "@/lib/account";
 import { type CreditCosts, fetchCreditCosts, fetchMyCredits } from "@/lib/credits";
 import { fetchMyStreak } from "@/lib/streak";
 import { fetchMyDashboard } from "@/lib/dashboard-stats";
@@ -36,6 +36,8 @@ export type Account = {
   profile: Profile | null;
   name: string;
   email: string | null;
+  /** The Google profile photo from sign-in, if any. */
+  avatarUrl: string | null;
 };
 
 /** User + profile for the signed-in area (M1-F3). Null when signed out. Cached per request. */
@@ -50,6 +52,7 @@ export const getAccount = cache(async (): Promise<Account | null> => {
     profile,
     name: displayName(profile?.full_name, user.user_metadata, user.email),
     email: user.email ?? null,
+    avatarUrl: avatarUrl(user.user_metadata),
   };
 });
 

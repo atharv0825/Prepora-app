@@ -111,3 +111,8 @@ export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** The test-type dropdown's targets for a list page: ?type=academic | general | all. */
+export function filterHrefs(base: string): Record<"academic" | "general" | "all", string> {
+  return { academic: `${base}?type=academic`, general: `${base}?type=general`, all: `${base}?type=all` };
+}

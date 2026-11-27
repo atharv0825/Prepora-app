@@ -2,25 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Camera, FileText, PenLine } from "lucide-react";
 import { CompletionBar } from "@/components/practice/completion-bar";
-import { Dropdown } from "@/components/ui/dropdown";
 import { PracticeHeader } from "@/components/practice/page-header";
 import { GroupCard } from "@/components/practice/group-card";
 import { BandTrend } from "@/components/writing/band-trend";
 import { formatDate } from "@/lib/credits";
 import { validTimeZone } from "@/lib/onboarding";
 import { listFilter } from "@/lib/reading";
-import { filterHrefs, routes, writingSubmissionPath, writingTaskListPath } from "@/lib/routes";
+import { writingSubmissionPath, writingTaskListPath } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount } from "@/lib/supabase/session";
 import { bandTrend, recentAverage, taskNote, tasksFor, taskSummary, type TaskRow } from "@/lib/writing/writing";
 
 export const metadata: Metadata = { title: "Writing · Prepora", robots: { index: false } };
-
-const FILTERS = [
-  { value: "academic", label: "Academic" },
-  { value: "general", label: "General Training" },
-  { value: "all", label: "All" },
-] as const;
 
 // Writing home (M6-F1, M6-F4): published tasks (Task 1 by the student's test, Task 2 essays for
 // both), what scoring costs, and the student's scored answers with their band trend. Read through
@@ -70,7 +63,6 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
       {/* Completed = tasks written at least once, out of the tasks shown (adjusts by itself). */}
       <PracticeHeader
         title="Writing"
-        controls={<Dropdown label="Test type" options={FILTERS} value={filter} hrefs={filterHrefs(routes.writing)} />}
         progress={
           <CompletionBar
             module="writing"

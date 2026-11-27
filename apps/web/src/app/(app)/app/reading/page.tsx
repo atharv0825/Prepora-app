@@ -90,6 +90,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
               return (
                 <li key={t.id} data-testid="reading-test">
                   <PracticeCard
+                    module="reading"
                     href={open ? readingTestPath(t.id) : routes.upgrade}
                     title={t.title}
                     kindLabel={testTypeLabel(t.test_type) ?? "Reading"}

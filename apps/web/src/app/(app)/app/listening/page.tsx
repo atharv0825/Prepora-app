@@ -81,6 +81,7 @@ export default async function ListeningListPage() {
               return (
                 <li key={t.id} data-testid="listening-test">
                   <PracticeCard
+                    module="listening"
                     href={open ? listeningTestPath(t.id) : routes.upgrade}
                     title={t.title}
                     kindLabel="Listening · 4 parts"

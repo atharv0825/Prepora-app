@@ -79,6 +79,7 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
               return (
                 <li key={t.id} data-testid="writing-task">
                   <PracticeCard
+                    module="writing"
                     href={writingTaskPath(t.id)}
                     title={t.title}
                     kindLabel={taskKindLabel(t.task_no, t.test_type)}

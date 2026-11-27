@@ -70,6 +70,7 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
               part === 1 ? (
                 <li key={t.id} data-testid="part1-item">
                   <PracticeCard
+                    module="speaking"
                     href={speakingExaminerPath(t.id)}
                     title={t.title}
                     kindLabel="Part 1"
@@ -82,6 +83,7 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
               ) : (
                 <li key={t.id} data-testid="cue-card-item">
                   <PracticeCard
+                    module="speaking"
                     href={speakingTopicPath(t.id)}
                     title={t.title}
                     kindLabel="Part 2"

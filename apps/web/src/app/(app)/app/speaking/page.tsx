@@ -57,8 +57,8 @@ export default async function SpeakingPage() {
         <p>The full test with an AI examiner who asks the questions out loud, or one part at a time. Every part gets a band for each criterion and feedback.</p>
       </PracticeHeader>
 
-      {/* One soft panel, like the dashboard tiles: Part 1 | the full test | Part 2 (stacked on
-          phones). Each opens its own page; the full test is outlined as the main option. */}
+      {/* One soft panel, like the dashboard tiles: Part 1 | Part 2 | the full test (stacked on
+          phones, full test last). Each opens its own page; the full test is outlined as the main option. */}
       <section aria-label="Practice by part" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 lg:grid-cols-3">
         <GroupCard
           href={speakingPartPath(1)}
@@ -72,7 +72,6 @@ export default async function SpeakingPage() {
           doneWord="answered"
           testId="speaking-group"
         />
-        <FullTestTile ready={fullTestReady} href={speakingTestPath()} cost={fullCost} />
         <GroupCard
           href={speakingPartPath(2)}
           title="Part 2: cue cards"
@@ -85,6 +84,7 @@ export default async function SpeakingPage() {
           doneWord="answered"
           testId="speaking-group"
         />
+        <FullTestTile ready={fullTestReady} href={speakingTestPath()} cost={fullCost} />
       </section>
 
       {tests && tests.length > 0 && (
@@ -136,7 +136,7 @@ export default async function SpeakingPage() {
   );
 }
 
-/** The full test as a white tile between Part 1 and Part 2, outlined in green as the main option. */
+/** The full test as a white tile after Part 1 and Part 2, outlined in green as the main option. */
 function FullTestTile({ ready, href, cost }: { ready: boolean; href: string; cost: number | null }) {
   const body = (
     <>

@@ -38,7 +38,8 @@ export default async function AppHome() {
   const today = localDate(timeZone);
   // Credits are shared with the layout's header chip (cached per request).
   const [streak, stats] = await Promise.all([getMyStreak(), getMyDashboard()]);
-  const recommended = recommendedModule(dashboardModules);
+  // Recommended next: the module practised least (exam order on a tie).
+  const recommended = recommendedModule(dashboardModules, stats ? Object.fromEntries(stats.modules.map((m) => [m.module, m.count])) : undefined);
   const start = dashboardModules.find((m) => m.key === recommended);
 
   return (
@@ -76,7 +77,7 @@ export default async function AppHome() {
         <TrendCard stats={stats} className="md:col-span-2 xl:col-span-2" />
       </div>
 
-      <ModuleGrid modules={dashboardModules} recommended={recommended} />
+      <ModuleGrid modules={dashboardModules} recommended={recommended} stats={stats?.modules ?? null} />
     </div>
   );
 }

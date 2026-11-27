@@ -53,6 +53,7 @@ test.describe("home dashboard", () => {
       const tile = modules.filter({ has: page.getByRole("heading", { name }) });
       await expect(tile.getByRole("link")).toHaveAttribute("href", href);
       await expect(tile).not.toContainText("Coming soon");
+      await expect(tile.getByTestId("module-progress")).toHaveText("Not started yet");
     }
   });
 
@@ -104,6 +105,14 @@ test.describe("home dashboard", () => {
     await expect(week.getByTestId("week-count")).toHaveText("2");
     await expect(week).toContainText("This week: 2 practices");
     await expect(week.getByRole("listitem", { name: /^Today: 1 practice, average band 7\.0$/ })).toHaveCount(1);
+
+    // The Reading tile shows its practice; "Recommended next" moves to the least practised module.
+    const tiles = page.getByRole("region", { name: "Practise" });
+    const reading = tiles.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Reading" }) });
+    await expect(reading.getByTestId("module-progress")).toHaveText("2 practices · Latest 7.0");
+    await expect(reading).not.toContainText("Recommended next");
+    await expect(tiles.getByRole("listitem").filter({ has: page.getByRole("heading", { name: "Listening" }) })).toContainText("Recommended next");
+    await expect(page.getByRole("link", { name: "Start practising" })).toHaveAttribute("href", "/app/listening");
 
     // M8.5-F2: the profile shows the same streak, the all-time total and the 12-week calendar.
     await page.goto("/app/profile");

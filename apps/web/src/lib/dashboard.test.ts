@@ -28,6 +28,14 @@ describe("modules", () => {
     );
     expect(recommendedModule(withWriting)).toBe("writing");
   });
+  it("recommends the module practised least; exam order on a tie", () => {
+    expect(recommendedModule(dashboardModules, { reading: 0, listening: 0, writing: 0, speaking: 0 })).toBe("reading");
+    expect(recommendedModule(dashboardModules, { reading: 6, listening: 5, writing: 3, speaking: 3 })).toBe("writing");
+    expect(recommendedModule(dashboardModules, { reading: 2, listening: 0, writing: 1, speaking: 4 })).toBe("listening");
+    // Only available modules count.
+    const noSpeaking = dashboardModules.map((m) => (m.key === "speaking" ? { ...m, status: "soon" as const, href: undefined } : m));
+    expect(recommendedModule(noSpeaking, { reading: 2, listening: 2, writing: 2, speaking: 0 })).toBe("reading");
+  });
 });
 
 describe("greeting", () => {

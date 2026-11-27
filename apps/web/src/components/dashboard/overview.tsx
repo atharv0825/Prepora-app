@@ -3,18 +3,13 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
-  BookOpen,
   CalendarDays,
   Check,
   Flame,
-  Headphones,
-  Mic,
-  PenLine,
   Target,
   type LucideIcon,
 } from "lucide-react";
 import {
-  type DashboardModuleKey,
   type DashboardStats,
   type DayStats,
   estimatedBand,
@@ -27,6 +22,7 @@ import { ieltsRound } from "@prepora/shared/ielts/bands";
 import { cn } from "@prepora/ui/lib/utils";
 import type { ExamCountdown } from "@/lib/dashboard";
 import { formatBand } from "@/lib/onboarding";
+import { MODULE_STYLE, hatch } from "./module-style";
 import { routes } from "@/lib/routes";
 
 // Home dashboard overview (M8.6): two stat cards (goal, streak) and three chart cards
@@ -40,15 +36,7 @@ import { routes } from "@/lib/routes";
 // ── Shared pieces ───────────────────────────────────────────────────────────────────────────
 const cardClass = "flex flex-col gap-5 rounded-3xl bg-card p-5 text-card-foreground shadow-xs sm:p-6";
 
-const MODULES: Record<DashboardModuleKey, { label: string; icon: LucideIcon; bg: string; stroke: string; text: string }> = {
-  reading: { label: "Reading", icon: BookOpen, bg: "bg-chart-reading", stroke: "stroke-chart-reading", text: "text-chart-reading" },
-  listening: { label: "Listening", icon: Headphones, bg: "bg-chart-listening", stroke: "stroke-chart-listening", text: "text-chart-listening" },
-  writing: { label: "Writing", icon: PenLine, bg: "bg-chart-writing", stroke: "stroke-chart-writing", text: "text-chart-writing" },
-  speaking: { label: "Speaking", icon: Mic, bg: "bg-chart-speaking", stroke: "stroke-chart-speaking", text: "text-chart-speaking" },
-};
-
-/** Diagonal texture on coloured marks: a second cue besides colour (dataviz: texture for CVD). */
-const hatch = { backgroundImage: "repeating-linear-gradient(135deg, rgb(255 255 255 / 0.32) 0 2px, transparent 2px 7px)" };
+const MODULES = MODULE_STYLE;
 
 const weekday = (date: string, style: "narrow" | "short" | "long") =>
   new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: style, timeZone: "UTC" });
@@ -257,7 +245,7 @@ export function BandCard({ stats, className }: { stats: DashboardStats | null; c
                 const meta = MODULES[m.module];
                 return (
                   <li key={m.module} className="flex items-center gap-2">
-                    <span className={cn("grid size-6 place-items-center rounded-full text-white", meta.bg)} style={hatch} aria-hidden>
+                    <span className={cn("grid size-6 place-items-center rounded-full", meta.bg, meta.onBg)} style={hatch} aria-hidden>
                       <meta.icon className="size-3.5" />
                     </span>
                     <span className="flex flex-col leading-tight">

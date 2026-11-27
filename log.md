@@ -4005,3 +4005,32 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 **Manual steps for you**
 1. Apply the migrations to staging: `supabase link --project-ref <staging ref>`, then `supabase db push`. Or set the Prepora-app staging secrets and let CI push them after merge.
 2. Then run `scripts/demo/streak-demo-data.sql` in the staging SQL Editor with your email in `v_email`.
+
+
+## 2026-11-27 — Dashboard: module tiles restyled; "Recommended next" = least practised
+
+**Asked for:** fix the Practise cards: match the new dashboard style. In the old tiles, the "Recommended next" line also pushed the other titles out of line.
+
+**Changed** (`feature/dashboard-overview`, PR #5)
+- `components/dashboard/dashboard-cards.tsx`: the tiles are white cards on the same soft panel, 4 across on wide screens.
+  - The module's chart colour on its icon circle, and a round ↗ that turns dark on hover.
+  - A footer of the same height on every tile: "N practices · Latest 7.5", or "Not started yet".
+  - The recommended tile gets a green outline and a "Recommended next" pill.
+- `components/dashboard/module-style.ts`: the module colours, icons and hatch, now shared by the charts and the tiles.
+- `lib/dashboard.ts` `recommendedModule(modules, counts)`: the **least practised** available module, exam order on a tie, so a new student still gets Reading. The "Start practising" button follows it.
+
+**Tests**
+- vitest `dashboard.test.ts`: +1 (least practised; ties; only available modules).
+- e2e `dashboard.spec.ts`:
+  - new student: every tile says "Not started yet";
+  - after 2 Reading tests: Reading shows "2 practices · Latest 7.0", "Recommended next" moves to Listening, and "Start practising" links to `/app/listening`.
+
+**Verified**
+- `pnpm test` ✓; web tsc and eslint ✓.
+- Playwright `dashboard.spec` on desktop and mobile ✓.
+- Screenshots: light and dark on desktop, light on mobile; with demo data, Reading 13 · 7.5, Listening 13 · 7.0, Writing recommended. I found and fixed one footer that sat 4px off.
+
+**Note:** your local `scripts/demo/streak-demo-data.sql` has your email filled in. That edit is deliberately **not committed**, so the public repo keeps the placeholder. Before switching branches, undo it with `git checkout -- scripts/demo/streak-demo-data.sql`, or keep the edit.
+
+**Manual steps for you**
+- None beyond merging PR #5.

@@ -185,4 +185,8 @@ A soft-panel overview inspired by modern project dashboards, in Prepora's colour
   - **Band by module:** the estimated overall band (IELTS-rounded), a 2×2 legend with each module's recent band, and rounded hatched bars (height = band out of 9, from zero). A dashed placeholder stands in for a module with no band yet.
   - **Practice mix:** a donut of all practice by module, with rounded arcs, small gaps between them and the total in the middle. Under it, one hatched progress bar per module ("6/16").
   - **This week:** practice per day. This week is a solid dark line; last week is a dashed grey line on the same scale. The legend chips show the totals, and the day pills show today outlined. Hovering a day shows a crosshair, a dot and a tooltip. The footer shows "Practice this week" and "Average band", each with a ↑/↓ change on last week.
-- **Below the panel:** the four module tiles, as before.
+- **Practise (module tiles):** the same soft panel and white cards; 4 across on wide screens, 2 on tablets, 1 on phones.
+  - Top: the module's icon in its chart colour, in a circle with a soft ring; a round ↗ button that turns dark on hover.
+  - Then the title and a one-line description.
+  - A footer that's the same height on every tile: "13 practices · Latest 7.5", or "Not started yet".
+  - **Recommended next** is the module practised least (exam order on a tie). It gets a green outline and a green pill, not a different background, so all tiles keep one look.

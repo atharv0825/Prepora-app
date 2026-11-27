@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { estimatedBand } from "@prepora/shared/api/dashboard";
+import { estimatedBand, totalPractice } from "@prepora/shared/api/dashboard";
 import { needsOnboarding } from "@prepora/shared/api/onboarding";
 import { ModuleGrid } from "@/components/dashboard/dashboard-cards";
 import { LiveStatus } from "@/components/dashboard/live-status";
 import motion from "@/components/dashboard/motion.module.css";
 import { TipRotator } from "@/components/dashboard/tip-rotator";
+import { ChartsTeaser } from "@/components/dashboard/charts-teaser";
 import { BandCard, GoalCard, MixCard, StreakCard, TrendCard } from "@/components/dashboard/overview";
 import {
   dashboardModules,
@@ -81,9 +82,17 @@ export default async function AppHome() {
           estimate={stats ? (estimatedBand(stats.modules)?.band ?? null) : null}
         />
         <StreakCard index={1} streak={streak} className="xl:col-span-3" />
-        <BandCard index={2} stats={stats} className="xl:col-span-2" />
-        <MixCard index={3} stats={stats} className="xl:col-span-2" />
-        <TrendCard index={4} stats={stats} className="md:col-span-2 xl:col-span-2" />
+        {/* First visit (nothing scored yet): a blurred sample with an invitation instead of three
+            empty charts. The real cards take over after the first practice. */}
+        {stats && totalPractice(stats.modules) === 0 ? (
+          <ChartsTeaser today={today} href={start?.href ?? null} className="md:col-span-2 xl:col-span-6" />
+        ) : (
+          <>
+            <BandCard index={2} stats={stats} className="xl:col-span-2" />
+            <MixCard index={3} stats={stats} className="xl:col-span-2" />
+            <TrendCard index={4} stats={stats} className="md:col-span-2 xl:col-span-2" />
+          </>
+        )}
       </div>
 
       <ModuleGrid modules={dashboardModules} recommended={recommended} stats={stats?.modules ?? null} />

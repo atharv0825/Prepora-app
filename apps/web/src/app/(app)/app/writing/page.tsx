@@ -91,7 +91,7 @@ export default async function WritingListPage({ searchParams }: PageProps<"/app/
       <FilterPills filters={FILTERS} current={filter} hrefFor={(v) => `${routes.writing}?type=${v}`} />
 
       {/* Task 1 and Task 2 side by side; each opens its own page of topics (same filter). */}
-      <section aria-label="Tasks" className="grid gap-4 md:grid-cols-2">
+      <section aria-label="Tasks" className="grid gap-3 rounded-[2rem] bg-muted p-3 sm:gap-4 sm:p-4 md:grid-cols-2">
         {([1, 2] as const).map((no) => {
           const items = no === 1 ? task1 : task2;
           return (

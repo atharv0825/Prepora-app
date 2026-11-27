@@ -3899,3 +3899,24 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - Decide where the accents should appear. Then I can add them as theme tokens in `packages/ui` and use them.
+## 2026-11-27 — CI: E2E on PRs only with the `e2e` label
+
+**Why:** Playwright takes about 6 minutes, and it ran twice per change: once on the PR, then again on develop after merging.
+
+**Change** (`.github/workflows/e2e.yml`, `docs/ci.md`)
+- **Pushes to develop:** always run, as before, so develop is still fully checked after every merge.
+- **PRs:** run only when the PR has the **`e2e`** label (created in Prepora-app).
+  - Adding the label starts it.
+  - It re-runs on each push while the label stays. Remove the label to stop.
+  - Without the label, the PR check shows as skipped.
+- **Manual:** Actions → E2E → Run workflow, on any branch, as before.
+- The cancel-older-runs rule moved from the workflow to the job. Otherwise adding some other label would start a skipped run that cancels an e2e run in progress.
+
+**When to add the label:** PRs that change pages, user flows, RLS or database functions the app calls. Small docs, admin-only or test-only PRs can skip it; develop catches anything missed.
+
+**Verified**
+- The workflow YAML parses; the `if` and the triggers are as intended.
+- This PR shows how it behaves: without the label the job is skipped; with the label it runs (see the PR's checks).
+
+**Manual steps for you**
+- None. Add the `e2e` label on PRs you want checked before merging.

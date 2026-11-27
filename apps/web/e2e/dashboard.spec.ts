@@ -29,6 +29,13 @@ test.describe("home dashboard", () => {
     await page.goto("/app");
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^Good (morning|afternoon|evening), Meera$/);
+    // M8.6: "Start practising" goes to the recommended module; the header pills (wide screens) mark Dashboard.
+    await expect(page.getByRole("link", { name: "Start practising" })).toHaveAttribute("href", "/app/reading");
+    if (!test.info().project.name.match(/mobile|ios/)) {
+      const nav = page.getByRole("navigation", { name: "Main" });
+      await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+      await expect(nav.getByRole("link", { name: "Writing" })).toHaveAttribute("href", "/app/writing");
+    }
 
     const goal = page.getByRole("region", { name: "Your goal" });
     await expect(goal).toContainText("6.5");
@@ -67,6 +74,8 @@ test.describe("home dashboard", () => {
     await expect(streak).toContainText("Finish any practice today to start your streak.");
     await expect(streak.getByRole("listitem")).toHaveCount(7);
     await expect(streak.getByRole("listitem", { name: "Today: no practice" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Band by module" })).toContainText("Finish a test to see your estimated band");
+    await expect(page.getByRole("region", { name: "Practice mix" }).getByTestId("practice-total")).toHaveText("0");
 
     // Two graded Reading tests: yesterday and today (noon UTC, so the dates don't depend on the hour).
     const noon = (daysAgo: number) => `${inDays(-daysAgo)}T12:00:00Z`;
@@ -82,6 +91,19 @@ test.describe("home dashboard", () => {
     await expect(streak).toContainText("Best: 2 days");
     await expect(streak.getByRole("listitem", { name: "Today: practised" })).toBeVisible();
     await expect(streak.getByRole("listitem", { name: /: practised$/ })).toHaveCount(2);
+
+    // M8.6: the chart cards count the same two tests (Reading, band 7 each).
+    const bands = page.getByRole("region", { name: "Band by module" });
+    await expect(bands.getByTestId("estimated-band")).toHaveText("7.0");
+    await expect(bands).toContainText("from 1 of 4 modules");
+    await expect(bands.getByRole("list", { name: "Recent band by module" }).getByRole("listitem")).toHaveText([/Reading\s*7\.0/, /Listening\s*—/, /Writing\s*—/, /Speaking\s*—/]);
+    const mix = page.getByRole("region", { name: "Practice mix" });
+    await expect(mix.getByTestId("practice-total")).toHaveText("2");
+    await expect(mix.getByRole("listitem").first()).toContainText("2/2");
+    const week = page.getByRole("region", { name: "This week" });
+    await expect(week.getByTestId("week-count")).toHaveText("2");
+    await expect(week).toContainText("This week: 2 practices");
+    await expect(week.getByRole("listitem", { name: /^Today: 1 practice, average band 7\.0$/ })).toHaveCount(1);
 
     // M8.5-F2: the profile shows the same streak, the all-time total and the 12-week calendar.
     await page.goto("/app/profile");

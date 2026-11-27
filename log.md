@@ -3920,3 +3920,49 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - None. Add the `e2e` label on PRs you want checked before merging.
+
+
+## 2026-11-27 — M8.6: dashboard overview redesign
+
+**Asked for:** a dashboard like a reference "project management overview" shot: a soft grey panel of white cards, coloured icon circles, big numbers, a bar chart, a donut and a two-line trend. I kept its layout and feel in Prepora's own colours; the reference's branding and content aren't copied.
+
+**Built**
+- **M8.6-B1** migration `20261130090000_dashboard_stats.sql`: `get_my_dashboard()`.
+  - Caller only: anon can't call it; signed out raises 42501.
+  - Per module (Reading and Listening from `test_attempts`, Writing from `writing_submissions`, Speaking parts from `speaking_responses`): count, latest band, and average of the last 5.
+  - The last 14 days in the student's time zone, each with count and average band.
+  - Nothing stored.
+- **M8.6-C1**
+  - `packages/shared/src/api/dashboard.ts`: the zod `DashboardStats` contract.
+    - `estimatedBand()`: the IELTS-rounded mean of the practised modules.
+    - `practiceShares()`: whole percents that add up to 100.
+    - `weekSummary()`: this week vs last, a % change, and count-weighted average bands.
+  - `packages/ui` theme:
+    - `chart-reading/listening/writing/speaking` tokens with their own dark steps;
+    - the accent palette (`accent-pink`, `-rose`, `-petal`, `-lime`) as colours.
+- **M8.6-F1**
+  - `components/dashboard/overview.tsx`: the goal, credits and streak stat cards, and the Band by module, Practice mix and This week chart cards. The charts are server-rendered SVG/CSS with CSS-only hover tooltips, so there's no chart library and no client JS.
+  - `components/layout/app-nav.tsx`: header pill nav, wide screens only.
+  - The page has a "Start practising" button to the recommended module.
+  - `dashboard-cards.tsx` now holds only the module tiles.
+- **Colours:**
+  - I checked the module palette with the dataviz validator (colour-blind separation, lightness, chroma, contrast).
+  - Light: `#2F6FDB` / `#E08A00` / `#F472A8` / `#138A50`; all checks pass. The low-contrast warning is answered by text labels.
+  - Dark: `#4F8EF2` / `#D08000` / `#E8659E` / `#22A862`; the colour-blind separation is 7.1, inside the allowed band only with secondary encoding, which the hatch texture and labels provide.
+  - I rejected the first candidates: pink next to green failed the colour-blindness check (ΔE 3–5).
+  - Module bands are shown IELTS-rounded (half bands), for example 7.75 → 8.0.
+- **Docs:** UI design §7 "Student dashboard"; plan milestone **M8.6**.
+
+**Tests**
+- pgTAP `dashboard_stats.test.sql` (17): access; modules in exam order; counts, latest, last-5 average; 14 days, oldest first; per-day counts and averages; the 14-day cut-off; another user's practice; the Kolkata 00:30 time-zone boundary.
+- vitest `dashboard.test.ts` (8).
+- e2e `dashboard.spec.ts`: empty states; after seeding, the estimated band, the module legend, the mix total, the week count and today's label; the nav pill `aria-current`; the "Start practising" link.
+
+**Verified** (Docker is working again)
+- pgTAP: `dashboard_stats` **17/17**, `streaks` **22/22** (first local run of the final streak version) ✓.
+- `pnpm test` **636 passed** ✓; web tsc and eslint ✓.
+- Playwright against local Supabase: `dashboard` + `credits-ui` + `journey`, desktop and mobile, **24 passed** ✓; dashboard again after the last change, **6 passed** ✓.
+- **Looked at screenshots** in light and dark, desktop and mobile, with seeded data. They showed the missing colours (stale `.next` CSS), a Speaking seed problem, squashed bars and the 7.8 band; all fixed and checked again.
+
+**Manual steps for you**
+- After merge: `supabase db push` for staging and production (new function `get_my_dashboard`).

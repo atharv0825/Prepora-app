@@ -20,8 +20,12 @@
 //     (score-speaking never sends the upload's name): "STUB_SHORT" → too few words; "STUB_FAIL"
 //     → a transcript the scoring stub answers with HTTP 500; "STUB_FOLLOW_UP" → the examiner
 //     stub asks a follow-up. Tests put the marker after a real container header (WebM's 1A 45 DF A3).
+//   * Google Cloud text-to-speech (generate-listening-audio; a "text:synthesize" path): silent MP3
+//     frames, about one second per 15 characters of text. STUB_FAIL in the text → HTTP 500.
 // Test hooks, written in a Writing answer: STUB_FAIL → HTTP 500 (exercises the refund path);
 // STUB_BAD_JSON → a reply that isn't JSON (exercises retries, then the refund).
+
+import { silentMp3 } from "./listening_tts.ts";
 
 type ChatBody = {
   model?: string;
@@ -189,16 +193,32 @@ function decodeAudio(base64: string): string {
   }
 }
 
+type SpeechBody = { input?: { text?: string; ssml?: string }; voice?: { name?: string }; audioConfig?: { audioEncoding?: string } };
+
+/** Google Cloud TTS's text:synthesize: { audioContent } with silent MP3 frames (≈ 1 s per 15 characters). */
+function speech(body: SpeechBody): Response {
+  const text = (body.input?.text ?? body.input?.ssml ?? "").replace(/<[^>]+>/g, "");
+  if (!text.trim()) return json({ error: { code: 400, message: "input is empty", status: "INVALID_ARGUMENT" } }, 400);
+  if (text.includes(STUB_FAIL_MARKER)) return json({ error: { code: 500, message: "stub failure", status: "INTERNAL" } }, 500);
+  const seconds = Math.min(60, Math.max(1, Math.round(text.length / 15)));
+  const bytes = silentMp3(Math.ceil((seconds * 44100) / 1152));
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return json({ audioContent: btoa(binary) });
+}
+
 /** The ai-stub function's handler. */
 export async function handleStub(req: Request, enabled: boolean): Promise<Response> {
   if (!enabled) return new Response("Not found", { status: 404 });
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  let body: ChatBody & GeminiBody;
+  let body: ChatBody & GeminiBody & SpeechBody;
   try {
     body = await req.json();
   } catch {
     return json({ error: { message: "Invalid JSON", type: "invalid_request_error" } }, 400);
   }
+
+  if (new URL(req.url).pathname.endsWith("text:synthesize") || body.audioConfig) return speech(body);
 
   if (new URL(req.url).pathname.endsWith(":generateContent") || body.contents) {
     const system = (body.systemInstruction?.parts ?? []).map((p) => p.text ?? "").join("\n");

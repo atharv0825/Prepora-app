@@ -42,8 +42,14 @@ describe("Listening builder inputs (M5-A1)", () => {
       order_no: 3,
       title: "Part 3",
       transcript: "A\nB",
+      tts_voices: {},
     });
     expect(ListeningSectionInput.safeParse({ test_id: T, order_no: 5, title: "x", transcript: "" }).success).toBe(false);
+    // Voices for generated audio: Google Standard voices only.
+    const voiced = (tts_voices: unknown) => ListeningSectionInput.safeParse({ test_id: T, order_no: 1, title: "x", transcript: "", tts_voices });
+    expect(voiced({ man: "en-GB-Standard-B", woman: "en-AU-Standard-C" }).success).toBe(true);
+    expect(voiced({ man: "en-GB-Wavenet-B" }).success).toBe(false);
+    expect(voiced({ man: "en-GB-Neural2-A" }).success).toBe(false);
     expect(ListeningSectionAudio.safeParse({ test_id: T, order_no: 1, audio_url: "https://audio.prepora.site/a.mp3", duration_sec: 312 }).success).toBe(true);
     expect(ListeningSectionAudio.safeParse({ test_id: T, order_no: 1, audio_url: "javascript:alert(1)", duration_sec: null }).success).toBe(false);
   });

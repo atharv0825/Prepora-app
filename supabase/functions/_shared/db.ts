@@ -236,6 +236,69 @@ export type Database = {
           },
         ]
       }
+      listening_audio_jobs: {
+        Row: {
+          audio_hash: string
+          audio_url: string | null
+          chars: number
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          order_no: number
+          requests: number
+          section_id: string
+          status: string
+          test_id: string
+        }
+        Insert: {
+          audio_hash: string
+          audio_url?: string | null
+          chars: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          order_no: number
+          requests: number
+          section_id: string
+          status?: string
+          test_id: string
+        }
+        Update: {
+          audio_hash?: string
+          audio_url?: string | null
+          chars?: number
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          order_no?: number
+          requests?: number
+          section_id?: string
+          status?: string
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_audio_jobs_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "listening_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listening_audio_jobs_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "listening_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listening_questions: {
         Row: {
           answer: Json
@@ -288,6 +351,10 @@ export type Database = {
       }
       listening_sections: {
         Row: {
+          audio_chars: number | null
+          audio_generated_at: string | null
+          audio_hash: string | null
+          audio_source: string | null
           audio_url: string | null
           created_at: string
           duration_sec: number | null
@@ -296,9 +363,14 @@ export type Database = {
           test_id: string
           title: string
           transcript: string | null
+          tts_voices: Json
           updated_at: string
         }
         Insert: {
+          audio_chars?: number | null
+          audio_generated_at?: string | null
+          audio_hash?: string | null
+          audio_source?: string | null
           audio_url?: string | null
           created_at?: string
           duration_sec?: number | null
@@ -307,9 +379,14 @@ export type Database = {
           test_id: string
           title: string
           transcript?: string | null
+          tts_voices?: Json
           updated_at?: string
         }
         Update: {
+          audio_chars?: number | null
+          audio_generated_at?: string | null
+          audio_hash?: string | null
+          audio_source?: string | null
           audio_url?: string | null
           created_at?: string
           duration_sec?: number | null
@@ -318,6 +395,7 @@ export type Database = {
           test_id?: string
           title?: string
           transcript?: string | null
+          tts_voices?: Json
           updated_at?: string
         }
         Relationships: [
@@ -1103,6 +1181,15 @@ export type Database = {
           p_expires_in_days: number
           p_note: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_import_listening_questions: {
+        Args: {
+          p_mode: string
+          p_order_no: number
+          p_questions: Json
+          p_test_id: string
         }
         Returns: Json
       }

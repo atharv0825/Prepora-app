@@ -43,6 +43,13 @@ export const AdminListeningSection = z.object({
   duration_sec: z.number().int().nullable(),
   transcript: z.string().nullable(),
   updated_at: z.string(),
+  /** Where the recording came from, and for generated audio what it was made of. */
+  audio_source: z.enum(["uploaded", "generated"]).nullable().default(null),
+  audio_hash: z.string().nullable().default(null),
+  audio_chars: z.number().int().nullable().default(null),
+  audio_generated_at: z.string().nullable().default(null),
+  /** The admin's voice per speaker for generated audio. */
+  tts_voices: z.record(z.string(), z.string()).default({}),
 });
 export type AdminListeningSection = z.infer<typeof AdminListeningSection>;
 
@@ -59,6 +66,8 @@ export const AdminListeningTest = z.object({
   }),
   sections: z.array(AdminListeningSection).max(LISTENING_SECTIONS),
   questions: z.array(AdminListeningQuestion).max(40),
+  /** Characters this test has sent to text-to-speech (all generations). */
+  tts_chars_used: z.number().int().default(0),
 });
 export type AdminListeningTest = z.infer<typeof AdminListeningTest>;
 
@@ -81,6 +90,11 @@ export const ListeningSectionInput = z.object({
     .string()
     .transform((s) => s.replace(/\r\n?/g, "\n").trim())
     .pipe(z.string().max(TRANSCRIPT_MAX, `${TRANSCRIPT_MAX.toLocaleString("en")} characters at most`)),
+  /** Voice per speaker for generated audio: Google Standard voices only. */
+  tts_voices: z
+    .record(z.string().max(40), z.string().regex(/^[a-z]{2,3}-[A-Z]{2}-Standard-[A-Z]$/, "Standard voices only"))
+    .refine((v) => Object.keys(v).length <= 12, "12 speakers at most")
+    .default({}),
 });
 export type ListeningSectionInput = z.infer<typeof ListeningSectionInput>;
 
@@ -149,6 +163,10 @@ export function nextQuestionNumber(questions: readonly Pick<Numbered, "section_i
   return count >= QUESTIONS_PER_SECTION ? null : (section.order_no - 1) * QUESTIONS_PER_SECTION + count + 1;
 }
 
+/** A map or diagram question without its picture yet (e.g. imported from a draft). */
+export const needsImage = (q: Pick<AdminListeningQuestion, "q_type" | "options">) =>
+  (q.q_type === "map_labelling" || q.q_type === "diagram_labelling") && typeof q.options.image_url !== "string";
+
 // ── Publishing ──────────────────────────────────────────────────────────────────────────────
 export type ListeningPublishCheck = { blocking: string[]; warnings: string[] };
 
@@ -156,7 +174,10 @@ export type ListeningPublishCheck = { blocking: string[]; warnings: string[] };
  * What stops a Listening test from being published. The database checks 4 sections with audio and
  * transcripts and numbering 1..N again; the per-type content and section filling it can't.
  */
-export function listeningPublishCheck(t: Pick<AdminListeningTest, "sections" | "questions">): ListeningPublishCheck {
+export function listeningPublishCheck(t: {
+  sections: readonly Pick<AdminListeningSection, "id" | "order_no" | "audio_url" | "transcript">[];
+  questions: readonly AdminListeningQuestion[];
+}): ListeningPublishCheck {
   const blocking: string[] = [];
   const warnings: string[] = [];
   const sections = [...t.sections].sort((a, b) => a.order_no - b.order_no);
@@ -182,6 +203,10 @@ export function listeningPublishCheck(t: Pick<AdminListeningTest, "sections" | "
     );
   }
   for (const q of questions) {
+    if (needsImage(q)) {
+      blocking.push(`Question ${q.q_no} (${listeningQuestionTypeLabels[q.q_type]}): add its picture.`);
+      continue;
+    }
     const parsed = parseListeningQuestion(q);
     if (!parsed.success) {
       blocking.push(`Question ${q.q_no} (${listeningQuestionTypeLabels[q.q_type]}): ${parsed.error.issues[0]?.message ?? "invalid"}.`);

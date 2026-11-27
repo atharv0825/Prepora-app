@@ -3920,3 +3920,94 @@ The brand palette and `brand-primary` `#3FC48C` are unchanged.
 
 **Manual steps for you**
 - None. Add the `e2e` label on PRs you want checked before merging.
+
+
+## 2026-11-27 — M4-A2: Reading builder Import (paste or upload a draft → preview → import)
+
+**Asked for:** an "Import" option in the admin Reading builder, next to the manual forms (unchanged). Paste a draft or upload a document, parse it into passages, questions and an answer key, preview and edit with warnings, then import with the same validation as the manual form. Staff only, and answer keys stay on the server.
+
+**Built**
+- **Buttons:** "Paste content" and "Upload document".
+  - They're in a new **Import from a draft** panel above the passages, and next to each passage's "Add question" and each empty passage's "Add passage N".
+  - The buttons in a passage preselect that passage for a single-passage paste.
+- **Upload:** `extractDraftText` (Server Function, staff check) handles .txt and .md as text, .docx with mammoth `extractRawText`, and .pdf with unpdf.
+  - It reads the file in memory and stores nothing.
+  - The limit is 10 MB (`serverActions.bodySizeLimit` in the admin's `next.config`).
+  - The extracted text goes into the same text area, through the same parser.
+- **Parser:** `apps/admin/src/lib/reading-import.ts` (pure).
+  - **Passages:** "Passage N: Title" / "Reading Passage N – Title". Lettered paragraphs ("A.", "A)", "**A.**") are stored as "A  …".
+    - An instruction like "Reading Passage 2 has five paragraphs" is *not* taken as a heading.
+  - **Groups:** "Questions N–M" / "Question N". The instructions give the type:
+    - TFNG, YNNG, matching headings / information / features;
+    - sentence, summary, note/table and flow-chart completion;
+    - short answer and MCQ.
+  - **Word limits** become the existing `max_words` and `number_allowed` fields ("NO MORE THAN TWO WORDS AND/OR A NUMBER" → 2 + number; "ONE WORD ONLY" → 1).
+  - **Choices and lists:** MCQ choices are taken from under each question; heading lists (i, ii…) keep the extra headings; feature lists and word banks can come before or after the questions.
+  - **Gaps:** dots, "…", underscores and "[gap]" become the builder's `___`.
+  - **Answer key:** a markdown table with an optional explanation column, "1. B" lines, or a Word table that comes out one cell per line.
+    - True/False/Not Given and Yes/No are stored as the builder already stores them (`true`, `not_given`, …) and shown as "True", "Not Given".
+    - Typed answers split alternatives on "/" or " OR "; "( )" marks optional words.
+  - **Warnings:** missing answers, answers without a question, the wrong answer form, unknown types, skipped or duplicate numbers, groups with the wrong number of questions, choices without a question, completions without a gap, a missing word limit, picture questions, more than 40 questions, Academic passages with fewer than 4 paragraphs, and builder notes (shown, never imported).
+- **Preview:**
+  - **Passages:** title, paragraph count and letters, word count, the target passage (1–3), and the text, all editable.
+  - **Questions:** grouped by type. Type, text, choices or list, answer, word limit and explanation are all editable.
+  - **Live checks:** each question goes through the builder's own `contentFromDraft` and the shared contract, and its error shows on the item.
+  - **Import** stays disabled while anything is invalid, two passages share a place, the total passes 40, or Append/Replace hasn't been chosen for a test that already has questions.
+- **Saving:** `importReadingContent` re-checks every passage with `ReadingPassageInput` and every question with `ReadingQuestionInput` (the manual form's contracts), checks the staff role, then calls the new **`admin_import_reading_content`** migration.
+  - One transaction, SECURITY INVOKER, so the staff RLS policies apply, plus an explicit staff check.
+  - **Append:** existing passages keep their text and get the imported questions after their own.
+  - **Replace:** the test's questions are deleted, and the text of the imported passages is replaced.
+  - Over 40 questions, or a question for a missing passage, refuses the whole import.
+  - Afterwards everything is renumbered in passage order with `admin_order_reading_questions`, as after manual edits.
+- **Other changes:**
+  - DB types regenerated, minus `get_my_dashboard`, which is in my local DB from the other branch.
+  - Admin dependencies: `mammoth` 1.13.0, `unpdf` 2.2.2 (2.2.3 was under 24 hours old), `zod` 4.6.7.
+  - Plan row **M4-A2**.
+
+**Tests**
+- vitest `reading-import.test.ts` (**22**), using the sample draft `apps/admin/src/lib/fixtures/reading-import-sample.md`: 3 passages, 40 questions across all 11 types, an answer key with explanations, a picture question and builder notes. It covers:
+  - every question passing the shared contract;
+  - MCQ letter answers;
+  - TFNG/YNNG values and labels;
+  - matching headings with 2 extra headings;
+  - flow-chart with the number rule;
+  - a summary word bank given after the questions;
+  - optional words in short answers;
+  - missing answers (warned, invalid until fixed);
+  - numbering, duplicate, wrong-form, unknown-type, stray-choice and short-passage warnings;
+  - a single passage without its heading;
+  - a Word-table answer key;
+  - the helpers.
+- pgTAP `reading_import.test.sql` (**15**): staff only; mode checked; create, append and replace behaviour; renumbering in passage order; explanations saved; over 40 refused; a missing passage refused; a failed import changes nothing.
+- e2e `reading-import.spec.ts` (API, real sessions):
+  - parse and preview the sample, with nothing saved by previewing;
+  - a student is refused;
+  - the editor imports: 3 passages and 40 questions, numbered 1–40, all 11 types, passage 2 = questions 14–26, and the publish check shows no blockers;
+  - Replace keeps 40, and a 41st is refused;
+  - a student can't read the keys.
+
+**Verified**
+- vitest: all **650 passed** ✓.
+- Admin and web tsc and eslint ✓.
+- pgTAP: import **15/15**, streaks 22/22 ✓.
+- Playwright: `reading-import` + `reading-builder` **2 passed** ✓.
+- **In a real browser** (temporary admin dev server on :3301 against local Supabase, a throwaway spec, deleted afterwards):
+  - paste the sample → Preview: "Found 3 passages and 40 questions. Everything checks out.", 3 warnings, 40 items, Q5 shown as "True";
+  - setting Q1's answer to "Z" blocks Import; fixing it unblocks;
+  - Import: 40 saved, and the page shows "40 of 40 questions";
+  - **uploading a .docx** made from the sample: the Append/Replace choice appears; Append shows "That makes 80"; Replace imports 40;
+  - **uploading a .pdf** (passage 1): 1 passage and 13 questions; Append is blocked at 53.
+  - I checked the screenshots.
+- **Bug found and fixed while testing:** mammoth's Node build needs `{ buffer }`. My first version passed `{ arrayBuffer }`, which only its browser build accepts, so .docx uploads would have failed.
+- **Not verified:** the OpenNext/Cloudflare Workers build and runtime for mammoth and unpdf (Workers has `nodejs_compat`). I tested in the Node dev server only; the admin CI build on the PR checks the bundle.
+
+**Parts the importer can't parse automatically** (they're flagged; the admin fixes them in the preview)
+1. **Picture questions** (label the diagram, map or plan): Reading questions have no picture field. They're imported as note completion, flagged "Needs image", and warned about.
+2. **A summary written as one paragraph with numbered gaps inline** ("… (31) …… and (32) ……") isn't split into questions. Each gap needs its own numbered line.
+3. **"Choose TWO letters" pairs** spread over two question numbers aren't merged. Each number is its own question (`select` 2 when the instructions say TWO).
+4. **Word's automatic numbering** isn't in the extracted text: a group with no numbered questions gets a warning asking for typed numbers.
+5. **Scanned PDFs** have no text: there's an error asking to paste instead. Multi-column PDF layouts may come out in the wrong order.
+
+**Manual steps for you**
+- After merge: `supabase db push` (new function `admin_import_reading_content`).
+- Optionally, try it on staging with one of your real drafts, and tell me about any line it doesn't understand.

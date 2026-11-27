@@ -193,6 +193,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | M4-F3 | Frontend | Question components for all 11 types (MCQ, TFNG, YNNG, matching, completion types, short answer). |
 | M4-F4 | Frontend | Results page: band, score, each question with the correct answer and explanation; attempt history. |
 | M4-A1 | Admin | Reading builder: create test → 3 passages (rich text) → type-specific question forms → preview as student → publish. |
+| M4-A2 | Admin | Reading builder **Import**: "Paste content" / "Upload document" (.txt, .md, .docx, .pdf; text extracted on the server, file not stored) → parser (passages with paragraph letters, "Questions N–M" groups → type and word limit from the instructions, MCQ choices, lists, answer key, builder notes as warnings) → editable preview with warnings → Import in one transaction (`admin_import_reading_content`, append / replace, staff only), same validation as the manual form. |
 | M4-I1 | Integration | Playwright: take the seed test → submit → correct band. Check that the network response never contains answers before submission. |
 
 **Exit:** the admin builds a test in the panel; a student takes it on mobile and gets a correct band; the Free allowance blocks the third test of the month.

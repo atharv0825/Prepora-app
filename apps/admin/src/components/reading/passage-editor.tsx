@@ -16,7 +16,18 @@ import { submitKeepingInput } from "../form-submit";
  * paragraphs, ## heading, **bold**, *italic*): the toolbar inserts the marks around the
  * selection, and Preview shows it exactly as students will (the same component as the player).
  */
-export function PassageEditor({ testId, orderNo, passage }: { testId: string; orderNo: number; passage?: { title: string; body: string } }) {
+export function PassageEditor({
+  testId,
+  orderNo,
+  passage,
+  extraActions,
+}: {
+  testId: string;
+  orderNo: number;
+  passage?: { title: string; body: string };
+  /** Shown next to "Add passage N" (the import buttons). */
+  extraActions?: React.ReactNode;
+}) {
   const [body, setBody] = useState(passage?.body ?? "");
   const [preview, setPreview] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -124,10 +135,11 @@ export function PassageEditor({ testId, orderNo, passage }: { testId: string; or
         </div>
       </div>
 
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : passage ? `Save passage ${orderNo}` : `Add passage ${orderNo}`}
         </Button>
+        {!passage && extraActions}
       </div>
     </form>
   );

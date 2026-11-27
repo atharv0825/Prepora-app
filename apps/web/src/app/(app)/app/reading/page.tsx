@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cn } from "cn";
-import { AllowanceMeter } from "@/components/allowance-meter";
 import { AttemptHistory } from "@/components/reading/reading-results";
+import { ReadingProgress } from "@/components/reading/reading-progress";
 import { TestCard } from "@/components/reading/test-card";
 import { formatDate } from "@/lib/credits";
 import { planLabel, testTypeLabel } from "@/lib/dashboard";
@@ -45,7 +45,6 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
   ]);
 
   const plan = credits?.plan ?? profile?.plan ?? "free";
-  const allowance = credits?.allowances.find((a) => a.type === "reading_tests") ?? null;
   const summary = attemptSummary(attempts ?? []);
   // Titles for the history, including tests not in the current filter.
   const titleOf = new Map<string, string>((tests ?? []).map((t) => [t.id, t.title]));
@@ -57,12 +56,21 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-16">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-h1">Reading</h1>
-        <p className="text-muted-foreground">Full tests with 60 minutes on the clock, marked instantly with a band score.</p>
+      {/* Title on the left, the completion bar on the right (completed ÷ listed: it adjusts by
+          itself when new tests are published; the monthly limit is on each test's start page). */}
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-h1">Reading</h1>
+          <p className="text-muted-foreground">Full tests with 60 minutes on the clock, marked instantly with a band score.</p>
+        </div>
+        <ReadingProgress
+          completed={(tests ?? []).filter((t) => summary.has(t.id)).length}
+          total={tests?.length ?? 0}
+          scope={filter === "all" ? "Reading" : (testTypeLabel(filter) ?? "Reading")}
+          className="shrink-0"
+        />
       </div>
 
-      {allowance && <AllowanceMeter module="Reading" used={allowance.used} limit={allowance.limit} />}
 
       <nav aria-label="Test type" className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -71,8 +79,12 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
             href={`${routes.reading}?type=${f.value}`}
             aria-current={filter === f.value ? "page" : undefined}
             className={cn(
-              "rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-              filter === f.value ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 hover:border-primary",
+              // 3D pills in brand-rust (the palette's brown): the chosen one filled, the others white.
+              "rounded-full px-4 py-2 text-sm font-medium transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 motion-reduce:hover:translate-y-0",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-rust",
+              filter === f.value
+                ? "bg-gradient-to-b from-[#a65453] to-brand-rust text-white ring-1 ring-black/10 shadow-[inset_0_1px_0_rgb(255_255_255/0.35),inset_0_-2px_0_rgb(0_0_0/0.12),0_8px_16px_-8px_rgb(140_63_63/0.8)]"
+                : "bg-gradient-to-b from-white to-[#f7efee] text-brand-rust ring-1 ring-brand-rust/25 shadow-[inset_0_1px_0_white,inset_0_-2px_0_rgb(140_63_63/0.08),0_6px_12px_-8px_rgb(140_63_63/0.55)] dark:from-[#164c58] dark:to-[#0f3b47] dark:text-[#f2c4c4] dark:ring-white/10",
             )}
           >
             {f.label}

@@ -20,7 +20,7 @@ M0-I1 summary of every pipeline. Branches: `feature/*` → PR into `develop` (st
 
 ## End-to-end tests (M1-I1)
 
-- `e2e.yml` runs Playwright on PRs touching web/packages/supabase and on pushes to `develop`.
+- `e2e.yml` runs Playwright (~6 min) on every push to `develop` that touches web/packages/supabase. On a PR it runs **only when the PR has the `e2e` label**: add the label when a PR changes user flows, pages or RLS, and it re-runs on each push while the label stays. It can also be started by hand (Actions → E2E → Run workflow). Without the label the PR check shows as skipped.
 - It starts a **local** Supabase in the runner (only db, auth, rest and kong), builds the web app against it and serves it on :3200. Nothing touches staging, and no secrets are needed.
 - Google can't be automated, so tests create real users with the local service role and sign them in through the admin API (`apps/web/e2e/support/local-supabase.ts`). Keys come from `supabase status`, and the helper refuses to run against a non-local URL.
 - Run locally: `supabase start` (repo root), then `pnpm --filter @prepora/web e2e`. A failed CI run uploads the Playwright report and traces as an artifact.

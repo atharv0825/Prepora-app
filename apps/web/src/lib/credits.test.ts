@@ -178,10 +178,12 @@ describe("historyRows", () => {
         e(6, { delta: 3, reason: "refund", action_key: "writing_t2", reservation_id: "r1" }),
         e(7, { delta: -2, reason: "expire", bucket: { source: "monthly" } }),
         e(8, { delta: 5, reason: "admin_adjust" }),
+        e(9, { delta: 20, reason: "grant", bucket: { source: "admin" } }),
       ],
       costs,
     );
     expect(rows.map((r) => [r.label, r.delta])).toEqual([
+      ["Credits from Prepora support", 20],
       ["Adjusted by Prepora support", 5],
       ["Monthly credits expired", -2],
       ["Refund: Writing Task 2 scored", 4],

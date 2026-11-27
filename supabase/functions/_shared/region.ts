@@ -1,5 +1,6 @@
-// Region pinning (plan §3): AI functions must run in a region where the Gemini API is available,
-// whatever the user's location.
+// Region pinning (plan §3): AI functions must run in one known region where the AI provider's API
+// is available (Gemini restricts countries; DeepSeek is the default, ai.ts), whatever the user's
+// location.
 //
 // How pinning works on Supabase: the CALLER chooses the region —
 //   supabase-js:  supabase.functions.invoke("name", { region: FunctionRegion.ApSoutheast1 })
@@ -8,7 +9,7 @@
 //
 // Server side, functions created with `requirePinnedRegion: true` reject requests that ran
 // in another region, so a client that forgets to pin fails loudly instead of silently
-// calling Gemini from an unsupported country.
+// calling an AI API from an unsupported country.
 
 /** Region every pinned function must run in. Override with the PINNED_REGION secret. */
 export const PINNED_REGION = Deno.env.get("PINNED_REGION") ?? "ap-southeast-1";

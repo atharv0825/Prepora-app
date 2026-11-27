@@ -24,7 +24,7 @@ Credit amounts are calculated from the real AI cost per user (§2.6). Users can 
 | Backend / DB / Auth | **Supabase** (Postgres, Auth, Storage, Edge Functions), region **Singapore (ap-southeast-1)** | Free tier |
 | Large audio files | **Cloudflare R2** (10 GB free, no egress fees) | Free |
 | AI: scoring, feedback, generation | **Google Gemini API** paid tier (`gemini-3.8-flash` for scoring, `gemini-3.5-flash-lite` for OCR and examiner turns) | Pay-as-you-go, ≈ ₹10.5 per full Speaking test, ≈ ₹2.8 per Writing task (§2.6) |
-| Speech-to-text | **Groq Whisper** (`whisper-large-v3-turbo`, $0.04 per audio hour) | ≈ ₹0.06 per minute of audio |
+| Speech-to-text | **Gemini** (`gemini-3.5-flash-lite`, audio input tokens; Groq Whisper was dropped on 2026-11-26) | ≈ ₹0.2 per minute of audio (audio price to confirm) |
 | Examiner voice (TTS) | Browser **Web Speech API** (free), Gemini TTS for Platinum | Free |
 | Live speaking agent (later phase) | Gemini Live API | Pay-as-you-go |
 | Product analytics + feature flags + rollout | **PostHog Cloud** (1M events/mo free) | Free |
@@ -157,7 +157,7 @@ Every plan has **fixed monthly limits**. AI features use **credits**. Content th
   - `gemini-3.8-flash` (used for scoring and generation): **$1.50 / 1M input tokens**, **$7.50 / 1M output tokens** (output includes thinking).
   - `gemini-3.5-flash-lite` (used for OCR and examiner follow-up questions): **$0.30 / 1M input**, **$2.50 / 1M output**.
   - Audio input = **25 tokens per second**.
-- **Groq `whisper-large-v3-turbo`** for transcripts: **$0.04 per hour of audio**.
+- **Gemini `gemini-3.5-flash-lite`** for transcripts (since 2026-11-26; Groq Whisper dropped): audio input at 32 tokens per second, **≈ $0.002 per minute at an assumed $1.00 per 1M audio tokens** (confirm on Google's pricing page).
 - Exchange rate **US$1 = ₹88**.
 - Token counts are estimates: rubric system prompt ≈ 2,500 tokens; feedback output ≈ 1,200–2,000 tokens plus ≈ 1,500 thinking tokens. Measure the real numbers in the beta (from the `ai_usage` table) and update `credit_costs`.
 
@@ -167,9 +167,9 @@ Every plan has **fixed monthly limits**. AI features use **credits**. Content th
 
 | Action | Calculation | Cost (US$) | Cost (₹) |
 |---|---|---|---|
-| Speaking Part 2 (2 min) | Whisper 2 min ($0.0013) + Flash input 6,000 tokens (3,000 audio + 3,000 text) ($0.0090) + output 2,700 ($0.0203) | 0.031 | 2.7 |
-| Speaking Part 1 (≈4 min, 5 turns) | 5 Flash-Lite examiner turns ($0.0060) + Whisper 4 min ($0.0027) + Flash input 9,000 ($0.0135) + output 2,700 ($0.0203) | 0.043 | 3.7 |
-| Speaking Part 3 (≈5 min, 5 turns) | 5 turns ($0.0060) + Whisper 5 min ($0.0033) + Flash input 11,000 ($0.0165) + output 2,700 ($0.0203) | 0.046 | 4.1 |
+| Speaking Part 2 (2 min) | Gemini STT 2 min (≈$0.004) + Flash input 6,000 tokens (3,000 audio + 3,000 text) ($0.0090) + output 2,700 ($0.0203) | 0.031 | 2.7 |
+| Speaking Part 1 (≈4 min, 5 turns) | 5 Flash-Lite examiner turns ($0.0060) + Gemini STT 4 min (≈$0.008) + Flash input 9,000 ($0.0135) + output 2,700 ($0.0203) | 0.043 | 3.7 |
+| Speaking Part 3 (≈5 min, 5 turns) | 5 turns ($0.0060) + Gemini STT 5 min (≈$0.010) + Flash input 11,000 ($0.0165) + output 2,700 ($0.0203) | 0.046 | 4.1 |
 | **Full Speaking test** | Parts 1 + 2 + 3 | **0.119** | **10.5** |
 | Writing Task 2 (typed) | Flash input 3,500 ($0.0053) + output 3,500 ($0.0263) | 0.032 | 2.8 |
 | Writing Task 1 (with chart image) | Flash input 4,500 ($0.0068) + output 3,000 ($0.0225) | 0.029 | 2.6 |
@@ -240,7 +240,7 @@ Prices are set per region (purchasing-power based). The country is detected from
 └─────────┬────────────────┘                   │ server-side only
           │ audio streaming                    ▼
           ▼                        ┌───────────────────────────────┐
-┌──────────────────────────┐       │ Gemini API / Groq Whisper     │
+┌──────────────────────────┐       │ DeepSeek / Gemini (STT, OCR)  │
 │ Cloudflare R2 (CDN)      │       │ (scoring, OCR, generation)    │
 │ Listening test audio     │       └───────────────────────────────┘
 └──────────────────────────┘
@@ -364,7 +364,7 @@ audit_log (id, admin_id, action, entity, entity_id, at)
    - Ask for microphone permission only when the user taps "Start", with a short explanation screen first.
 2. Edge Function `score-speaking`:
    - Checks auth and plan, and reserves credits atomically with the Postgres function `spend_credits(user_id, action_key)` (row lock, spends the bucket that expires first, respects the daily cap). Refunds the credits if the AI call fails.
-   - Transcribes the audio (Gemini audio input or Groq Whisper).
+   - Transcribes the audio (Gemini audio input).
    - Sends the transcript, audio-derived signals (speaking rate, pauses, filler words) and the topic to the LLM with an **IELTS band-descriptor rubric prompt**.
    - Returns strict JSON: `{fc, lr, gra, pron, band, strengths[], improvements[], better_phrases[], model_answer}`.
    - Free users get the band and a short summary. Gold/Platinum get the full JSON.

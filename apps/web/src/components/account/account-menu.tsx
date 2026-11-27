@@ -2,13 +2,15 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { Coins, LogOut, UserRound } from "lucide-react";
+import { Coins, LogOut, Monitor, Moon, Sun, UserRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuLinkItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@prepora/ui/components/dropdown-menu";
@@ -16,10 +18,16 @@ import { initials } from "@/lib/account";
 import { resetUser } from "@/lib/analytics";
 import { signOut } from "@/lib/account-actions";
 import { routes } from "@/lib/routes";
+import { parseTheme } from "@/lib/theme";
+import { useTheme } from "../theme/theme-provider";
 
-/** Avatar button → menu with the person's name/email, Profile, Credits & usage (M3-F1) and Log out (M1-F3). */
+/**
+ * Avatar button → menu with the person's name/email, Profile, Credits & usage (M3-F1),
+ * Appearance (System / Light / Dark) and Log out (M1-F3).
+ */
 export function AccountMenu({ name, email }: { name: string; email: string | null }) {
   const [pending, startTransition] = useTransition();
+  const { theme, setTheme } = useTheme();
 
   return (
     <DropdownMenu>
@@ -41,6 +49,21 @@ export function AccountMenu({ name, email }: { name: string; email: string | nul
         <DropdownMenuLinkItem render={<Link href={routes.credits} />}>
           <Coins aria-hidden /> Credits &amp; usage
         </DropdownMenuLinkItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="pb-1 text-xs font-medium text-muted-foreground" id="appearance-label">
+          Appearance
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(parseTheme(String(v)))} aria-labelledby="appearance-label">
+          <DropdownMenuRadioItem value="system">
+            <Monitor aria-hidden /> System
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="light">
+            <Sun aria-hidden /> Light
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <Moon aria-hidden /> Dark
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={pending}

@@ -59,7 +59,7 @@ Each step has an ID for tracking it in GitHub Issues or a project board:
 | M4 | Reading | Reading tables, `grade-test`, band conversion | Reading test UI, results, history | Reading test builder | 3–4 |
 | M5 | Listening | Listening tables, R2 upload, grading | Audio player, answer sheet, results | Listening builder + R2 audio upload | 4–5 |
 | M6 | Writing + AI | `score-writing`, `ocr-writing`, AI usage logging | Writing editor, photo upload, feedback screen | Writing task manager | 5–6 |
-| M7 | Speaking Part 2 + AI | Audio storage, `score-speaking`, Whisper | Cue card, prep timer, recorder, feedback | Cue card + Part 3 manager | 6–7 |
+| M7 | Speaking Part 2 + AI | Audio storage, `score-speaking`, Gemini speech to text | Cue card, prep timer, recorder, feedback | Cue card + Part 3 manager | 6–7 |
 | M8 | Speaking Parts 1 & 3 + full test | `examiner-turn`, session band averaging | AI examiner flow, full Speaking test | Part 1 question sets | 7–8 |
 | M9 | Billing & subscriptions | Razorpay + Paddle webhooks, subscriptions, credit grants | Pricing page, checkout, manage subscription, paywalls | Revenue view, manual plan change | 8–9 |
 | M10 | Platinum extras + mock test | AI generation functions, premium voice, mock test | Generated practice, premium voice, mock test mode | AI review queue | 9 |
@@ -250,10 +250,10 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 |---|---|---|
 | M7-C1 | Contract | Migration: `speaking_topics`, `speaking_sessions`, `speaking_responses` + RLS; private storage bucket `speaking-audio`. |
 | M7-C2 | Contract | Zod: `score-speaking` request (session_id, topic_id, part, audio_path) and response (`{fc, lr, gra, pron, band, transcript, fillers[], better_phrases[], strengths[], improvements[], model_answer}`); mock response. |
-| M7-B1 | Backend | Groq Whisper client (`whisper-large-v3-turbo`) for transcripts with word timings. |
+| M7-B1 | Backend | Speech-to-text client for transcripts (Groq Whisper at first; **Gemini since 2026-11-26**: the provider split, DeepSeek for text and Gemini for audio, images and voice; no Groq). |
 | M7-B2 | Backend | Audio signals: speaking rate, pause count/length, filler words from the transcript. |
 | M7-B3 | Backend | Edge Function `score-speaking` with `withCredits('speaking_p2')`: transcribe → send audio + transcript + signals + rubric to Gemini → validate JSON → save response. Pronunciation judged on intelligibility, not accent. |
-| M7-B4 | Backend | Handle WebM/Opus (Chrome) and MP4/AAC (Safari): confirm both work with Whisper and Gemini; transcode if needed. |
+| M7-B4 | Backend | Handle WebM/Opus (Chrome) and MP4/AAC (Safari): confirm both work with Gemini (speech to text since 2026-11-26); transcode if needed. |
 | M7-B5 | Backend | Prompt evaluation with accent-diverse sample recordings (Indian, Nepali, Filipino, Vietnamese speakers). |
 | M7-F1 | Frontend | Microphone permission explainer → browser permission → mic test (level meter). Handle "permission denied" with help per browser. |
 | M7-F2 | Frontend | Cue card screen → **1-minute prep timer** with notes box → **recording up to 2 minutes** (MediaRecorder, auto-stop) → playback → submit. |
@@ -282,6 +282,22 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | M8-I1 | Integration | Full Speaking test end to end on staging; check total credits = 15 and the rounded band. |
 
 **Exit:** a student completes a full Speaking test with the AI examiner and gets an IELTS-rounded overall band.
+
+---
+
+### M8.5 — Practice streaks (after M8)
+**Goal:** students see how many days in a row they have practised, on the home dashboard and on their profile. (The streak part of Phase 9; daily goals and email / web-push reminders stay in Phase 9.)
+
+| ID | Track | Step |
+|---|---|---|
+| M8.5-C1 | Contract | Zod `Streak` in `packages/shared/src/api/streak.ts` (`timezone`, `today`, `current`, `longest`, `practised_today`, `recent` practice days) + helpers `lastSevenDays()` and `streakMessage()`, with unit tests. |
+| M8.5-B1 | Backend | Migration: RPC `get_my_streak()` for `auth.uid()` only (anon refused). A practice day = a day in the student's time zone (`profiles.timezone`, else UTC) with a scored Reading/Listening test, Writing answer or Speaking part. Derived from `test_attempts`, `writing_submissions`, `speaking_responses` (nothing new stored); current run ends today or yesterday; longest run ever. pgTAP tests. |
+| M8.5-B2 | Backend | Longer history for the profile: `get_my_streak(p_days int default 7)` (1–120) so `recent` covers the last N days, plus `total_days` (all practice days ever); check `(user_id, created_at)` indexes exist on the three tables; contract `recent` max raised to match. |
+| M8.5-F1 | Frontend | Dashboard `StreakCard`: flame + current streak, "Best: N days" badge, next-step message, last-7-days strip with accessible labels; empty and error states. |
+| M8.5-F2 | Frontend | Profile (`/app/profile`) "Practice streak" section: current and best streak, total practice days, and a 12-week calendar grid (one square per day, today outlined) from `get_my_streak(84)`. |
+| M8.5-I1 | Integration | Playwright on dashboard and profile: empty state → seed practice yesterday + today → 2-day streak on both pages; desktop + mobile. Manual check with a non-UTC time zone near midnight. |
+
+**Exit:** finishing any scored practice counts today; the dashboard card and the profile section show the same current and best streak in the student's own time zone.
 
 ---
 
@@ -334,7 +350,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | M11-B1 | Backend | Account deletion (removes profile, audio, photos, submissions; keeps anonymised payment records) and data export (JSON download). |
 | M11-B2 | Backend | Cloudflare rate-limiting rules; per-user request limits on AI functions. |
 | M11-B3 | Backend | Scheduled cleanup: delete raw speaking audio after 30 days. |
-| M11-B4 | Backend | Security review: RLS on every table, no service key in the browser, signed URLs only, spend caps on Gemini/Groq. |
+| M11-B4 | Backend | Security review: RLS on every table, no service key in the browser, signed URLs only, spend caps on DeepSeek and Gemini. |
 | M11-B5 | Backend | Weekly cost report: real cost per credit from `ai_usage` vs the $0.01 budget. |
 | M11-F1 | Frontend | Legal pages: privacy policy, terms, refund policy, cookie notice. |
 | M11-F2 | Frontend | SEO: metadata, sitemap, Open Graph images; free content pages (Speaking topics list, band score calculator). |
@@ -394,7 +410,7 @@ M0 ─► M1 ─► M2 ─► M3 ─┬─► M4 ─► M5 ───────
 | 3 | M3: credits engine · M4: reading grading | M2: home · M3: credits UI | M2: users, countries · M3: plans editor |
 | 4 | M4/M5: grading, R2 | M4: reading player | M4: reading builder |
 | 5 | M5 · M6: Gemini client, writing prompts | M5: listening player | M5: listening builder |
-| 6 | M6: score-writing, OCR · M7: Whisper | M6: editor, photo, feedback | M6: writing tasks |
+| 6 | M6: score-writing, OCR · M7: Gemini speech to text | M6: editor, photo, feedback | M6: writing tasks |
 | 7 | M7: score-speaking · M8: examiner-turn | M7: recorder, cue card flow | M7: cue cards |
 | 8 | M8: session band · M9: checkout, webhooks | M8: examiner, full test | M8: Part 1 sets |
 | 9 | M9: renewals, grants · M10: generation, voice | M9: pricing, checkout · M10: mock test | M9: revenue · M10: review queue |

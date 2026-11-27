@@ -1806,3 +1806,2050 @@ Done together on one branch (the three steps were given together), from `develop
 - Full web e2e against local Supabase (app on `next dev` :3200 from a temporary worktree, since local `next build` runs out of memory): **63 passed, 21 skipped** (API-only specs run on desktop only) after updating the journey spec; the credits/dashboard/journey specs re-run after the last fix: 22/22 ✓.
 - Looked at screenshots of home, Credits & usage and the confirm dialog (desktop and mobile); fixed a lowercased month in the expiry note.
 - **Not verified:** a real AI call through `run()` / `withCredits` (M3-I1 adds a dummy Edge Function), the focus refresh in a browser, staging.
+
+## 2026-11-24 — M3-A1 + M3-A2: Plans & credits editor, user credits (grant, refund) with audit_log
+
+Done together on one branch (given together), stacked on `feature/m3-f1-f3-credits-ui` (M3-F1…F3, not merged yet) so `log.md` doesn't conflict and the student history can label admin grants.
+
+**M3-A1 Plans & credits editor** (admin `/plans`, nav "Plans & pricing" now live)
+- One form per plan: monthly and welcome credits, daily cap, the four monthly allowances, and the four feature flags. The whole `limits` object is saved (`plan_limits_valid` checks it again). Notes say what applies at once (cap, allowances, flags) and what applies at the next grant (credit amounts).
+- Credit cost per action: credits (0–1000) per row, with the budget (1 credit ≈ $0.01) against `est_cost_usd` while typing and a warning when the price is below the estimated cost. Only the price is editable: actions are added and retired by migrations, and `spend_credits` raises on an inactive action, so an on/off switch would break features instead of hiding them.
+- "Recent changes" from `audit_log` (who, what, before → after).
+
+**M3-A2 User credits** (on `/users/[id]`) and a Credits overview (`/credits`, nav "Credits" now live)
+- Balance, today's spend vs cap, buckets with expiry, this month's allowances. These are the same numbers the student sees: `get_my_credits` and the new `admin_user_credits` share `credits_summary()`.
+- Ledger (newest 200), with a spend across buckets and its refund merged by reservation, as on the student page. Each spend has **Refund** (or a "Refunded" badge).
+- **Grant credits** dialog: 1–1000 credits, expiring in 30/90/365 days or never, a required note (3–500 characters). It's added as an `admin` bucket and spent like any other.
+- **Refund** dialog: refunds one spend through `refund_credits`, back into the buckets it came from (the dialog warns that an expired bucket's share stays unusable). It's idempotent, and only refunds a spend belonging to the user on the page.
+- "Admin changes" on the user page; `/credits` lists the latest grants and refunds across users, with links.
+- Student side: an admin grant shows as "Credits from Prepora support" in their history (it would have read "From Prepora support added").
+
+**Database** (`20261124101500_admin_credits.sql`)
+- `audit_log` (admin_id, action `entity.verb`, entity, entity_id text, details jsonb, at). It has RLS, no grants and no policies: it is written only by the admin functions, in the same transaction as the change, and read through `admin_audit_entries()`. `admin_id` is set to null if the admin's account is deleted (shown as "A deleted admin").
+- Admin-only `SECURITY DEFINER` RPCs that raise `42501` unless `is_admin()`:
+  - `admin_update_plan` audits only the changed keys and writes nothing when nothing changed;
+  - `admin_update_credit_cost`;
+  - `admin_user_credits` and `admin_user_ledger` (the ledger also returns each row's bucket source and whether a spend was refunded);
+  - `admin_grant_credits` and `admin_refund_credits`, which audit the note and the balance after;
+  - `admin_audit_entries` (adds the admin's name and email).
+- Internal helpers have no execute for clients: `write_audit`, `jsonb_changes`, `admin_note`, `credits_summary`. `get_my_credits` was redefined to call `credits_summary`; its output is unchanged and its tests still pass.
+- Admins only, not content editors. Editors see "Admins only" with a reason that fits each page.
+
+**Admin app**
+- Server Functions (`lib/credit-actions.ts`) validate input with the shared schemas (`@prepora/shared/api/admin-credits`) and call the RPCs with the admin's session (public key only). Database errors are turned into plain messages.
+- Forms submit from `onSubmit` inside a transition, because React resets a form after an `action=` submit, which would wipe the input when the server refuses it. Field errors appear under each field and toasts confirm the save.
+
+**Tests**
+- pgTAP `admin_credits.test.sql` (+52):
+  - privileges: audit_log is closed to clients and the internal helpers can't be called;
+  - students and editors are refused everything;
+  - plan edits: only changed keys are audited, an unchanged save writes nothing, and invalid limits (missing, negative or unknown keys) are refused;
+  - cost edits and their bounds;
+  - the admin and the student see the same CreditBalance;
+  - grant validation, the admin bucket and its expiry, the trimmed note;
+  - refunds: the "refunded" flag, a repeat does nothing, another user's spend is refused, one audit row per real change.
+- Unit: `admin-credits.test.ts` (shared: form parsing, grant and refund inputs); admin `credits.test.ts` (cost note and below-cost check, ledger grouping, audit text); nav test; web history label.
+- e2e `admin-credits.spec.ts` (+3, real PostgREST and sessions, run serially because plans and costs are shared):
+  - the admin edits Gold's practice sessions and the AI Writing prompt's cost, then restores them; both are audited;
+  - grant + refund: the student's `get_my_credits` matches the admin's view, the ledger and the audit trail are right;
+  - students and editors are refused and can't read `audit_log`.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **337/337** ✓; `db lint` clean; types regenerated.
+- `pnpm test` 320/320 ✓; admin and web typecheck + lint ✓.
+- API e2e (admin-credits, admin-users, credits-rls, credits-concurrency) 17/17 ✓.
+- Student e2e (credits-ui, dashboard, journey) 22/22 ✓.
+- The real admin app (`next dev` :3300 + local Supabase), driven by an ad-hoc Playwright script on mobile and desktop:
+  - Gold practice sessions 30 → 31 saved, with the toast and the audit line;
+  - prompt cost 1 → 2 saved;
+  - the below-cost warning shows at 3 credits for Writing Task 2;
+  - grant with a 2-character note → field error, input kept; then a grant of 20 → balance 34;
+  - refund of the Writing spend → 38, "Refunded", audit with the notes;
+  - `/credits` lists both;
+  - the student's `/app/credits` shows "Credits from Prepora support +20";
+  - an editor gets "Admins only".
+  - Screenshots checked.
+- **Not verified:** staging (needs an admin account: M1-B3, or set your own role); the CI build.
+
+## 2026-11-24 — M3-I1: Credits end to end through a dummy Edge Function
+
+Stacked on `feature/m3-a1-a2-admin-credits` (not merged yet), so `log.md` doesn't conflict.
+
+**What:** a dummy AI action proves the credits path works end to end before the first real AI feature (M6). The path: confirm → Edge Function → `withCredits` (spend, then refund on failure) → ledger → the header chip and "Credits & usage".
+
+**How**
+- Edge Function `credits-test` (`POST`, signed in, body `{ fail?: boolean }`):
+  - runs `withCredits(ctx, "writing_t2", …)`, so it spends Writing Task 2's 4 credits;
+  - the "AI call" does nothing and logs `ai_usage` with model `dummy-test`, which cost reports can leave out;
+  - `fail: true` throws `AiCallError`, so `withCredits` refunds and logs a failed `ai_usage` row, and the function answers `500 internal` with "The AI call failed. Your credits were refunded.";
+  - credit refusals pass through unchanged (e.g. `429 daily_cap_reached` with details);
+  - it answers **404 when `APP_ENV=production`**, so it can never take real users' credits. Locally and on staging it works.
+- Web `/app/credits-test` (signed in, not linked anywhere, 404 on the production host): "Run test" and "Run failing test", each behind `<CostConfirm>` and run through `useCredits().run(invokeFunction(…))`. This is the exact pattern AI features will use. Toasts confirm the spend or the refund.
+- CI `e2e.yml`: `supabase start` no longer skips `edge-runtime`, so the local functions are served during browser tests. Locally, run `supabase functions serve` next to `supabase start`.
+
+**Tests:** e2e `credits-edge.spec.ts`
+- **API (desktop only):**
+  - the spend makes the balance 14;
+  - the failing call → 500, balance still 14, and the refund belongs to the failed reservation, not the first one;
+  - `ai_usage` rows: `dummy-test` succeeded with 4 credits and failed with 0;
+  - the refunded spend doesn't count toward the cap: one more spend is allowed, then `429 daily_cap_reached` with details, balance 10;
+  - no session → 401; bad input → 400 `validation_failed` with nothing spent.
+- **App (mobile + desktop):**
+  - chip 18 → Run test → toast, chip **14**;
+  - Run failing test → refund toast, chip stays **14**;
+  - Run test → chip **10**; the confirm then shows "Daily limit reached";
+  - Credits & usage history lists spend, refund, spend, spend and the two grants, with the meter at 8 of 8.
+- If the functions aren't running, the spec skips locally and fails in CI.
+
+**Verified**
+- `deno check --frozen` (Deno 2) passes for `credits-test` and `_shared`; web typecheck and lint pass.
+- `credits-edge.spec.ts` **4/4** passed against local Supabase + `supabase functions serve` + the app on `next dev` :3200 (temporary worktree); the 2 API tests are skipped on mobile by design.
+- **Not verified:** the CI run with the edge runtime enabled; staging (the function deploys there on merge, and APP_ENV=staging keeps it on); the rest of the e2e suite wasn't re-run, since no existing code changed.
+
+## 2026-11-24 — M4-C1: Reading schema (tests, passages, questions, attempts) + RLS
+
+Stacked on `feature/m3-i1-credits-e2e` (not merged yet), so `log.md` doesn't conflict.
+
+**What:** migration `20261124160000_reading_schema.sql` adds `reading_tests`, `reading_passages`, `reading_questions` and `test_attempts`, with RLS. The answer key is never readable by users.
+
+**How**
+- **Shared enums** for every content module: `content_status` (draft, review, published, archived) and `content_source` (admin, ai). Also `reading_question_type` (the 11 types, §2.3) and `test_module` (reading, listening).
+- **Helpers:**
+  - `is_staff()`: admin or content editor;
+  - `plan_rank()`;
+  - `has_plan(min_plan)`: the caller's plan, with no profile counted as Free.
+- **`reading_tests`:** type, title, source, status, `min_plan`, `created_by`, `published_at`.
+  - Publishing is checked by a trigger: it needs **exactly 3 passages and questions numbered 1..N with no gaps**, and it sets `published_at`.
+  - Published tests can't be deleted (archive them instead); drafts can.
+- **`reading_passages`:** `order_no` 1–3, unique per test. The body is rich text up to 30k characters; format and sanitising come with M4-A1.
+- **`reading_questions`:**
+  - `test_id` is stored, with a composite foreign key `(passage_id, test_id)`, so question numbers 1–40 are **unique across the whole test** and a question can't join another test's passage;
+  - `options` (object or array) and `answer` (jsonb) take their per-type shapes in M4-C2;
+  - `explanation` is optional.
+- **`test_attempts`:**
+  - module, test_id (no foreign key, so history survives a deleted test), answers by question number, `raw_score` 0–40, band 0–9 in half steps only, time taken;
+  - only the service role writes it (grade-test, M4-B2), and users read their own.
+
+**RLS**
+- **Test list:** published tests are readable by anyone, signed out too. Gold tests stay listed, so they can be shown locked with an upgrade prompt.
+- **Passages and questions:** signed-in users only, for published tests **within their plan**. Drafts and archived tests are invisible.
+- **Answer key:** column privileges give `authenticated` SELECT on every question column **except `answer` and `explanation`** (the explanation gives the answer away). So `select=*`, `select=answer` and even filtering on `answer` all fail with 42501. This holds for any row policy and for staff too.
+  - Staff write answers directly. They'll read them through a SECURITY DEFINER RPC that comes with the builder (M4-A1).
+- **Writes:** staff (admin, content editor) insert, update and delete content. Students can't write content or attempts.
+
+**Tests**
+- pgTAP `reading_schema.test.sql` (+49):
+  - column and table privileges;
+  - the 11 types;
+  - the editor builds tests: a 4th passage, duplicate question numbers, cross-test passages and question 41 are refused;
+  - publishing: an empty test is refused, a gap is refused, then it publishes and `published_at` is set;
+  - delete rules;
+  - a Free student: published list incl. Gold; Free content readable; answer, explanation and `*` give 42501; Gold content gives 0 rows; can't write tests, questions or attempts;
+  - a Gold student reads Gold content; archiving hides it again;
+  - anon sees the list only;
+  - attempt constraints (half bands, 40 max), and users read only their own.
+- e2e `reading-rls.spec.ts` (+3, real PostgREST):
+  - a Free student gets prompt and options but 42501 for `*`, `answer`, `explanation` and filtering on `answer`;
+  - Gold and draft content stay hidden;
+  - anon sees the list only.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **386/386** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- API e2e (reading-rls, rls, credits-rls) 13/13 ✓ against local Supabase.
+- `pnpm test` 320/320 ✓; web, admin and shared typecheck ✓; web lint ✓.
+- **Not verified:** staging (the DB migrations workflow applies it on merge).
+
+## 2026-11-24 — M4-C2 + M4-C3: Reading question contract, grade-test contract, band tables; sample tests
+
+Done together on one branch (given together), stacked on `feature/m4-c1-reading-schema` (not merged yet).
+
+**M4-C2: contract in `packages/shared`**
+- `ielts/reading.ts`: Zod schemas for **each of the 11 question types**, giving the prompt, `options` (what students see) and `answer` (the key):
+
+  | Type | `options` | `answer` |
+  |---|---|---|
+  | MCQ | `choices` (2–8) and `select` (1–3, "Choose TWO letters") | `labels` (letters A, B, …) |
+  | TFNG / YNNG | none | `value` (true/false/not_given, yes/no/not_given) |
+  | Matching headings | `headings` | a roman-numeral `label` (i, ii, …) |
+  | Matching information | `paragraphs` (the passage's paragraph letters) | `label` |
+  | Matching features | `features` | a letter `label` |
+  | Sentence and note/table completion, short answer | `max_words` (1–5) and `number_allowed` ("AND/OR A NUMBER") | `accept` (accepted spellings) |
+  | Summary and flow-chart completion | either the same typed-gap options, or a `word_bank` | `accept`, or a letter `label` |
+
+  - Completion prompts must contain exactly one `___` gap.
+  - Every schema checks that the answer fits its options: the letter exists, the right number of MCQ letters, accepted answers within the word limit.
+  - `parseReadingQuestion()` reports errors for the question's own type only.
+- `PublicReadingQuestion`, the shape students receive (no answer), and `answerLabels()`: what a student can pick for each type.
+- **Typed-answer rules:** `normalizeText` ignores case, surrounding spaces and punctuation, and curly vs straight quotes, but not spelling. `countWords` counts a hyphenated word as one and numbers separately. `withinWordLimit`: over the limit is wrong.
+- `ReadingResponse`: what the player sends per question (letters for MCQ, a value or label, or typed text).
+- `ielts/bands.ts`: **Academic and General Reading** raw→band tables (the commonly published conversions, 40 questions).
+  - The tables stop at 2.5; I extended them down to 0 so every score has a band.
+  - `readingBand(type, raw, total)` scales short tests to 40, rounding down so a short test never flatters (10/14 → 28/40).
+  - The app presents bands as estimates, since IELTS adjusts boundaries per test.
+- `api/grade-test.ts`:
+  - **Request:** module, test_id, answers by question number "1"–"40", `time_taken_sec`. Strict: no score fields accepted.
+  - **Response:** attempt id, raw score, total, half-step band, the Reading allowance after the test, and per-question results (correct, given, correct answer, other accepted answers, a note for over-limit/unanswered, explanation).
+  - **Error codes:** 400, 401, 403 (plan), 404, 402 `allowance_exceeded`.
+  - grade-test itself comes in M4-B2, with a copy of these checked by the contract test.
+
+**M4-C3: sample tests** (migration `20261124170000_seed_reading_samples.sql`)
+- **Sample Academic Test:** 3 passages (city beekeeping, moving bridges, sleep and memory) and **20 questions covering all 11 types**.
+- **Sample General Training Test:** a leisure-centre notice, a staff parking policy and a short history of the bicycle; 14 questions.
+- Both are free and published (they pass the publish trigger), and every question has an explanation. The texts are original, written for Prepora.
+- Both are shorter than 40 questions, so bands are scaled (above).
+- Passage bodies are plain text, paragraphs separated by blank lines, with lettered paragraphs for matching questions; the builder's rich-text format (M4-A1) can convert them.
+- `on conflict do nothing`, so later edits by editors are never overwritten.
+- `reading_schema.test.sql` (M4-C1) counted every published test; it now only counts its own tests, since the samples are published too.
+
+**Tests**
+- Unit (+48):
+  - `bands.test.ts`: table rows, Academic vs General, every score 0–40 maps to a band that never drops as the score rises, scaling;
+  - `reading.test.ts`: a valid example for every type, defaults, 19 invalid cases, labels, normalising, word counts and limits;
+  - `grade-test.test.ts`: request and response shapes.
+- pgTAP `reading_seed.test.sql` (+12): both published and free; 3 passages each; questions 1–20 and 1–14; all 11 types; question numbers follow passage order; every question explained; a Free student reads them but not the answers.
+- e2e `reading-rls.spec.ts` (+1): **all 34 seeded questions parse with the shared contract** (read with the service role), and a student sees both samples without answers.
+
+**Verified**
+- `supabase db reset` + `supabase test db` **398/398** ✓; `db lint` clean; `db:types:check` ✓ (no schema change).
+- `pnpm test` 368/368 ✓; shared, web and admin typecheck ✓; web lint ✓.
+- `reading-rls.spec.ts` 4/4 ✓ against local Supabase.
+- **Not verified:** staging (the samples are added there when the migration runs on merge).
+
+## 2026-11-25 — M4-B1…B3: get_reading_test, grade-test Edge Function, grading unit tests
+
+Done together on one branch from `develop` (everything up to M4-C3 is merged).
+
+**M4-B1 `get_reading_test(id)`** (migration `20261125090000_reading_rpcs.sql`)
+- Returns `{ test, passages, questions }` without answers. Passages and questions are in order; each question has id, passage, number, type, prompt and options.
+- **SECURITY INVOKER** on purpose: it reads with the student's rights, so RLS (published, or staff) and the M4-C1 column privileges apply. Neither this function nor any later edit of it *can* return `answer` or `explanation`; naming them would fail with 42501.
+- Errors use PostgREST's status codes: **404** for not found or unpublished, **403** when the plan is too low (the message names the plan).
+  - Staff are let through, so the builder's preview (M4-A1) can open drafts and tests above their own plan.
+- Shared contract `@prepora/shared/api/reading-test` (`ReadingTestPayload`, strict: a question that carries `answer` or `explanation` fails to parse).
+
+**M4-B2 `grade-test` Edge Function** (`POST`, signed in; contract in `api/grade-test.ts`, M4-C2)
+1. The test must be published (404), and the student's plan must reach `min_plan` (403 `forbidden`, details `{ min_plan }`).
+2. Loads the answer key with the service role and grades every question (`_shared/reading.ts`); raw score → band, with short tests scaled to 40.
+3. `record_test_attempt` (new SQL function, service role only) **uses one Reading allowance and saves the attempt in one transaction**.
+   - Over the allowance → **402 `allowance_exceeded`** with `{ type, used, limit }`, and nothing is saved.
+   - A failed save never leaves a counted test without an attempt.
+4. Returns the attempt id, raw score, total, band, allowance after the test, and per-question results (correct, given, correct answer, also accepted, note `over_word_limit`/`unanswered`, explanation).
+- The request is strict: score fields can't be sent in, and question numbers must be 1–40. Only answers to existing questions are stored.
+- **Marking rules** (`supabase/functions/_shared/reading.ts`, pure TypeScript with no imports):
+  - MCQ: exactly the answer's letters, any order. "Choose TWO" is one mark, all or nothing.
+  - TFNG/YNNG: the value must match, and "not given"/"NG" is accepted. A Yes/No answer to a True/False question is wrong, as in the real test.
+  - Matching and word banks: the label, any case.
+  - Typed gaps: over the word limit is wrong (noted). Otherwise the answer is compared with the accepted ones ignoring case, spacing, surrounding punctuation and quote style, but not spelling.
+  - A missing or empty answer is wrong (noted). A malformed key is never marked correct.
+
+**M4-B3 unit tests** (`tests/reading-grading.test.ts`, +23, running on **the exact module the Edge Function uses**)
+- All 11 types with right, wrong and edge answers: MCQ order, duplicates and extra letters; TFNG variants and the "yes" trap; label case; spelling, case and punctuation; the word limit, including AND/OR A NUMBER; word banks; alternatives; unanswered and wrongly shaped answers; malformed keys.
+- `gradeTest`: Academic and General bands at several scores, scaling of a 14-question test, question order, unknown question numbers, no questions.
+- **Parity:** the Edge band tables and typed-answer rules equal `packages/shared/src/ielts` for every score 0–40 at every test length 1–40, and for the sample strings.
+
+**Tests elsewhere**
+- pgTAP `reading_rpcs.test.sql` (+18):
+  - privileges, and the function confirmed as invoker;
+  - a Free student gets the Academic sample (3 passages in order, 20 questions in order) with no answer or explanation keys or key fields;
+  - Gold → PT403, a draft or unknown id → PT404, staff preview drafts and Gold;
+  - `record_test_attempt` counts 1 of 2, refuses the 3rd, and only 2 attempts are saved.
+- Shared `reading-test.test.ts` (+2).
+- e2e `grade-test.spec.ts` (+5; real PostgREST and the local edge runtime, on the seeded samples):
+  - the raw `get_reading_test` network body contains no answer fields or explanation text; Gold → 403, unknown → 404;
+  - all correct → 20/20, band 9, explanations returned, the attempt saved and readable by the student, allowance 1 of 2;
+  - General sample with a case/punctuation variant (right), a misspelling, an over-limit answer, "yes" for True/False and an unanswered question (wrong) → 10/14, band 5.5 from the General table;
+  - the third test → 402 and nothing saved;
+  - Gold → 403 with `min_plan`, unknown → 404, no session → 401, score fields or question 41 → 400, and none of these used the allowance.
+- Like `credits-edge.spec.ts`, it needs the Edge Functions: skipped locally without them, fails in CI (where `supabase start` runs the edge runtime since M3-I1).
+
+**Verified**
+- `supabase db reset` + `supabase test db` **416/416** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `pnpm test` **393/393** ✓; shared, web and admin typecheck ✓; web lint ✓.
+- Deno 2: `deno check --frozen` for every function and `_shared` ✓; `deno test _shared/` 9/9 ✓.
+- API e2e (grade-test, reading-rls, credits-edge API) **11/11** ✓ against local Supabase + `supabase functions serve`.
+- **Not verified:** CI and staging (the function deploys to staging on merge).
+
+## 2026-11-25 — M5-F1…F3: Listening audio player, answer sheet with map/diagram labelling, results with transcripts
+
+**Scope note.** The Listening backend doesn't exist yet: no tables (M5-C1), no R2 audio (M5-B1), no labelling-image storage (M5-B3), no Listening grading (M5-B2). The screens are built against a written contract and exercised on a **built-in sample test** at `/app/listening/sample`. That page isn't linked anywhere and returns 404 in production. Wiring the screens to the real `get_listening_test` and `grade-test` is a swap of the data source once M5-C1 and B2 land.
+
+**Contract (the part of M5-C2 the player needs)**
+- `packages/shared/src/ielts/listening.ts`:
+  - question types: the 11 Reading types plus `map_labelling` and `diagram_labelling`;
+  - Zod for both labelling shapes. Map: an image with lettered places A, B, C… in order, and the answer is one of the letters. Diagram: the question's marker on the image, then a typed answer with a word limit or a word-bank letter. Marker positions are percentages of the image size;
+  - 4 sections × 10 questions (`sectionOfQuestion`);
+  - the Listening band table (one table for Academic and General), with short tests scaled to 40 as for Reading.
+- `packages/shared/src/api/listening-test.ts`:
+  - `ListeningTestPayload`: the sections carry `audio_url`; there are no answers, explanations or transcripts;
+  - `ListeningGradeRequest`, which must include `mode`;
+  - `ListeningGradeResponse`: the Reading result shape plus `mode` and per-section `transcripts`.
+
+**M5-F1 audio player** (`components/listening/audio-player.tsx`; rules in `lib/listening/player.ts`)
+- **Exam mode:**
+  - each part plays once, in order;
+  - no pause, seek, replay or choosing a part;
+  - native controls are off;
+  - position jumps from outside the page are put back, including a jump made before the audio has loaded;
+  - an outside pause resumes playback;
+  - the next part starts on its own after a 3-second gap;
+  - after the last part, a 2-minute check timer runs and then submits.
+- **Practice mode:** play/pause, a position slider, ±10 s, replay, and any part.
+- **Preloading:**
+  - the next part is fetched into memory (a blob URL) when the network is slow (Network Information API: 2g or 3g, downlink under 1.5 Mbps, or rtt over 400 ms);
+  - it is also fetched when the speed is unknown (Safari, Firefox) or once playback has stalled;
+  - on a known-fast network only metadata is loaded ahead;
+  - one `<audio>` element is reused, so iOS keeps allowing playback when a part starts by itself.
+
+**M5-F2 answer sheet**
+- Components: `answer-sheet.tsx`, `question-field.tsx` and `labelling.tsx`.
+- Layout:
+  - four part tabs, each showing how many are answered;
+  - a navigator for all 40 questions that jumps across parts;
+  - the sheet follows the part being played.
+- Inputs:
+  - every type has a control: MCQ with one or several letters, choices, matching, word banks, and typed gaps;
+  - typed gaps show the word-limit instruction and warn when the answer is over it.
+- Labelling:
+  - questions on the same image are laid out together;
+  - map: tap a lettered place to answer the current question, which then moves on;
+  - diagram: a numbered marker jumps to its answer box.
+- Answers are saved in the browser per test and mode, and cleared after grading.
+
+**M5-F3 results** (`listening-results.tsx`)
+- Band, score, mode, and the score per part.
+- Every question with the student's answer, the correct one, other accepted spellings, the over-limit note and the explanation.
+- Each part's transcript, shown for the first time here.
+
+**Sample test** (`lib/listening/sample*.ts`)
+- 40 questions across all four parts, including a map (Q11–15) and a diagram (Q31–35). Every key is validated by the shared Zod.
+- The page receives only the public payload. Keys and transcripts stay on the server: the grading Server Action uses the exact marking module that `grade-test` runs (`supabase/functions/_shared/reading.ts`), with labelling marked as its equivalent type until M5-B2. It saves nothing and uses no allowance.
+- Audio is a generated WAV of tones, served with Range support. `?sec=` sets the part length.
+
+**Verified**
+- `pnpm test` **437/437** ✓ (+44: shared listening contract 24, player rules 9, sheet, results and sample 11).
+- Typecheck ✓ (shared, web); web lint ✓.
+- Playwright `listening-player.spec.ts`: **10/10** ✓ (5 tests × mobile and desktop), against `next dev` on :3200 from a temporary worktree and local Supabase. It covers:
+  - practice controls;
+  - exam play-once, auto-advance, the seek and pause guards and the check time;
+  - slow-network preloading of part 2 while part 1 plays, and metadata only on a fast network;
+  - the full sheet with map and diagram labelling, the word-limit warning, the draft surviving a reload, results 7/40 → band 3, and the transcript appearing only after submission.
+- Screenshots on mobile and desktop checked by eye. Map answer chips were reduced to letters after that review.
+- **Not verified:** real recordings and R2 (M5-B1); Safari or iOS (WebKit isn't run; that's M5-I1); CI.
+
+## 2026-11-25 — M4-F1…F4: Reading test list, player, question components, results and attempt history
+
+**M4-F1 test list** (`/app/reading`)
+- Published tests, filtered by Academic, General Training or All (`?type=`). The student's own test type is the default.
+- This month's Reading allowance as a meter, with a "See plans" link once it's used up.
+- Tests above the student's plan are shown locked with "Unlock with Gold". Opening one directly shows an upgrade card, and an unknown id is a 404.
+- Each card shows how often the student has taken the test and their best band.
+- The home dashboard's Reading tile now opens this page and is the recommended module. Listening, Writing and Speaking stay "coming soon" until they're linked up.
+
+**M4-F2 player** (`/app/reading/[testId]`, `components/reading/reading-player.tsx`)
+- **Layout:** split view on desktop, with the passage and questions scrolling separately. Passage/Questions tabs on mobile. Passage 1–3 tabs with answered counts, and a navigator for every question that jumps to its passage and question.
+- **Timer:** 60 minutes from the start time, so it keeps running across reloads. It turns amber at 10 minutes and red at 5, announced to screen readers. At 0 the answers are sent once, without a confirm dialog.
+- **Highlighting:** select text, then press Highlight (or Ctrl/⌘+H); tap a highlight to clear it. Highlights are stored as character offsets per passage.
+- **Autosave:** answers, highlights and the start time are saved on the device on every change. They're restored with "Continued where you left off", and cleared after marking.
+- **Submit:**
+  - unanswered questions → a confirm dialog;
+  - `grade-test` goes through `useCredits().run`, so the monthly-limit dialog appears on 402 and the answers stay saved;
+  - success → the results page.
+
+**M4-F3 question components** (`components/questions/`, shared with Listening)
+- `QuestionField` handles all 11 types:
+  - MCQ, including "Choose TWO" with a cap;
+  - TFNG and YNNG;
+  - matching headings, information and features;
+  - word banks;
+  - typed gaps, with the word limit and an over-limit warning.
+- Lists of 9 or more options use a dropdown.
+- `QuestionGroupView` lays out "Questions 1–5", the IELTS instruction for the type, and the shared list once (headings, options, words).
+- The Listening components now import from here; their behaviour is unchanged.
+
+**M4-F4 results** (`/app/reading/attempts/[attemptId]`)
+- Band, score, date and time taken, with a note when a short test is scaled to 40.
+- Every question, by passage, with its prompt, the student's answer, the correct answer, other accepted answers, the over-limit note and the explanation.
+- The student's attempts at this test, plus "Take this test again".
+- The list page shows all of the student's attempts (history). Only the owner can open an attempt (RLS); anyone else gets a 404.
+- **Backend change this needed:**
+  - migration `20261125120000_test_attempt_results.sql` adds `test_attempts.results` (jsonb array);
+  - `record_test_attempt` gains `p_results` (it was dropped and recreated; still service role only);
+  - `grade-test` saves the results it returns.
+  - Without this, past attempts couldn't show correct answers: students can never read the answer key.
+  - Attempts saved before this have no results, and the page says so.
+- Known limitation: for word-bank and heading questions, the correct answer is shown as its label (for example "B" or "iii"), not the word.
+
+**Verified**
+- `pnpm test` **452/452** ✓ (+15 Reading and question-group tests, plus the dashboard test updated).
+- pgTAP **419/419** ✓ (+3: results saved, must be a list, owner-only).
+- `db lint` clean; `db:types:check` ✓; `deno check` for every function ✓.
+- Typecheck ✓ (shared, web, admin); web lint ✓.
+- Playwright, against local Supabase, `supabase functions serve` and `next dev` on :3200 from a temporary worktree:
+  - `reading-ui.spec.ts` (new): **10/10** on mobile and desktop. It covers:
+    - the filter, the allowance, the locked Gold test, the upgrade card and the 404;
+    - the full Academic sample answered through the UI across all 11 types → 20/20, band 9;
+    - split view and mobile tabs; a highlight and answers surviving a reload;
+    - results with explanations, history, and the allowance going to 1 of 2;
+    - wrong, over-limit and unanswered answers with the confirm dialog;
+    - automatic submission at 0;
+    - the third test of the month → the monthly-limit dialog, with answers kept.
+  - `grade-test.spec.ts` 5/5, now also checking the saved results; `dashboard`, `listening-player` and `journey` pass.
+  - Run in parallel, 5 mobile tests timed out on the dev server (including the untouched M2 journey). All passed when rerun one at a time.
+- Screenshots checked by eye on mobile and desktop.
+- **Not verified:** CI, staging, and Safari/iOS text selection for highlighting.
+
+## 2026-11-25 — M4-A1 + M4-I1: Reading builder (admin) and the seed-test integration test
+
+Done together on one branch from `develop` (M4-F1..F4 merged in #52).
+
+**M4-A1: Reading builder** (admin, `/reading`)
+- **Flow:** create a test (title, Academic/General, minimum plan) → 3 passages → each passage's questions → preview as a student → publish.
+  - The list shows every test, whatever its status, with its question count; the sidebar's Reading module is now live.
+  - Workflow buttons: Send for review, Publish, Move to draft, Archive, Delete (drafts only; a published test is archived instead).
+  - A "Ready to publish?" checklist (`publishCheck`, shared) blocks publishing until there are 3 passages, questions numbered 1..N in passage order, and every answer key valid for its type. It warns about passages without questions, missing explanations and short tests. The server runs the checklist again on publish, and the database trigger (M4-C1) checks passages and numbering a third time.
+- **Passages, "rich text":** a small format, not HTML:
+  - a blank line between paragraphs, `## heading`, `**bold**` and `*italic*`;
+  - the editor has Heading/Bold/Italic buttons that put the marks around the selection, a live preview, and a character count;
+  - `sanitizePassage` runs on save: it removes pasted HTML tags, control and zero-width characters, CRLF line endings and extra blank lines. Bodies are only ever rendered as React text, so nothing in them can run as code.
+  - Chosen over a WYSIWYG/HTML editor so the student highlighting (character offsets, M4-F2) keeps working; there's no new dependency and no HTML sanitiser to keep safe. Highlights now count the text as shown (marks removed); the seeded samples have no marks, so existing drafts are unaffected.
+- **Questions:** one form whose fields change with the type (all 11):
+  - MCQ choices with "choose one/TWO/THREE" and the correct letters;
+  - True/False/Not Given and Yes/No/Not Given;
+  - heading, feature and word-bank lists with the correct label;
+  - matching paragraphs and the "use a letter more than once" option;
+  - the word limit, AND/OR A NUMBER, and accepted answers;
+  - summary and flow-chart questions answered by typing or from a word bank;
+  - an explanation.
+  - The next question of the same type starts with the previous one's list and limits.
+  - Empty list rows are dropped and the answer letters are adjusted to match.
+  - Each question is checked against the M4-C2 contract in the browser, and again by the server before saving. So a saved key always grades.
+- **Numbering:** numbers run through the test in passage order and are kept that way automatically: adding to passage 1 pushes later passages' numbers up, and so do Move up/down and Delete.
+- **Preview as student:** a new admin page that uses the same passage and question components as the player. Questions can be answered, and "Check answers" marks them with the grade-test marking code (score and band shown). Nothing is saved and no allowance is used.
+- **Shared code:** the question components and the question helpers moved out of the web app so the admin preview can use them:
+  - `QuestionField` and `QuestionGroupView` now live in `packages/ui/components/ielts`;
+  - `questions.ts` now lives in `packages/shared/ielts`;
+  - the web app and Listening now import them from there.
+  - `packages/ui` now depends on `@prepora/shared` (a workspace link). The lockfile change also includes pnpm's own rewrite of some peer-dependency entries; `pnpm install --frozen-lockfile --offline` passes on it.
+- **Database** (migration `20261125150000_reading_builder.sql`):
+  - `admin_get_reading_test(id)`: SECURITY DEFINER, staff only (42501). It returns the test with answer keys and explanations, which students and even staff still can't select directly (column grants unchanged).
+  - `admin_order_reading_questions(id, ids[])`: invoker rights, staff only. It renumbers 1..N in the given order and refuses an order that misses or repeats a question, or that breaks passage order (22023).
+    - For this, the `(test_id, q_no)` unique constraint is now DEFERRABLE (initially immediate), checked at the end of the renumbering.
+    - Side effect: `ON CONFLICT (test_id, q_no)` can no longer name it. Only the M4-C3 seed did, and that ran earlier.
+  - Everything else is plain table writes under the M4-C1 staff policies. Server Functions validate first (`api/admin-reading.ts`).
+
+**M4-I1: seed-test integration test** (`e2e/reading-seed.spec.ts`)
+- A student opens the list, takes the seeded General Training sample in the browser, answers 1–10 correctly, reloads, and submits with 4 unanswered. The result is 10/14, and the band equals `readingBand("general", 10, 14)`, both in the grade-test response and on the results page.
+- **Leak check:** every document, RSC payload and API response received before submitting is searched.
+  - There must be no `"answer":`, `"explanation":`, `"accept":` or `"correct_answer":` fields, and none of the test's explanation texts.
+  - The check first caught an explanation that is a word-for-word quote of the passage; that one is excluded as not a leak.
+  - After submitting, the grade-test response does carry the explanations, which shows the check would see them.
+
+**Tests**
+- Unit (+17):
+  - `passage-text.test.ts`: cleaning, parsing, highlight pieces;
+  - `admin-reading.test.ts`: inputs, numbering, checklist;
+  - `reading-builder.test.ts`: every type's form round-trips to valid content; relabelling; carry-over; field errors;
+  - the nav test updated. The web `segments` test moved to `passage-text`.
+- pgTAP `reading_builder.test.sql` (+17): privileges and definer/invoker; a Platinum student gets 42501 for both RPCs; the editor reads a draft with keys and explanations; unknown → P0002; a 1↔2 swap works; a missing or repeated question or a passage-order break → 22023; duplicate numbers are still refused.
+- e2e `reading-builder.spec.ts` (+1, API): an editor builds, reads keys, renumbers and publishes. A student gets 42501 for both RPCs, can't publish, gets 404 for the draft, and after publishing sees formatted passages but no answers.
+- The Reading e2e helpers (`key`, `answer`) moved to `e2e/support/reading.ts`.
+
+**Verified**
+- `pnpm test` **469/469** ✓.
+- pgTAP **436/436** ✓; `db lint` clean; `db:types:check` ✓; `deno check` ✓ (grade-test, credits-test, health).
+- Typecheck ✓ (shared, ui, web, admin); lint ✓ (web, admin).
+- Playwright, against local Supabase, `supabase functions serve` and `next dev` on :3200 (web) and :3201 (admin), from a temporary worktree, run one at a time:
+  - `reading-seed` 2/2 (mobile, desktop); `reading-builder` 1/1; `reading-ui` 10/10;
+  - `listening-player`, `grade-test`, `dashboard`, `journey`, `admin-*` and `reading-rls`: 36 passed, 18 skipped (the API-only tests skip on mobile by design).
+- **Admin builder UI, driven in a browser by a local-only script (not committed):**
+  - create a test; 3 formatted passages via the toolbar and preview;
+  - TFNG, two matching-headings questions (list carried over), sentence completion (a prompt without a gap was refused with the contract's message), MCQ "choose TWO", short answer;
+  - adding to passage 1 renumbered passages 2–3; Move up;
+  - checklist ready; preview "Check answers" → 2/6 with the answers shown; publish;
+  - a student then opened it in the app with the formatting and all 6 questions.
+  - Screenshots checked by eye.
+- **Not verified:**
+  - CI and staging;
+  - the admin builder UI has no committed browser test, because admin isn't served in the e2e setup;
+  - Safari/iOS.
+
+## 2026-11-25 — M5-C1 + M5-C2: Listening schema + RLS; Listening question contract
+
+Done together on one branch from `develop` (M4-A1/I1 merged in #53).
+
+**M5-C1: migration `20261125180000_listening_schema.sql`**, the same model as Reading (M4-C1):
+- **`listening_question_type`**: the 11 Reading types plus `map_labelling` and `diagram_labelling`. A new enum, because Postgres can't extend one enum from another.
+- **`listening_tests`**: title, source, status, `min_plan`, `created_by`, `published_at`. There's no Academic/General field: both take the same Listening test.
+- **`listening_sections`**: `order_no` 1–4; title; `audio_url` (http(s) only; empty until the builder uploads it); `duration_sec`; `transcript`.
+- **`listening_questions`**: q_no 1–40, unique per test, and DEFERRABLE as in M4-A1, so the builder can renumber.
+  - `(section_id, test_id)` foreign key; options and answer as jsonb; explanation.
+  - A trigger keeps **section n to questions 10n−9 … 10n** (section 2 holds 11–20), on insert and on renumbering.
+- **Publishing trigger:** needs **4 sections, each with audio and a transcript**, and questions numbered 1..N with no gaps. It sets `published_at`. Published tests can only be archived, not deleted.
+- **RLS and grants**, as for Reading:
+  - the published list is public (so Gold tests can be shown locked);
+  - sections and questions are readable only by signed-in users whose plan includes the test;
+  - staff read and write everything.
+  - **`answer`, `explanation` and `transcript` have no SELECT grant for users.** The transcript would give the answers away; grade-test (M5-B2) returns it with the results.
+- Attempts reuse `test_attempts` (module `listening`, M4-C1).
+- Not in these steps: storing exam/practice mode with the attempt (M5-B2), `get_listening_test`, and the builder's staff RPC (M5-A1).
+
+**M5-C2: contract** (`packages/shared/src/ielts/listening.ts`)
+- Already there from M5-F1..F3: the labelling shapes (map with lettered places A, B, C… as % points; diagram with a marker, typed or from a word bank), `labellingImage`, `LISTENING_BANDS` and `listeningBand`, and the section helpers.
+- New:
+  - `listeningQuestionTypes` is now checked against the database enum (`satisfies`, plus a test);
+  - `parseListeningQuestion()` validates any of the 13 stored types: the Reading types by the Reading contract, labelling by its own, and errors are reported for the question's own type;
+  - `ListeningQuestionContent`;
+  - `listeningAnswerLabels()` for every type (map letters, diagram word banks).
+
+**Tests**
+- pgTAP `listening_schema.test.sql` (+42):
+  - tables, RLS, the 13 types, and the closed columns;
+  - the editor builds tests: a 5th section, a non-http audio URL, a question in the wrong section (insert or renumber), duplicates, cross-test sections and question 41 are all refused;
+  - publishing: no audio or transcript is refused, a gap is refused, a complete test publishes; a published test can't be deleted;
+  - a Free student: sees the list (Gold included); reads sections with audio and questions with their map; gets 42501 for `transcript`, `*`, `answer` and `explanation`; sees no Gold content; can't edit;
+  - Gold reads Gold content, and archiving hides it; anon sees the list only.
+- Unit (+3, `listening.test.ts`): enum parity; all 13 types validate (with errors on the question's own fields); answer labels.
+- e2e `listening-rls.spec.ts` (+1, real PostgREST):
+  - a Free student reads sections (with audio) and questions (with the map options);
+  - gets 42501 for transcript, `*`, answer, explanation, and filtering on the answer;
+  - sees no Gold or draft content; can't write;
+  - anon sees the list only.
+
+**Verified**
+- `supabase test db` **478/478** ✓; `db lint` clean; types regenerated, `db:types:check` ✓; `deno check` grade-test ✓.
+- `pnpm test` **472/472** ✓; typecheck ✓ (shared, web, admin); web lint ✓.
+- `listening-rls` + `reading-rls` **5/5** ✓ against local Supabase.
+- **Not verified:**
+  - a from-scratch `supabase db reset`: the auto-mode safety check blocked it, because it would wipe local data. The migration was applied with `migration up` on top of all the earlier ones;
+  - staging (the DB migrations workflow applies it on merge).
+
+## 2026-11-25 — M5-B1…B3: R2 audio uploads, grade-test for Listening, image bucket
+
+Done together on one branch from `develop` (M5-C1/C2 merged in #54).
+
+**M5-B1: Cloudflare R2 + `r2-upload-url`**
+- **New Edge Function `r2-upload-url`** (POST, signed in). It returns a **presigned PUT** for one section's recording, plus the public URL it will have. Contract: `api/r2-upload.ts`.
+  - The browser uploads straight to R2 with progress, and the R2 keys never leave the function.
+  - The URL is an S3 SigV4 presign (region `auto`), valid 15 minutes, for one object key and one **signed Content-Type**.
+  - It is signed in `_shared/r2.ts` with WebCrypto: no SDK, no imports. The unit test reproduces **AWS's published example signature** exactly.
+- **Who and what is allowed:**
+  - Staff only: admins **and content editors** (403 otherwise). The plan says "admin only", but content editors build tests too (M5-A1), as they do for Reading.
+  - The test must exist (404).
+  - Only MP3, M4A/MP4, WAV, OGG and WebM, up to 100 MB (400 otherwise).
+  - Missing R2 secrets → 503 "Audio uploads aren't set up yet".
+- **Object keys:** `listening/<test>/section-<n>-<uuid>.<ext>`, so a re-upload never overwrites audio students may be streaming.
+- **The bucket, public domain, CORS and API token are a one-time manual setup.** Steps are in **`docs/r2.md`** (Wrangler for the bucket; dashboard for the custom domain `audio[-staging].prepora.site`, CORS and a bucket-scoped token; then `supabase secrets set`). None of it is done yet.
+- **Limitation:** the size is checked when the URL is requested, not by the URL itself (R2 caps a single PUT at 5 GB). Replaced recordings stay in the bucket.
+
+**M5-B2: `grade-test` for Listening** (`module: "listening"`, `mode: "exam" | "practice"`)
+- The input is now a discriminated union; the Reading path is unchanged and was split into functions.
+- **The Listening path:**
+  - the test must be published (404) and within the student's plan (403 `{min_plan}`);
+  - the key is loaded with the service role;
+  - **the Listening band table** is used, with short tests scaled to 40;
+  - `record_test_attempt` uses the **Listening** allowance and saves the results **and the mode** (402 when used up);
+  - the response follows `ListeningGradeResponse`, including **each section's transcript, sent only now**.
+- **Marking** (`_shared/reading.ts`, the one import-free grading module):
+  - `map_labelling` is a letter, like matching;
+  - `diagram_labelling` is typed with a word limit, or a word-bank letter;
+  - `LISTENING_BANDS`/`listeningBand` are copies, checked against `packages/shared`;
+  - `gradeListeningTest`.
+  - The web sample grader (M5-F3) now uses this code instead of its own type mapping.
+- **Migration `20261125200000_listening_backend.sql`:**
+  - `test_attempts.mode` (exam/practice, Listening only);
+  - `record_test_attempt` gains `p_mode` (dropped and recreated; service role only);
+  - **`get_listening_test(id)`**: invoker rights like `get_reading_test`. It returns sections with audio and questions, never answers, explanations or transcripts; PT404/PT403; staff can open drafts. Not in the step list, but the player and M5-I1 need it.
+
+**M5-B3: image bucket** (same migration)
+- A public Supabase Storage bucket, **`listening-images`**: 5 MB, PNG/JPEG/WebP only. SVG is excluded because it can carry script.
+- RLS on `storage.objects`: only staff list, upload, replace and delete; anyone can view by public URL (the URLs sit in the question options, which only students with the plan can read).
+
+**CI:** `e2e.yml` writes **placeholder** R2 settings (not secrets) to `supabase/functions/.env` before `supabase start`, so `r2-upload-url` can be tested; it only signs, nothing is uploaded. **Storage is no longer excluded**, for the image-bucket test.
+
+**Tests**
+- Unit (+11):
+  - `tests/listening-grading.test.ts`: map and diagram marking (typed, word limit, bank), a mixed test, results matching the shared contract, band parity for every score 0–40 at every length 1–40;
+  - `tests/r2.test.ts`: the AWS SigV4 example, encoding, an R2 URL's host/path/credential/signed headers/expiry, Content-Type bound to the signature, "not configured", and limits equal to the shared contract.
+- pgTAP `listening_backend.test.sql` (+22):
+  - privileges;
+  - `get_listening_test`: 4 sections in order with audio, questions, nothing secret; Gold → PT403; draft/unknown → PT404; staff open drafts;
+  - the attempt is recorded with its mode and uses the Listening allowance; a mode on Reading, or an unknown mode, → 23514;
+  - the bucket's settings; staff upload and list; a student can't upload or list.
+  - `reading_rpcs.test.sql`: the `record_test_attempt` signature updated.
+- e2e `listening-backend.spec.ts` (+4, API, edge runtime):
+  - **load → grade** in practice mode: 3/4, the Listening band, map and diagram marked, transcripts only in the response, allowance 1 of 2, attempt saved with mode and results;
+  - Gold 403, draft 404, no mode 400, third test → 402; Reading still works;
+  - **r2-upload-url**: an editor gets a valid presigned URL; a student 403, no session 401, video 400, 200 MB 400, unknown test 404;
+  - **image bucket**: an editor uploads a PNG and it's served publicly; SVG is refused; a student is refused.
+
+**Verified**
+- `pnpm test` **483/483** ✓.
+- pgTAP **500/500** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- `deno check` ✓ (grade-test, r2-upload-url, credits-test, health).
+- Typecheck ✓ (shared, web, admin); web lint ✓.
+- Playwright API specs against local Supabase + `supabase functions serve --env-file <placeholder R2 values>`: `listening-backend` 3 passed, 1 skipped (see below); `grade-test` 5/5; `listening-rls`, `reading-rls` and `credits-edge` API pass. The one failure was credits-edge's browser test, which can't run in the API-only setup (no app URL).
+- **Not verified:**
+  - **the image-bucket e2e test**: the local Supabase runs without Storage, so it skipped here. It runs in CI, now that Storage is on there; the policies are covered by pgTAP.
+  - **a real upload to R2**: no bucket exists yet. The signature matches AWS's example, but R2's acceptance of it (including the signed Content-Type) and CORS are untested until `docs/r2.md` is done.
+  - the browser Listening sample after the grader swap (unit-tested only);
+  - CI and staging.
+
+## 2026-11-25 — M5-A1 + M5-I1: Listening builder (admin) and the Listening integration tests
+
+Done together on one branch from `develop` (M5-B1..B3 merged in #55).
+
+**M5-A1: Listening builder** (admin, `/listening`; the sidebar's Listening module is now live)
+- **Flow:** create a test (title, minimum plan; one test serves Academic and General) → 4 sections → each section's recording, transcript and questions → publish.
+  - Workflow buttons as for Reading: Send for review, Publish, Move to draft, Archive, Delete (drafts only).
+  - A "Ready to publish?" checklist (`listeningPublishCheck`, shared) blocks publishing until there are 4 sections each with a recording and transcript, valid answer keys, and numbering without gaps.
+    - Because numbers run 1–10, 11–20, …, it says which section must be filled first.
+    - It warns about short or empty sections and missing explanations.
+    - The server runs it again on publish, and the M5-C1 trigger checks a third time.
+- **Recording upload:** the browser asks `r2-upload-url` (M5-B1) for a presigned PUT, uploads **straight to R2 with a progress bar**, reads the length from the file, and saves the public URL and duration on the section.
+  - The type and size are checked first; "not set up" errors point to `docs/r2.md`.
+  - The section shows a player, the length and the URL; "Replace recording" uploads a new object.
+- **Transcript** per section (up to 30,000 characters), with a note that students see it only after submitting.
+- **Questions:** up to **10 per section**, numbered inside the section (section n: 10n−9 …). Add, edit, move up/down and delete renumber automatically (new `admin_order_listening_questions`).
+- **All 13 types.** The Reading builder's question form, list, details and status components now take a `module` and serve both builders; one draft model covers both.
+- **Labelling questions:**
+  - **upload the picture** to the `listening-images` bucket (M5-B3), or paste a URL;
+  - describe it for screen readers;
+  - **click the picture** to place a map's lettered places (A, B, C… in order, up to 12) or the diagram question's marker;
+  - points are stored as % of the picture's size, rounded to 0.1%;
+  - the next question of the same type starts with the picture and its places;
+  - missing pieces are named in words ("Click the picture where this question's number goes.") instead of the contract's "Invalid input".
+- **Migration `20261125220000_listening_builder.sql`:**
+  - `admin_get_listening_test` (definer, staff only): keys, explanations and transcripts;
+  - `admin_order_listening_questions` (invoker, staff only): numbers each question from its place among its section's questions.
+- **Shared:** `api/admin-listening.ts` (payload, inputs, numbering, checklist, type labels). The shared server-action helpers moved to `lib/builder-server.ts`.
+- **Not included:**
+  - a "preview as student" page (not in the step; the student page below shows the result);
+  - a student Listening list and dashboard tile;
+  - removing replaced recordings from R2.
+
+**Student page** `/app/listening/[testId]` (needed by M5-I1)
+- A published test via `get_listening_test`, in the existing player (M5-F1..F3).
+- Marked by `grade-test` with module `listening`: one allowance; the allowance dialog when it's used up; the answers stay on the device.
+- PT403 → an upgrade card; anything else not found → 404.
+
+**M5-I1: integration** (`e2e/listening-live.spec.ts`)
+- A published test (4 sections, tone recordings from the sample route with real Range support; a typed gap, a map, an MCQ, a diagram).
+- **Practice mode, end to end:**
+  - nothing secret in the page first;
+  - play, pause, seek;
+  - answer every type through the UI (one misspelt);
+  - submit → 3 of 4, the Listening band, correct answers, and the transcript shown only now;
+  - the attempt is saved as `practice`.
+- **Exam mode:**
+  - no slider, part buttons, replay or native controls;
+  - a tap starts part 1, and it can't be paused;
+  - a jump ahead is put back;
+  - part 1 ends and part 2 follows by itself, with no replay;
+  - submit → results in exam mode, saved as `exam`.
+- **Safari on iPhone:** a new Playwright project, **`ios-safari`** (WebKit with the iPhone 15 profile), runs this spec. CI now installs WebKit.
+  - **Playwright's WebKit on Windows can't play media** (`play()` → NotSupportedError, media error 4). So on WebKit the test first checks that audio plays: locally it skips with that reason; **in CI (Linux) it must pass, and fails if audio can't play**.
+  - It's WebKit, Safari's engine, not a real iPhone.
+- `e2e/listening-builder.spec.ts` (API): an editor builds, reads keys and transcripts, reorders and publishes. A student gets 42501 for both builder RPCs and 404 for the draft, and once published sees no transcript or explanation.
+
+**Tests**
+- Unit (+8):
+  - `admin-listening.test.ts`: inputs, numbering within sections, a section's next number and full at 10, moves, and the checklist (missing sections, recordings, transcripts, invalid keys, short sections);
+  - `reading-builder.test.ts`: all 13 types round-trip through the form, labelling content and rounding, picture carry-over, the labelling messages.
+- pgTAP `listening_builder.test.sql` (+14): privileges and definer; a Platinum student gets 42501 for both RPCs; the editor gets transcripts, keys and explanations; unknown → P0002; reordering within sections; an incomplete order → 22023; renumbering after a delete.
+
+**Verified**
+- `pnpm test` **491/491** ✓.
+- pgTAP **514/514** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- Typecheck ✓ (shared, ui, web, admin); lint ✓ (web, admin).
+- Playwright, from a temporary worktree (`next dev` web :3200 and admin :3201, `supabase functions serve` with placeholder R2 settings):
+  - `listening-live` **4/4 on Chromium** (practice and exam, mobile and desktop); the 2 `ios-safari` runs skipped for the WebKit-on-Windows media limit above;
+  - `listening-builder` 1/1;
+  - `listening-backend`, `listening-player`, `listening-rls`, `reading-builder`, `reading-ui`, `grade-test` and `dashboard`: 34 passed, 13 skipped (API-only tests run once by design). One `reading-ui` test (monthly limit) failed once under load and passed when rerun alone.
+- **Admin Listening builder UI, driven in a browser (local-only script, not committed):**
+  - create a test; 4 sections with titles and transcripts;
+  - **4 WAV uploads**: the presigned PUT was intercepted because no R2 exists yet; it carried the signed `content-type;host` and the file's exact bytes, and the length was read as 0:03;
+  - TFNG; two map questions (3 places by clicking; picture and places carried over); a diagram question, refused without its marker with the plain message, then placed;
+  - Move up renumbered; checklist ready; published;
+  - a student opened it in the app with the map, its letters, and the diagram marker.
+  - Screenshots checked by eye.
+- **Not verified:**
+  - **Safari/WebKit playback** (CI runs it on Linux, real iPhone not tested);
+  - a **real R2 upload**, CORS included (the bucket isn't set up; see `docs/r2.md`);
+  - image upload through Storage locally (the local Supabase runs without Storage, so the picture URL was pasted; CI covers the bucket in `listening-backend`);
+  - CI and staging.
+
+## 2026-11-26 — Listening home: test list, dashboard tile, attempt history (follow-up to M5)
+
+**Request:** the home dashboard still showed Listening as "Coming soon". Add what's missing for students to reach Listening, as a separate PR, first checking which components already exist (some M5 frontend was built early, during M4).
+
+**Why it was missing:** the plan's M5 steps cover the player, answer sheet and results (M5-F1..F3), the backend and the builder, but not a Listening test list or attempt history like M4-F1/F4 for Reading. No step ID covers this, so there's no row to mark in plan.agent.md.
+
+**Checked first: already there, reused (not rebuilt)**
+- `ListeningResults` (M5-F3): band, score per part, every question, transcripts. It now also shows a reopened attempt.
+- `AttemptHistory` (M4-F4): made module-aware (`module="listening"` links to the Listening attempt page) with an optional note ("exam mode").
+- `planAllows`, `attemptSummary`, `durationText` (`lib/reading.ts`): generic, used as is.
+- The Reading page's allowance meter: extracted to **`components/allowance-meter.tsx`** and used by both pages (Reading looks the same).
+- `get_listening_test`, `grade-test` for Listening (M5-B2), and `/app/listening/[testId]` (M5-I1, #56).
+
+**New**
+- **`/app/listening`**: the published tests (no Academic/General filter: one Listening test serves both), with:
+  - "Taken N times · best band"; Start / Take again;
+  - Gold tests locked with "Unlock with Gold";
+  - this month's **Listening allowance** meter and its upgrade note;
+  - **"Your attempts"**, each with its band and mode.
+- **`/app/listening/attempts/[id]`**: a past attempt reopened in the same results view as after submitting, **transcripts included**, plus "Take this test again", "Choose another test" and this test's attempt history.
+- **Dashboard:** the Listening tile is `available` and links to `/app/listening`.
+- **Test page:** a "← Listening tests" link; the Gold upgrade card has "All Listening tests".
+- `routes.listening`, `listeningTestPath`, `listeningAttemptPath`.
+- **Migration `20261126090000_listening_attempt.sql`:** `get_listening_attempt(id)`.
+  - SECURITY DEFINER, **owner only**: anyone else, or a Reading attempt, gets PT404.
+  - It returns the attempt (mode, score, band, results), the test's title (null if deleted) and the **transcripts**.
+  - Users still can't select `listening_sections.transcript` directly. This only shows the transcripts of a test the student has already submitted, which they were sent with the results then.
+- Shared contract `ListeningAttemptPayload` (`api/listening-test.ts`).
+
+**Tests**
+- pgTAP `listening_attempt.test.sql` (+9):
+  - privileges and definer;
+  - the owner gets the attempt, mode, title and transcripts in order;
+  - a Reading attempt → PT404; transcripts still closed directly;
+  - another student → PT404;
+  - after the test is deleted: the attempt, no test, no transcripts.
+- Unit: the payload contract (+2); `dashboard.test.ts` updated (Listening available).
+- e2e **`listening-home.spec.ts`** (+2, mobile and desktop):
+  - dashboard tile → list (allowance 0 of 2, not taken, Start link, Gold locked, no attempts);
+  - a test graded through grade-test in exam mode → list shows 1 of 2, "Taken 1 time · best band", Take again, and the history with "exam mode";
+  - reopen → band, score, exam mode, the correct answer, the transcript, history current, Take again;
+  - **another student opening the same URL gets 404 and no transcript**;
+  - a Gold test on Free → the upgrade card → back to the list.
+- `dashboard.spec.ts`: the Listening tile now links to `/app/listening`; only Writing and Speaking are "Coming soon".
+
+**Verified**
+- `pnpm test` **493/493** ✓.
+- pgTAP **523/523** ✓; `db lint` clean; types regenerated, `db:types:check` ✓.
+- Typecheck ✓ (shared, ui, web, admin); web lint ✓.
+- Playwright from a temporary worktree (`next dev` :3200, `supabase functions serve`), one at a time: `listening-home`, `listening-live`, `reading-ui`, `dashboard` and `journey`: **26/26** ✓.
+- Screenshots of the dashboard, the Listening list and a reopened attempt checked by eye.
+- **Not verified:** CI and staging. There are still no real Listening tests until one is built in the admin, and that needs the R2 setup in `docs/r2.md`; until then the list says "No Listening tests yet".
+
+## 2026-11-26 — Fix: Reading test player layout (fills the screen, fixed navigator, Previous / Next)
+
+**Request** (staging, `/app/reading/<sample>`):
+- remove the "Sample Academic Test / Academic Reading" title but keep the back link;
+- the test should sit in the middle of the screen and not scroll as a page;
+- the question numbers should stay put, with a Next button to move through them.
+
+**What was wrong:**
+- the panes had a guessed height (`100dvh − 19rem`) inside a page that also had the title, the back link and the page padding;
+- so the whole page scrolled, the top bar and navigator slid around, and empty space appeared below the numbers (the second screenshot).
+
+**Fix** (`reading-player.tsx`, `reading/[testId]/page.tsx`)
+- **Once the test starts, the player is a fixed workspace below the 4rem header**, centred in a max-width (7xl) column. The page itself no longer scrolls:
+  - top bar: **← Reading tests**, the timer, "Continued where you left off", Submit;
+  - passage tabs, plus the Passage/Questions switch on mobile;
+  - **the two panes take the rest of the height and scroll inside themselves**.
+- **The navigator is fixed at the bottom**, with **Previous** and **Next** either side of the numbers:
+  - the current question gets a ring (`aria-current`);
+  - Next and Previous move from it, switching passage when needed;
+  - focusing an answer makes that question current;
+  - the number bar scrolls sideways on phones to keep the current number in view;
+  - Previous is disabled on the first question, Next on the last.
+- **The title is gone from the test screen.** A screen-reader-only h1 keeps it accessible. The **start screen** (before the clock runs) still names the test inside the intro card, so students know which test they're starting.
+- The page's own header is removed; the player renders the back link on both screens.
+
+**Tests**
+- `reading-ui.spec.ts` (+1, mobile + desktop):
+  - the start screen names the test; during the test, no visible "Academic Reading" title and the back link is there;
+  - **the page height equals the window (no page scroll)**, the navigator is inside the screen, and the pane scrolls inside;
+  - Previous is disabled at the start; Next → 1, Next → 2 (in view); Previous → 1;
+  - jumping to 20 moves to passage 3 and disables Next.
+  - The test hides `next dev`'s floating "N" badge, which sits over the bottom-left corner (dev server only; CI uses a production build).
+
+**Verified**
+- `reading-ui` **12/12**; with `reading-seed` (M4-I1) and `dashboard`, **18/18**, mobile and desktop.
+- Screenshots of the new layout checked on desktop and mobile; fixed the current-number ring being clipped at the bar's edge.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging (the screenshots came from there; it updates on merge), Safari/iOS, and the Listening player, which wasn't part of this request.
+
+## 2026-11-26 — Fix (same PR #58): Reading player on mobile goes back to a scrolling page, pinned switch, Submit at the end
+
+**Request** (mobile screenshots):
+- the full-screen layout from the first #58 change should apply to **desktop and large screens only**;
+- on mobile, keep the earlier scrolling page;
+- pin only the **Passage / Questions** switch, so students don't scroll back up to switch;
+- on mobile, the Submit button should replace Next (it took a whole row at the top).
+
+**Change** (`reading-player.tsx`, `passage-view.tsx`; pushed to the same branch, so it's part of PR #58)
+- **Desktop (md+):** unchanged from the first #58 change: a fixed workspace with the page not scrolling, panes scrolling inside, and the navigator fixed at the bottom.
+- **Mobile:**
+  - **a normal scrolling page again**: no fixed workspace, and the panes aren't scroll boxes;
+  - **the Passage / Questions switch is pinned** under the header. Switching **returns to where that view was left** (first visit: the top of the view, under the switch);
+  - the passage's "title + Highlight" bar pins just under the switch;
+  - **no Submit in the top bar**. The navigator stays pinned at the bottom with ‹ › and the numbers; **on the last question, Next becomes "Submit answers"**, with the same confirm dialog when questions are unanswered.
+
+**Tests**
+- The layout test now checks each size:
+  - **desktop**: no page scroll, the panes scroll inside, the navigator is on screen, Submit is in the top bar, Next is disabled on question 20;
+  - **mobile**: no top Submit; the page scrolls and the switch stays pinned under the header; Questions → Passage comes back to the same scroll position; the navigator stays on screen; on question 20, Next is gone and Submit opens "Submit with 20 unanswered?".
+- New e2e helper `pressSubmit()` (`support/reading.ts`): the top bar on desktop, the last question on mobile. Used by `reading-ui` and `reading-seed`.
+
+**Verified**
+- `reading-ui` 12/12, `reading-seed` 2/2 and `dashboard` all pass, **18/18** on mobile and desktop (`next dev` :3200 from a temporary worktree).
+- Mobile screenshot checked: the switch pinned mid-scroll, and Submit in place of Next on question 20.
+- `pnpm test` 493/493 ✓; web typecheck and lint ✓.
+- **Not verified:** staging until merge; Safari/iOS (sticky positioning and the restored scroll position on a real iPhone).
+
+## 2026-11-26 — Dark mode for the signed-in app
+
+**Request:** add dark mode. Mid-way: "by default it set to white mode", so it's **Light by default** and dark only when chosen.
+
+**Scope:** the signed-in student app (`/app/*`: dashboard, Reading, Listening, results, credits, profile, plans). The marketing site and sign-in pages keep their light brand design. The admin panel isn't included yet.
+
+**How it works**
+- **Account menu → Appearance:** **System / Light / Dark**, a proper radio group with a check on the current choice. New `DropdownMenuRadioGroup` and `DropdownMenuRadioItem` in `packages/ui` (Base UI's menu radio items).
+- **Default: Light**, whatever the device setting. System follows the device, including live changes (e.g. at sunset).
+- The choice is kept on the device (localStorage `prepora:theme`), not in the account.
+- **No white flash:** a tiny inline script at the top of the app layout (`lib/theme.ts`) sets the `dark` class on `<html>` before anything paints. `ThemeProvider` keeps it in sync with the choice and the device setting, and removes it when the student leaves the app.
+  - The root `<html>` has `suppressHydrationWarning`, because the script changes its class before React hydrates.
+- **Colours:** the design system already had dark tokens (kept for the mobile app). Now:
+  - `.dark` sets `color-scheme: dark`, so scrollbars, native selects and audio controls follow;
+  - `--secondary` and `--muted` are a step above the card colour, so badges, chips and meter tracks show on cards;
+  - new **`.dark .mint`** tokens make mint surfaces deep teal instead of light green.
+- **Hard-coded colours replaced** in the app and the shared question components:
+  - `bg-white` → `bg-card` / `bg-background`; `border-black/…` and `divide-black/…` → `foreground/…`;
+  - the header glass, the dashboard tiles, the Reading timer's warning amber and the passage highlight have dark variants;
+  - the destructive button text is dark on the light-red dark-mode colour;
+  - map and diagram markers keep fixed ink colours, because they sit on the (white) picture.
+- **Bug found and fixed while testing:**
+  - the first version's clean-up removed the class during React's development remount, so the page fell back to light after loading, half-themed;
+  - the provider now re-applies the theme whenever it mounts;
+  - the e2e checks the theme after the app has settled, not just at first paint.
+
+**Tests**
+- Unit `lib/theme.test.ts` (+3): parsing (nothing chosen → light), resolving System, and the inline script itself (dark, light, system, nothing chosen on a dark device → light).
+- e2e **`theme.spec.ts`** (+2, mobile + desktop):
+  - the menu shows System / Light / Dark with Light checked;
+  - Dark → `html.dark` and a deep-teal page; a reload is dark from the first parse and still dark once settled (page #08222B, heading #EAFAF0);
+  - the marketing page stays light; Light wins over a dark device;
+  - **with a dark device and nothing chosen, the app is light**; System → dark, and follows the device as it changes.
+
+**Verified**
+- `theme` 4/4. Regression in light mode, from a temporary worktree (`next dev` :3200): `reading-ui`, `reading-seed`, `dashboard`, `credits-ui`, `journey`, `listening-player`, `onboarding` and `auth`: **48 passed, 14 skipped** (API-only tests run once by design).
+- **Dark screenshots checked by eye**: dashboard, Reading list, Reading player (desktop and mobile), credits, Listening. That's how the half-themed bug, the invisible meter tracks and the invisible "Academic" badge were found and fixed.
+- `pnpm test` ✓; typecheck ✓ (ui, web, admin); lint ✓.
+- **Not verified:** every page in dark (results, profile, onboarding and plans weren't screenshot; they use the same tokens); the Listening map/diagram pictures in dark; Safari/iOS; staging.
+
+## 2026-11-26 — M6-C1: Writing schema + RLS; private `writing-photos` bucket
+
+On a branch from `develop` (dark mode merged in #59).
+
+**Migration `20261126120000_writing_schema.sql`**
+- **`writing_input_mode`** enum: `typed` or `photo`.
+- **`writing_tasks`**:
+  - `task_no` 1 or 2; `title`; `prompt`; `image_url`; source; status; `created_by`; `published_at`.
+  - **`test_type`**: required for Task 1 (Academic = report, General = letter). For Task 2 it can be null, meaning the essay suits both tests.
+  - `image_url` is http(s) only, and **only Task 1 Academic** can have one.
+  - **Publishing** a Task 1 Academic prompt needs its chart image. A published one can't lose the image afterwards. `published_at` is set the first time.
+  - No `min_plan`: Writing is paid for with credits, so every plan sees the same tasks.
+- **`writing_submissions`**:
+  - `user_id`, `task_id`, `input_mode`, `text` (the answer as scored, after any OCR edits), `word_count`, `band` (whole or half), `time_taken_sec`, `created_at`.
+  - `scores` must have all four criteria: `ta`, `cc`, `lr`, `gra`.
+  - `feedback` is a jsonb object (shape in M6-C2).
+  - `photo_paths` holds 1–2 pages for photo answers, and must be empty for typed ones.
+  - `prompt_version` records which rubric prompt did the scoring (M6-B2).
+  - **The task can't be deleted while it has submissions** (`on delete restrict`); archive it instead.
+- **RLS and grants:**
+  - published tasks are readable by everyone, signed out too;
+  - staff write tasks, and can delete drafts only;
+  - **a student reads only their own submissions and can't write any.** Only score-writing (service role) writes them, so nobody can set their own band.
+  - **Free plans store the summary only**: score-writing saves just what the plan includes. Otherwise a Free student could read the full feedback straight from the table.
+  - Staff don't read students' answers either (there's no need yet).
+- **Bucket `writing-photos`**: private; 10 MB; JPEG, PNG, WebP, HEIC/HEIF (iPhone).
+  - A student can read, upload, replace and delete files only in their own folder, `{user_id}/…`.
+  - **Uploading needs Gold or Platinum** (`has_plan('gold')`), because photo upload is a Gold feature. This stops Free accounts using the bucket as storage; ocr-writing checks the plan again when it spends the credit.
+- DB types regenerated: `packages/shared/src/db.ts` and `supabase/functions/_shared/db.ts`.
+
+**Tests**
+- pgTAP **`writing_schema.test.sql`** (+46):
+  - the tables, RLS, missing write grants and the bucket's settings.
+  - The editor's tasks are refused for: Task 1 without a test type, a Task 3, an image on Task 2, a non-http image, and publishing a report without its chart. A report that has its chart publishes, and can't drop it later. A published task isn't deleted; a draft is.
+  - Students: see the 3 published tasks and not drafts (anon the same); can't write or change tasks; get 42501 writing a submission or deleting one; read only their own.
+  - Submission rules: a photo answer needs 1–2 photos; a typed one has none; all four criteria; a half band; a non-empty answer. A task with submissions can't be deleted.
+  - Photos:
+    - Gold and Platinum upload to their own folder, not to another student's or the bucket root;
+    - each sees only their own files and can't delete anyone else's;
+    - **Free can't upload**; a student deletes their own.
+    - The test sets `storage.allow_delete_query` as the Storage API does, so RLS still decides the deletes.
+- e2e **`writing-schema.spec.ts`** (API only, desktop):
+  - signed out, published tasks are visible and drafts aren't; a student's submission insert gets 42501.
+  - The storage test goes through the real Storage API:
+    - a Gold upload, read back with a signed URL; the public URL doesn't work;
+    - another student can't download, sign or list it;
+    - Free uploads, another student's folder, PDFs and files over 10 MB are refused; the owner can delete.
+
+**Verified**
+- `supabase migration up` locally (no reset) ✓; `supabase test db`: **569 passed** (21 files) ✓; `supabase db lint`: no errors ✓.
+- `db:types --check` ✓ (both copies identical); typecheck ✓ (shared, web, admin); web lint ✓; `pnpm test` 496 ✓.
+- e2e `writing-schema` (desktop): **1 passed, 1 skipped**.
+- **Not verified:**
+  - the storage e2e locally: this local stack runs without the Storage service, and adding it needs `supabase stop`/`start`. In CI that test runs and fails if Storage is down. **So the bucket's type and size limits haven't been seen working yet**; the folder and plan rules are checked by pgTAP.
+  - `deno check` (the installed Deno is too old for the project's config; the file is the same as the typechecked shared copy);
+  - CI; staging.
+## 2026-11-26 — M6-C2 + M6-C3: Writing contract (score-writing, ocr-writing) and mock responses
+
+On one branch from `develop`. It doesn't need M6-C1's code (PR #60, still open).
+
+**Writing rules: `packages/shared/src/ielts/writing.ts`**
+- **`WRITING_TASKS`**: Task 1 is 150 words / 20 min / `writing_t1`; Task 2 is 250 words / 40 min / `writing_t2`.
+- **`writingTaskBand(scores)`**: the average of `ta`, `cc`, `lr`, `gra`, **rounded down** to a half band (6.75 → 6.5, 6.25 → 6). This is how examiners combine a task's criteria; the app shows it as a practice estimate.
+- **`countEssayWords`**: counts runs of non-space characters that contain a letter or digit. "well-known" is one word; a lone "—" or "…" is none.
+- `isUnderLength`; `criterionLabel` (Task Achievement for Task 1, Task Response for Task 2).
+
+**M6-C2: `api/score-writing.ts`**
+- **Request:**
+  - `task_id`, `text` (non-blank, at most 20,000 characters), `input_mode` (default `typed`), `time_taken_sec`.
+  - `photo_paths`: 1–2 paths matching `{uuid}/{file}`, **required for photo answers and refused for typed ones**.
+  - Beyond the plan's `(task_id, text)`, it also carries the mode and photo paths, because `writing_submissions` stores them (M6-C1).
+- **`ScoredWriting`**: what the model must return; score-writing (M6-B3) validates the model's JSON against it.
+  - scores (half bands);
+  - `summary`; up to 40 `corrections`; 1–6 strengths and improvements; `model_answer`.
+  - Each correction has `original` copied exactly from the answer, a suggestion, a category (grammar, vocabulary, spelling, punctuation, cohesion, style) and an explanation.
+  - **Corrections quote the text instead of giving character offsets**, because models get offsets wrong. The screen highlights the first match, and B3 drops quotes it can't find.
+- **Response:** a union on `detail`. Both shapes have the submission, task, word count, `min_words`, scores, band, `credits_charged` and `balance_after`.
+  - **`full`** (plans with `detailed_feedback`) adds the summary, corrections, strengths, improvements and model answer.
+  - **`summary`** (Free) adds only the summary and **`corrections_count`**, for the "12 corrections found, upgrade to see them" prompt.
+  - Both shapes are strict, so a summary can't carry the paid fields.
+  - A refine requires **`band === writingTaskBand(scores)`**.
+- **`WritingFeedback`**: the same two shapes, as stored in `writing_submissions.feedback`.
+  - `writingFeedbackFor(scored, detailedFeedback)` picks the shape; `toWritingSummary` does the trimming.
+- The header comment documents the errors: 400, 401, 404, 402/429 credit refusals, and 500 with a refund when the AI fails.
+
+**M6-C2: `api/ocr-writing.ts`**
+- **Request:** 1–2 distinct `photo_paths` in page order, plus an optional `task_id`.
+- **Response:** `pages[]` of `{ path, text, legibility }`, plus `text`, `word_count`, `credits_charged` and `balance_after`.
+  - `legibility` is `good`, `partial` (guessed words are marked `[?]` for the student to check) or `unreadable`.
+  - `text` must equal **`joinOcrPages(pages)`**: the pages trimmed and joined with a blank line.
+- Errors: 403 `feature_not_in_plan` for Free, 404 for a missing photo, and the rest as for score-writing.
+
+**M6-C3: `packages/shared/src/mocks/writing.ts`**, at the path the plan gives (`packages/shared/src/mocks/`), exported as `@prepora/shared/mocks/*`.
+- **Fixtures:** `MOCK_TASK_IDS`, `MOCK_TASK2_PROMPT`, and **`MOCK_TASK2_ESSAY`**, a believable band-6 essay (≥ 250 words) with typical mistakes.
+- **`mockScoreWriting(request, { plan, taskNo, balance })`** answers like the real function:
+  - it validates the request (400 `validation_failed`);
+  - **corrections come from rules that find real mistakes in the submitted text**, so every quote highlights;
+  - scores follow from the text: under length costs TA, and each mistake found costs a little in GRA or LR;
+  - the band comes from `writingTaskBand`; Free gets the summary shape; a low balance gets 402 `insufficient_credits` with details;
+  - every response is parsed by `ScoreWritingResponse` before it's returned.
+- **`mockOcrWriting`**:
+  - two photos return the essay split over two pages, `good`;
+  - one photo returns it with a `[?]` word, `partial`;
+  - Free gets 403 `feature_not_in_plan`.
+- Same input, same scores, so screenshots and e2e tests are stable. Submission ids differ per call.
+- **Web switch, `apps/web/src/lib/writing/api.ts`**: `scoreWriting()` and `ocrWriting()` are the only way the screens call these functions.
+  - With **`NEXT_PUBLIC_WRITING_MOCKS=1`** they answer from the mocks after 1.5 s / 1 s, so the progress states show, and errors come back in `invokeFunction`'s shape. Otherwise they call the real functions.
+  - It's off by default so a build can't serve fake bands by accident; it's documented in `apps/web/.env.example`. M6-I1 removes the mock branch.
+  - **This replaces MSW**, which the plan suggests: MSW isn't installed, and one switch in the client does the job without a service worker or a new dependency.
+
+**Tests** (+27 unit)
+- `ielts/writing.test.ts` (+5): rounding down (6.75, 6.25, 8.875), invalid criteria, word counting, task constants checked against `actionKeys`, labels.
+- `api/score-writing.test.ts` (+11):
+  - requests: typed, photo with 1–2 paths in a folder, path traversal, nested paths, photo/typed consistency, blank, too long, unknown fields;
+  - model output: off-scale, missing criterion, no strengths, empty model answer, bad category;
+  - response shapes: **a summary carrying corrections or a model answer is refused**; a wrong band is refused; the stored shapes;
+  - OCR request and response, including joining pages.
+- `mocks/writing.test.ts` (+8): Gold full feedback is valid, built from the essay, and every correction quotes it; Free gets exactly the summary keys; a short Task 1 loses TA and says why; deterministic; errors; distinct ids; both OCR cases; Free OCR refused.
+- `lib/writing/api.test.ts` (+3): calls the functions with mocks off, uses the mocks with the switch on, and mock errors come back in `invokeFunction`'s shape.
+
+**Verified**
+- `pnpm test`: **523 passed** (52 files) ✓; typecheck ✓ (shared, web, admin); web lint ✓.
+- **Not verified:**
+  - no screen uses these yet (M6-F1..F3), so the mocks haven't been seen in a browser;
+  - the Edge Functions will need Deno copies of `ScoredWriting` and `writingTaskBand` (as `_shared/reading.ts`), to add in M6-B3;
+  - CI.
+
+## 2026-11-26 — M6-B1: Gemini client for Edge Functions
+
+On a branch from `develop` (M6-C1 #60 and M6-C2/C3 #61 merged).
+
+**`supabase/functions/_shared/gemini.ts`**
+- **`generateJson({ model, system, parts, schema, … })`**: one call that must return JSON, meant to run inside `withCredits` (M3-B6).
+  - Plain REST, no SDK, so there's no new dependency: `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, with the key in the `x-goog-api-key` header.
+  - **JSON mode:** `generationConfig.responseMimeType = "application/json"` and **`responseJsonSchema`**, generated from the Zod schema (`toGeminiJsonSchema`, without the `$schema` key).
+  - **The reply is validated with the same Zod schema.** Gemini ignores some JSON Schema constraints (lengths, refinements), so validation is what makes the output safe to use.
+  - Options: `thinkingLevel` (sent as `thinkingConfig.thinkingLevel`), `maxOutputTokens`, `timeoutMs` (default 60 s per attempt), `deadlineMs` (default 120 s in total; Edge Functions stop at 150 s), `maxAttempts` (default 3), `signal`.
+  - Parts: text, or inline images (`inlineData`) for Task 1 charts and OCR.
+  - Thought parts are skipped when reading the reply.
+- **Retried**, with exponential backoff and jitter, honouring `Retry-After` (capped at 8 s):
+  - 408, 429, 500, 502 and 503; network errors; timeouts;
+  - replies that aren't valid JSON or fail the schema.
+- **Not retried:**
+  - 400/401/403/404 (request, key or model problems);
+  - **504** (the call was slow, and a second one doubles the bill);
+  - a blocked prompt; a SAFETY or other stop; **MAX_TOKENS** (a reply cut off by the token cap will be cut off again).
+  - A retry is also skipped when its backoff wouldn't fit before the deadline.
+- **Usage and cost:**
+  - input = prompt tokens; **output = reply tokens + thinking tokens** (thinking is billed as output);
+  - summed over all attempts and returned as `AiUsage` with `cost_usd`;
+  - **every failure throws `AiCallError` with that usage**, so `ai_usage` records what failed attempts cost before the refund.
+- **Models and prices** (`GEMINI_MODELS`, `GEMINI_PRICES`): `gemini-3.8-flash` for scoring at $1.50 in / $7.50 out per 1M tokens; `gemini-3.5-flash-lite` for OCR at $0.30 / $2.50. The prices come from the plan's cost table (§2.6).
+- **No temperature, topP or topK.** Google's docs say Gemini 3.6+ ignores them and will soon reject them.
+- **Prompts and replies are never logged.** Errors show the HTTP status and Google's reason, never the request.
+- I checked the API against Google's current docs, which moved to aistudio.google.com:
+  - confirmed: the field names, Flash/Flash-Lite model ids and thinking levels, that thinking is billed, and which errors to retry;
+  - **couldn't confirm verbatim:** the generateContent request page. The live test exists to settle that.
+
+**`_shared/gemini_live_test.ts`**: one real call per model, checking the reply is schema-valid JSON with usage.
+- It's **ignored unless run with a key and network permission**, so CI (no permissions, no key) never calls Gemini.
+
+**`docs/gemini.md`**: setup.
+- Use a paid-tier key for real users (plan §2.6, privacy), restricted to the Generative Language API, with a budget alert.
+- You run `supabase secrets set GEMINI_API_KEY=…`; the local env file is gitignored.
+- Also covers how to run the live test and how calls behave.
+
+**Tests: `_shared/gemini_test.ts`** (+14, fake fetch, fake clock)
+- The request: endpoint, key header, system instruction, JSON mode with the schema (`required`, `additionalProperties: false`, no `$schema`), thinking level, max tokens, no temperature.
+- Success: data, usage with thinking counted as output, cost ($0.00525 for 1000 in / 500 out).
+- Thought parts are skipped and text parts joined.
+- Retries:
+  - 429 with Retry-After and then 503 → backoffs of [2000, 1500] ms;
+  - bad JSON and a schema mismatch are retried, and their tokens counted;
+  - giving up after the last attempt → `AiCallError` with all the usage and the failing field.
+- No retry for 400, 403, a blocked prompt, SAFETY, MAX_TOKENS or 504.
+- Network errors and timeouts are retried; the last timeout's reason is kept; the deadline stops retries; cancelling stops at once.
+- Inline image parts; Flash-Lite cost ≈ the plan's $0.003 per OCR; an unknown model's cost is 0; enum schemas convert; a missing key fails before any call.
+
+**Manual steps for you** (details in `docs/gemini.md`)
+1. **Create a paid-tier Gemini key** for anything with real users. On the free tier Google may use prompts to improve its products, which conflicts with the privacy policy. Restrict it to the Generative Language API and set a budget alert (docs/gemini.md).
+2. **Set the secret in each environment** (staging, then production): `supabase secrets set GEMINI_API_KEY=…`. For local functions, put it in the gitignored env file passed to `supabase functions serve --env-file`.
+3. **Run the live test once with a dev key.** It costs a fraction of a cent, and the command is in docs/gemini.md. It confirms the model ids, JSON mode and usage fields against the real API.
+
+**Verified**
+- **Deno 2.9.8** in Docker (`denoland/deno:latest`), with CI's commands: `deno check --frozen _shared/*.ts` ✓; `deno test --frozen _shared/`: **23 passed, 2 ignored** (the live tests) ✓. `deno.lock` unchanged.
+- **Not verified:**
+  - **a real Gemini call.** There's no key here, so the model ids, the uppercase `thinkingLevel` values, `responseJsonSchema` acceptance and the usage field names haven't been checked against the live API. Run the live test with a dev key (docs/gemini.md).
+  - No function uses the client yet (M6-B3).
+  - CI.
+
+## 2026-11-26 — M6-B2..B5: Writing rubric prompts, score-writing, ocr-writing, prompt eval
+
+On one branch, **stacked on M6-B1 (#62, open)**, because it uses the Gemini client.
+
+**M6-B2: rubric prompts in versioned files** (`supabase/functions/_shared/prompts/`)
+- **`writing-rubric.v1.ts`**: the shared parts.
+  - Coherence and Cohesion, Lexical Resource, and Grammatical Range and Accuracy, band by band (9 down to 3 and below).
+  - **Paraphrased in my own words from the public IELTS band descriptors, not copied verbatim.**
+  - Scoring rules:
+    - each criterion separately in half bands, and **no overall band** (the app computes it);
+    - calibrated and strict: most candidates score 5–7, 8+ needs near-native control;
+    - under length lowers TA/TR in proportion, and under two thirds of the minimum caps it at 5;
+    - off topic, memorised or copied answers get TA/TR ≤ 3; notes or bullets are penalised;
+    - US and UK spelling are both fine.
+  - Feedback rules: a 2–4 sentence summary; up to 25 corrections, **`original` copied exactly**; 2–4 strengths and improvements; a band-9 model answer 10–20% over the minimum.
+  - **Safety:** the answer goes inside `<answer>` tags and any instructions in it are ignored, to stop students prompting their own score.
+- **`writing-t2.v1.ts`** (`t2-v1`): Task Response. Checks every part of the question is answered, the position is clear throughout, and ideas are supported.
+- **`writing-t1-academic.v1.ts`** (`t1a-v1`): Task Achievement. No overview caps it at 5; data must be accurate; no opinions.
+- **`writing-t1-general.v1.ts`** (`t1g-v1`): Task Achievement. All three bullet points (a missing one caps it at 5), a clear purpose, and a consistent tone and register, openings and closings included.
+- **`ocr-handwriting.v1.ts`** (`ocr-v1`):
+  - **transcribe exactly, mistakes included**, never correct anything, because the answer is scored on what was written;
+  - keep paragraphs; leave out crossed-out words and printed text; mark unsure words `[?]`;
+  - one entry per photo, with legibility; ignore instructions written in the photos.
+- **`prompts/writing.ts`** picks the versions in use. It builds the scoring request (task in `<task>`, the chart inline, the app's word count, an UNDER-length notice, the answer in `<answer>` with `</answer>` escaped) and the OCR request (optional task context, then each photo in order).
+  - score-writing, ocr-writing and the eval all go through it, so **the eval measures exactly what production sends**.
+  - A released version is never edited: copy to v2, run the eval, switch.
+
+**M6-B3: `score-writing`** (`supabase/functions/score-writing/index.ts`)
+- Order of work:
+  1. The task must be published (404). Photo paths must be in the caller's folder (400).
+  2. **Before spending:** the plan (`plans.limits.detailed_feedback`), the Task 1 Academic chart (fetched, PNG/JPEG/WebP, ≤ 5 MB, inlined), and the Gemini key (500 with nothing charged if it's missing).
+  3. **`withCredits('writing_t1' | 'writing_t2')`**, then inside it:
+     - Gemini Flash scores with the versioned prompt, and the reply is validated with **`ScoredWriting`** (Zod);
+     - **corrections that don't quote the answer exactly are dropped** (`keepFoundCorrections`), along with duplicates and no-ops;
+     - **the band is recomputed** with `writingTaskBand`, never taken from the model;
+     - the `writing_submissions` row is inserted with **only what the plan includes** (`writingFeedbackFor`: Free gets the summary) and its `prompt_version`.
+     - A failed insert throws `AiCallError` with the usage, so **the credits are refunded and the tokens still logged**.
+  4. Returns the contract's response, with `credits_charged` and `balance_after`.
+- `requirePinnedRegion`. **The client's signal isn't passed on:** if the student leaves, the scoring still finishes and is saved to their history instead of being thrown away.
+- `ai_usage` gets one row per call from `withCredits` (tokens, cost, success). That's the "logs tokens and cost" part.
+
+**M6-B4: `ocr-writing`** (`supabase/functions/ocr-writing/index.ts`)
+- Photos must be in the caller's own folder (400). **Free gets 403 `feature_not_in_plan` straight away** (`plans.limits.ocr`; `spend_credits` checks again).
+- Before spending:
+  - the optional task (404 if unpublished);
+  - the photos, downloaded with the service role (404 if missing; the type comes from Storage or the file extension);
+  - **the total must be ≤ 14 MB**, because Gemini's inline limit is about 20 MB and base64 adds a third. **M6-F2 should resize photos before upload**;
+  - the key.
+- **`withCredits('ocr')`**: Gemini Flash-Lite with minimal thinking. The schema requires **one page per photo**, so a wrong count is retried like any invalid reply.
+- Returns the pages (path, text, legibility), the joined text and the word count. Nothing is saved.
+
+**Shared code**
+- **`_shared/writing.ts`** (no imports, so vitest loads the exact file):
+  - copies of `WRITING_TASKS`, `writingTaskBand`, `countEssayWords`, `isUnderLength`, `toWritingSummary`, `writingFeedbackFor` and `joinOcrPages`;
+  - new: `keepFoundCorrections`; `isOwnPhotoPath` (exactly `{uid}/{file}`, no subfolders or `..`).
+- **`_shared/writing_schemas.ts`**: the Zod copies of the contract (`ScoreWritingInput`, `ScoredWriting`, `OcrWritingInput`, `OcrModelOutput`).
+- `gemini.ts`: added `bytesToBase64`, chunked so large photos don't overflow the call stack.
+
+**M6-B5: prompt evaluation** (`supabase/functions/_eval/`)
+- **`writing_essays.ts`**: 20 answers with target bands: 10 Task 2 (4–8.5), 5 General Task 1 (4.5–8) and 5 Academic Task 1 (5–8).
+  - The Academic visuals are tables in the task text, so no images are needed.
+  - **I wrote the answers myself to sit at their bands, following the descriptors. They are not examiner-marked**, so the eval measures agreement with an informed label, not ground truth.
+  - Examiner-marked scripts (copyrighted) can go in the gitignored `writing_essays.local.json`.
+- **`writing_eval.ts`** scores them with the production prompts and settings, two at a time. It prints each band, the share within ±0.5 (**target 75%**), the mean absolute error, the bias, the worst three and the cost.
+  - Results are reported overall and per task type, with a JSON report in `_eval/results/` (gitignored). It **exits 1 under the target**.
+  - Options: `--only`, `--limit`, `--concurrency`; `--dry-run` checks the set and builds every request without a key.
+- **A test caught a flaw in my own set:** four Task 2 answers aimed at 5.5–6.5 were under 250 words, which the rubric penalises. I lengthened them, and the test now requires every under-length answer to target band 5 or below.
+- **CI:** `deno check` now also covers `_shared/prompts/*.ts` and `_eval/*.ts`, and `deno test` runs `_eval/` too. The eval itself never runs in CI.
+
+**Tests**
+- Deno `_shared/writing_prompt_test.ts` (+6):
+  - three versioned prompts, each with all four criteria and the key rules;
+  - Task 2 is Task Response; Academic checks the overview; General checks bullets and tone;
+  - `taskKind`; the request shape (trimmed task, word count, UNDER notice, answer last, chart inline for Academic);
+  - **an answer containing `</answer>` can't close its own tag**;
+  - the OCR request's order and rules; both schemas convert to JSON Schema with the right `required` fields.
+- Deno `_eval/writing_eval_test.ts` (+3): the set (20 answers, kinds, band range, the under-length rule), `checkSet` errors, and the `summarise` maths.
+- vitest `tests/writing-scoring.test.ts` (+5):
+  - **the Deno copy matches the shared contract** on bands (every TA × GRA combination), word counts, under-length, feedback trimming and OCR joining;
+  - the Deno schemas keep the contract's categories, photo-path regex and limits;
+  - `keepFoundCorrections`; `isOwnPhotoPath`.
+- e2e **`writing-ai.spec.ts`** (API, against the real local functions):
+  - **always:** 401; validation; another student's photo; 404 for a draft or unknown task, with no credits spent; OCR for another student's photo (400), on Free (403) and for a missing photo (404).
+  - **Without a key (CI):** a valid answer gets 500, nothing is spent or saved; no credits gives 500 before spending.
+  - **With `E2E_GEMINI=1`:**
+    - Gold gets the full feedback: contract-valid, band 4.5–7.5 for the band-6 sample, every correction found in the text, 4 credits;
+    - Free gets the summary, with no corrections or model answer;
+    - both rows are saved with `t2-v1` and the plan's shape, and the student reads only their own;
+    - `ai_usage` records gemini-3.8-flash, real tokens and a cost; no credits gives 402 with details.
+
+**Manual steps for you** (details in `docs/gemini.md`)
+1. **Restart the local functions** so they include `score-writing` and `ocr-writing`: `supabase functions serve --env-file supabase/functions/.env`. Running it with your key file needs your go-ahead, so I didn't.
+2. **Run the real-AI e2e** (about US$0.06): from `apps/web`, `E2E_GEMINI=1 pnpm exec playwright test writing-ai --project=desktop`.
+3. **Run the eval** (about US$0.60, Deno 2; the Docker command is in docs/gemini.md) and check the share within ±0.5. If it's below 75%, look at the bias and the worst answers before releasing `v1`, or tune a `v2`.
+4. Optional: add examiner-marked scripts to `_eval/writing_essays.local.json` for a stronger benchmark.
+
+**Verified**
+- **Deno 2.9.8** (Docker), with CI's commands plus the new paths: `deno check --frozen` on all functions, `_shared/*.ts`, `_shared/prompts/*.ts` and `_eval/*.ts` ✓; `deno test --frozen _shared/ _eval/`: **32 passed, 2 ignored** (the live Gemini tests) ✓. Eval `--dry-run`: 20 requests built ✓.
+- `pnpm test`: **528 passed** (53 files) ✓; typecheck ✓ (shared, web); web lint ✓.
+- **Not verified:**
+  - **neither function has run yet.** The local runtime was started before these folders existed, and restarting it with your key file was refused, so the e2e spec skips here. That leaves untested: the function handlers end to end, the real Gemini replies, the refund path inside a real function, the chart fetch, and OCR on real photos (local Storage isn't running either).
+  - **The eval hasn't been run**, so how well v1 agrees with the target bands is unknown.
+  - CI.
+
+## 2026-11-26 — AI provider: DeepSeek first (Gemini kept as an alternative)
+
+User decision: "instead of using GEMINI we are going to use deepseek first". Committed on the M6-B2..B5 branch (PR #63, stacked on #62), so the Writing AI lands already on DeepSeek.
+
+**Checked against DeepSeek's API docs** (api-docs.deepseek.com, read 2026-11-26)
+- OpenAI-compatible `POST https://api.deepseek.com/chat/completions`, with `Authorization: Bearer`.
+- Models: **`deepseek-flash`** (V4.1-Flash: 1M context, **images supported**) and `deepseek-v4-pro` (no images). `deepseek-chat` and `deepseek-reasoner` were retired on 2026-07-24.
+- JSON: `response_format: {type: "json_object"}` only, **with no schema enforcement**. The docs ask for the word "json" and the format in the prompt.
+- Known quirk: content can come back blank with `finish_reason: stop`.
+- Thinking is a parameter: `thinking: {type}` and `reasoning_effort` (low / high).
+- Prices per 1M tokens at peak, deepseek-flash: $0.30 in ($0.006 on a cache hit), $1.20 out. **Off-peak is half.** Peak is Mon–Fri 01–04 and 06–10 UTC.
+- Retry 408/429/5xx; don't retry 400/401/402 (balance)/422.
+- **Privacy:** the docs don't say where API data is stored or for how long.
+
+**Change: a provider-neutral client with one adapter per provider**
+- **`_shared/ai.ts`**: the core that was in `gemini.ts`, unchanged in behaviour (timeouts, deadline, retries with backoff and Retry-After, Zod validation, usage summed over attempts, `AiCallError` with usage).
+  - Now with `AiModel {provider, model}` and `AI_MODELS` (DeepSeek: flash for scoring and OCR; Gemini: 3.8-flash and 3.5-flash-lite).
+  - **`currentProvider()`**: the `AI_PROVIDER` secret, **default `deepseek`**.
+  - `aiModel(job)`; `aiConfigured(model)` (key check before spending); `toJsonSchema`; `bytesToBase64`.
+  - Neutral parts (`{text}` / `{image}`) and thinking levels (`off` / `low` / `high`).
+- **`_shared/ai_deepseek.ts`**:
+  - **the JSON Schema goes in the system message**, together with JSON object mode;
+  - images as `data:` URLs; thinking enabled with `reasoning_effort`, or disabled;
+  - a blank reply and `insufficient_system_resource` are retried; `length` and `content_filter` aren't;
+  - 504 is retried here (DeepSeek's docs say so);
+  - usage with cache hits; **cost with cache hits and peak/off-peak pricing**;
+  - image types JPEG, PNG, WebP and GIF, **no HEIC**.
+- **`_shared/ai_gemini.ts`**: the M6-B1 Gemini code as an adapter, with the same behaviour (`responseJsonSchema`, thinkingLevel, 504 not retried).
+- `gemini.ts`, `gemini_test.ts` and `gemini_live_test.ts` are replaced by `ai*.ts`.
+- **Callers:**
+  - `score-writing` uses `aiModel("scoring")` with low-effort thinking.
+  - `ocr-writing` uses `aiModel("lite")` with thinking off. It now **answers 400 for photo types the provider can't read** (HEIC on DeepSeek), checked before spending. M6-F2 should convert photos to JPEG on the device.
+  - The eval has `--provider` and `--thinking`, to compare providers and effort levels.
+  - Prompts are unchanged (still `t2-v1`, `t1a-v1`, `t1g-v1`, `ocr-v1`).
+- **Migration `20261126130000_writing_ai_deepseek.sql`**: `credit_costs.model = deepseek-flash` for writing_t1, writing_t2 and ocr, with estimates of $0.0053, $0.006 and $0.002 at peak (Gemini Flash was ≈ $0.03). **The credits charged are unchanged**, so the margin grows; retune from `ai_usage` after the beta.
+- **Docs:** `docs/gemini.md` is renamed **`docs/ai.md`**: providers, prices, differences, setup (`DEEPSEEK_API_KEY`, `AI_PROVIDER`), the live test, the eval, and a **"Privacy: decide before launch"** section.
+- e2e `writing-ai.spec.ts`: `E2E_GEMINI` becomes **`E2E_AI=1`**, and `E2E_AI_MODEL` (default `deepseek-flash`) is the model expected in `ai_usage`.
+- `region.ts` comment: pinning keeps AI calls in one known region, whatever the provider.
+
+**Tests**
+- Deno **`_shared/ai_test.ts`** (19, replacing the 14 Gemini tests):
+  - DeepSeek is the default, and models are chosen per job and provider;
+  - the DeepSeek request: endpoint, Bearer key, JSON object mode, "json" and the schema in the system message, thinking and effort, max tokens, data-URL images, no temperature; thinking off and the default;
+  - DeepSeek success and usage with cache hits; **peak cost $0.0008412 for 800 miss / 200 hit / 500 out**; off-peak is half; weekends and other hours;
+  - blank and `insufficient_system_resource` replies retried; `length` and `content_filter` not;
+  - keep-alive blank lines before the body; 429 (Retry-After), 503 and 504 retried; 400/401/402/422 not;
+  - the shared core: invalid JSON and schema retries with billed usage, giving up with usage and the field, network and timeout, deadline, cancel, missing `DEEPSEEK_API_KEY`;
+  - the Gemini request and cost; Gemini no-retry cases; helpers (base64 on 100 kB, image types).
+- **`ai_live_test.ts`**: one real call per provider and job, **with an image**. Skipped without that provider's key and network permission.
+- `writing_prompt_test.ts`: image parts are now `{image}`.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. **Create a DeepSeek API key and add balance** (requests fail with 402 at zero).
+2. **Put `DEEPSEEK_API_KEY=…` in `supabase/functions/.env`** for local use, and `supabase secrets set DEEPSEEK_API_KEY=…` for staging, then production.
+3. **Restart the local functions** (`supabase functions serve --env-file supabase/functions/.env`).
+4. **Run the live test**, then the real-AI e2e (`E2E_AI=1`, ≈ $0.01), then the eval (≈ $0.10). Compare `--thinking low` with `high` if the bands look off.
+5. **Privacy:** before real users' writing goes to DeepSeek, check its privacy policy and terms, and name the provider in Prepora's privacy policy. DeepSeek's API docs don't say where data is stored.
+- The Gemini steps from the M6-B1 entry are now only needed if you switch with `AI_PROVIDER=gemini`.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions, `_shared/*.ts`, `_shared/prompts/*.ts` and `_eval/*.ts` ✓; `deno test --frozen _shared/ _eval/`: **35 passed, 4 ignored** (the live tests) ✓. Eval `--dry-run`: 20 requests, "deepseek deepseek-flash, thinking low" ✓.
+- `supabase migration up` locally ✓; `supabase test db`: 569 passed ✓; `credit_costs` shows deepseek-flash for the three actions ✓.
+- `pnpm test` 528 ✓; web typecheck ✓; web lint ✓.
+- **Not verified:**
+  - **no real DeepSeek call yet** (no key here), so JSON mode with our schema-in-prompt, image input, the usage fields and the blank-reply behaviour are untested live;
+  - the functions end to end (the runtime needs restarting with your key);
+  - the eval; CI.
+
+## 2026-11-26 — M6-F1..F4: Writing screens (editor, photo upload, feedback, history with band trend)
+
+On a branch from `develop` (M6-B1..B5 and the DeepSeek switch merged in #62 and #63).
+
+**Pages** (`apps/web/src/app/(app)/app/writing/`)
+- **`/app/writing`** (F1 + F4):
+  - the Academic / General / All filter (the student's own test first, as in Reading);
+  - **Task 1 follows the filter (report or letter); Task 2 essays for both always show**;
+  - the cost from `credit_costs` ("Scoring costs 4 credits");
+  - task cards ("Written 2 times · best band 6.5");
+  - **the band trend and the history list**.
+- **`/app/writing/[taskId]`** (F1/F2): the editor. `?photo=1` opens the photo upload (the QR code's link). Only published tasks, read through RLS; a bad id gives 404.
+- **`/app/writing/submissions/[id]`** (F3): one scored answer from `writing_submissions`, through RLS. **Another student gets the 404 page**, and the content never reaches them.
+- The dashboard's Writing tile is now open (`/app/writing`). New routes: `routes.writing`, `writingTaskPath`, `writingSubmissionPath`.
+
+**F1: the editor** (`components/writing/writing-editor.tsx`)
+- The task, and the chart for Task 1 Academic.
+- **Live word count** against the minimum (150 or 250), using the shared `countEssayWords`, the same counter score-writing uses.
+- **The exam timer:** 20 or 40 minutes, **starting with the first word**.
+  - **Over time it counts up** ("+01:14") and shows "Time's up: in the exam you'd stop here".
+  - **It never submits by itself, because scoring costs credits.**
+- **No spell check**, as in the exam (`spellCheck=false`).
+- **Autosave** to localStorage (`prepora:writing:<taskId>`, after 400 ms), with "Saved" and "Your draft from this device is back". The draft is cleared once the answer is scored.
+- A fixed bottom bar: words, timer, saved, **"Get my band score"**.
+- Bug found by the e2e and fixed: the timer showed 40:01 just after the first word, because it compared against a `now` read before typing. Elapsed time is now clamped at 0, and the clock resets when it starts.
+
+**F2: the photo flow** (`photo-flow.tsx`, `lib/writing/photos.ts`, `phone-qr.tsx`)
+- **Free** sees what photo upload does, with "See Gold" (locked).
+- **Gold and Platinum:**
+  - "Take a photo" (camera) or "Choose photos", up to 2 pages, with previews and remove buttons;
+  - "Read my handwriting" confirms 1 credit, then "Reading your handwriting…";
+  - the text goes into the editor in photo mode, with a note to check it ("especially words marked [?]" when legibility is partial), plus "I'll type it instead".
+- **Each photo is re-encoded on the device** (canvas, JPEG, at most 2000 px, EXIF orientation applied, a white background) before upload to `writing-photos/{uid}/{uuid}.jpg`.
+  - This keeps both pages far under ocr-writing's 14 MB limit, and **turns iPhone HEIC into JPEG, which DeepSeek needs**.
+  - Browsers that can't decode a photo (HEIC outside Safari) get a clear message.
+- **Desktop QR code** ("Scan with your phone"): it opens `…/[taskId]?photo=1` on the phone, signed in as the same student, who finishes the flow there.
+  - Drawn as an SVG from `qrcode-generator` 2.0.4 (new dependency: no dependencies of its own, published Aug 2025, types included). Hidden on small screens.
+
+**F3: scoring and feedback** (`writing-editor.tsx`, `writing-feedback.tsx`)
+- `CostConfirm` ("This costs 4 credits", with balance before and after). **Under the minimum length it warns** before spending.
+- Progress state: four steps and the seconds so far, with "If you leave, your feedback will still be in your Writing history" (score-writing finishes regardless).
+- Credit refusals open the existing dialog (`useCredits().run`). Other errors keep the draft and say no credits were kept.
+- **The feedback screen:**
+  - the band, with a note that it's an AI estimate for practice;
+  - the task kind, words (red when under length), date, "From a photo";
+  - **the four criteria with bars** (Task Achievement or Task Response by task);
+  - the summary;
+  - **the answer with numbered inline highlights linking to the corrections** (`correctionSegments`: first non-overlapping occurrence, in priority order);
+  - the corrections list (category, ~~original~~ → suggestion, why); strengths; improvements; the model answer (collapsible).
+- **Free:** the bands, summary and answer, then **three locked cards** ("3 corrections found", "Strengths and next steps", "Model answer") and "Upgrade to Gold". The page shows what's stored, and a Free row never holds more.
+- **Mock mode** (`NEXT_PUBLIC_WRITING_MOCKS=1`, from M6-C3) shows the mock feedback in place, since nothing is saved.
+
+**F4: history and band trend** (`band-trend.tsx`)
+- A list of every scored answer (task, date, task number, words, photo icon, band) and the average of the last 5.
+- **The band trend** for the last 12 answers. I loaded the dataviz skill first and followed its mark specs: a 2px line, 8px markers with a 2px surface ring, hairline gridlines at whole bands, the latest band labelled at the end, no legend for one series.
+  - **Colour validated with the skill's script:** `#1F8A70` on the light card, `#34B583` on the dark card (`#0F3B47`). The brand teals failed its chroma floor, so they weren't used.
+  - **Hover:** a crosshair snaps to the nearest point, with a tooltip.
+  - **Keyboard:** each point is a focusable link with the same tooltip.
+  - The list below is its table view.
+- Checked by eye: the tooltip first wrapped one word per line and covered the average label. Fixed: one line, kept inside the chart, below the point when near the top.
+
+**Pure helpers:** `lib/writing/writing.ts` (task filter, labels, timer, clock and tone, draft parsing, correction segments, trend, per-task summary, average) and `photos.ts` (`fitWithin`).
+
+**CI without AI:** `playwright.config.ts` builds the app with `NEXT_PUBLIC_WRITING_MOCKS=1`, unless `E2E_AI=1` (then it runs against the real functions). This is M6-I1's "stubbed AI response in CI" for the UI.
+
+**Tests**
+- Unit (+13): `writing.test.ts` (12) and `photos.test.ts` (1). `dashboard.test.ts` now has Writing open.
+- e2e **`writing-ui.spec.ts`** (8 tests × desktop and mobile):
+  - the dashboard tile leads to the list, filtered by test type, with the cost;
+  - the editor: word count, timer from the first word, no spell check, autosave and restore, the chart and 20:00 for Task 1;
+  - over time: "+01:xx", time's up, **nothing sent by itself**;
+  - **Gold (mock):** 4-credit confirm, progress, full feedback, ≥ 5 highlights linking to corrections, model answer, draft cleared;
+  - **Free (mock):** an under-length warning, then the summary, "3 corrections found" locked, the upgrade link, no corrections or model answer;
+  - **stored feedback:** Gold highlights link to `#correction-2` with the explanation; the Free summary is locked; **another student gets 404 and none of the content**;
+  - **history:** 3 rows, average 5.7, the trend's label and 3 point links, a focus tooltip, "Written 2 times · best band 6.5", a click opens the answer;
+  - **photo:** Free locked; Gold prepares, uploads and mock-reads a JPEG into the editor with the [?] note; the QR shows on desktop and is hidden on mobile.
+  - `dashboard.spec.ts`: Writing is open, Speaking still coming soon.
+
+**Verified**
+- `pnpm test`: **538 passed** (55 files) ✓; typecheck ✓ (web, admin); web lint ✓.
+- e2e, desktop and mobile, `writing-ui`, `credits-ui`, `reading-ui`, `listening-home`, `journey`, `theme` and `dashboard`: **56 passed, 2 skipped** ✓. The skips are the Gold photo-upload part, because local Supabase runs without Storage; it runs in CI.
+- **Screenshots checked by eye:** the Writing home and trend (desktop), full feedback (desktop), the Free summary (mobile) and the Task 1 editor (mobile).
+- **Not verified:**
+  - **the real AI end to end in the UI** (DeepSeek scoring and OCR from these screens, `E2E_AI=1`), because the local functions aren't served with a DeepSeek key;
+  - the Gold photo upload locally (no Storage), and a real phone camera, HEIC on an iPhone, or the QR scanned by a phone;
+  - the Writing pages in dark mode (same tokens; the trend has dark colours, but they weren't screenshotted);
+  - CI.
+
+## 2026-11-26 — M6-A1 + M6-I1: Writing task manager; real functions everywhere, AI stub in CI
+
+On one branch from `develop` (M6-F1..F4 merged in #64).
+
+**M6-A1: the Writing task manager (admin)**
+- **Migration `20261127090000_writing_admin.sql`:**
+  - `writing_tasks.image_alt` (≤ 300): the Task 1 Academic visual's description for screen readers;
+  - a public **`writing-images`** bucket (5 MB; PNG, JPEG or WebP, no SVG), staff-only writes, like `listening-images`.
+- **Contract `packages/shared/src/api/admin-writing.ts`:**
+  - three kinds (`t1_academic`, `t1_general`, `t2`), mapped to `task_no` and `test_type`; Task 2 is "both tests" (null) or one test;
+  - `WritingTaskForm` (title, prompt ≥ 20 characters, http(s) image only for Task 1 Academic, alt text) and `writingTaskRow`;
+  - **`writingPublishCheck`:** blocks a Task 1 Academic task without its image; warns about a missing image description, a letter without bullet points, or a very short task.
+- **Server Functions `apps/admin/src/lib/writing-actions.ts`** (editor's own session, staff RLS):
+  - create (draft, then opens it), update, status (publish runs the checklist again), delete;
+  - **delete of a task students have answered: "Archive it instead"** (the database's `on delete restrict`, 23503).
+- **Pages:**
+  - `/writing`: tasks grouped by kind, with status, "Both tests", and "No image yet"; plus a new-task form.
+  - `/writing/[id]`: status and workflow (`StatusActions` now also takes `module="writing"`), the publish checklist, the details form, and **a "What students see" preview** with the timer and word limit.
+- **The form** (`components/writing/task-form.tsx`): the kind decides the fields. Task 1 Academic gets an image upload to writing-images or a URL, a preview and a description.
+- The admin nav marks Writing as built. The student editor now uses `image_alt` as the chart's alt text.
+
+**M6-I1: swap mocks for real functions; stubbed AI in CI**
+- **The app always calls the real functions.** `lib/writing/api.ts` lost the mock switch, the editor lost its in-place mock feedback, and `NEXT_PUBLIC_WRITING_MOCKS` is gone from `.env.example` and `playwright.config.ts`. The shared mock fixtures stay for tests.
+- **`ai-stub` function** (`supabase/functions/ai-stub` + `_shared/ai_stub.ts`): answers like DeepSeek's chat completions.
+  - Scoring: bands from the word count; corrections quoting real mistakes in the answer; "(Stub AI)" feedback.
+  - OCR: one page per photo.
+  - Hooks: `STUB_FAIL` gives HTTP 500; `STUB_BAD_JSON` gives an invalid reply.
+  - **Off unless `AI_STUB=1`** (404 otherwise), so deploying it is harmless. `verify_jwt = false` in `config.toml`, because functions call it with the stub key.
+- **`DEEPSEEK_API_URL` override** in the DeepSeek adapter (`deepseekUrl()`).
+- **CI (`e2e.yml`):**
+  - the functions get `DEEPSEEK_API_KEY=e2e-stub`, `DEEPSEEK_API_URL=http://kong:8000/functions/v1/ai-stub` and `AI_STUB=1`;
+  - Playwright runs with **`E2E_AI=1 E2E_AI_STUB=1`**;
+  - so CI runs score-writing and ocr-writing end to end (credits, Storage, saved rows, `ai_usage`, refunds) **without any AI call**.
+- **e2e changes:**
+  - `writing-ui`: scoring now goes through the real function to **the saved submission page**; OCR is the real function.
+  - `writing-ai`: **a new refund test** (STUB_FAIL gives 500, the balance is unchanged, ledger spend + refund, `ai_usage.success = false`, nothing saved).
+  - **The "no AI key" test is now opt-in (`E2E_AI=0`).** I found locally that your functions are served with a DeepSeek key, so that test would otherwise make a paid call. It was skipped in my run (serial mode stopped after an earlier failure), so nothing was spent.
+- **Docs `docs/ai.md`:** the stub (how CI and a laptop use it), and **the manual staging run checklist**: secrets, deploy, content, Free and Gold students including a phone photo, the database checks.
+
+**Tests**
+- pgTAP `writing_admin.test.sql` (+9): the column and its length; the bucket's settings; staff upload and list; a student can't upload or delete.
+- Unit (+6 net): `admin-writing.test.ts` (7); `lib/writing/api.test.ts` rewritten for the real-only API (2); nav marks Writing as built.
+- Deno `_shared/ai_stub_test.ts` (+5): **the stub through the real client and DeepSeek adapter validates against `ScoredWriting` and `OcrModelOutput`**; corrections quote the answer; under length lowers TA; one page per photo; the failure hooks throw `AiCallError`; off unless enabled.
+- e2e `writing-admin.spec.ts` (API, 2):
+  - an editor creates a Task 1 Academic draft from the form contract; publishing without the chart is blocked (checklist and 23514); the chart is uploaded to writing-images (when Storage runs: public URL 200, a student and an SVG are refused); then it publishes;
+  - a student reads it with its description, can't update or insert;
+  - a task with an answer gives 23503 on delete, then archives and disappears for students.
+
+**Verified**
+- `supabase migration up` ✓; `supabase test db`: **578 passed** (22 files) ✓; DB types regenerated and `--check` ✓.
+- `pnpm test`: **544 passed** (56 files) ✓; typecheck ✓ (shared, web, admin); lint ✓ (web, admin).
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions (ai-stub included), `_shared`, `prompts` and `_eval` ✓; `deno test`: **40 passed, 4 ignored** ✓.
+- e2e (desktop + mobile) `writing-admin`, `writing-ui`, `writing-schema` and `dashboard`: **17 passed, 11 skipped**. The skips are the AI-dependent tests (no `E2E_AI` here) and Storage-dependent parts. `writing-ai` non-AI tests: 3 passed.
+- **The admin task manager checked in a browser:** I ran a temporary admin dev server on :3301 against local Supabase with a temporary spec (both removed afterwards). It covered create → checklist blocks publish → add the image URL and description → save → publish, and the list shows it published. I looked at the screenshot.
+- **Not verified:**
+  - **the stub through the real edge runtime.** That needs `supabase functions serve` with the stub env, and your runtime is serving your DeepSeek key, so I didn't touch it. It's proven through the real adapter in Deno, and CI runs it for real.
+  - The image upload to writing-images locally (no Storage).
+  - **The manual staging run with real AI** (yours; checklist in docs/ai.md).
+  - CI.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. After merging: `supabase secrets set DEEPSEEK_API_KEY=…` on staging, and check `AI_STUB` and `DEEPSEEK_API_URL` are **not** set there.
+2. Do the **staging run with real AI** from the checklist: admin publishes a Task 2 and a Task 1 Academic task with a chart; a Free and a Gold student score; a phone photo (iPhone HEIC); check `ai_usage` and `prompt_version`.
+3. Optional, locally: `E2E_AI=1 pnpm exec playwright test writing-ai writing-ui --project=desktop` against your DeepSeek key (about US$0.03), or with the stub env lines for free.
+
+## 2026-11-26 — M7-C1 + M7-C2: Speaking schema + RLS, speaking-audio bucket; score-speaking contract and mock
+
+On one branch from `develop` (M6-A1/I1 merged in #65).
+
+**M7-C1: migration `20261127120000_speaking_schema.sql`**
+- **`speaking_topics`:**
+  - `part` 1–3 and a `title`;
+  - **Part 2:** `cue_card_points` (2–5 "You should say" points);
+  - **Parts 1 and 3:** `questions` (1–12);
+  - **Part 3:** `parent_topic_id`, which must be a **Part 2** card. A Part 3 discussion can only be published after its card (trigger, 23514).
+  - A shape check makes each part carry exactly its own fields, with no blank items. Source, status, `published_at`.
+  - Published topics are readable by everyone; staff write them and delete drafts only.
+- **`speaking_sessions`:**
+  - `mode` (`part1`, `part2`, `part3`, `full_test`); `status` (in_progress, completed, abandoned); `started_at` / `completed_at` (required when completed);
+  - `part1_band`–`part3_band` and `overall_band` (half bands; the IELTS rounding comes in M8);
+  - **a student starts their own session with only `id`, `user_id` and `mode`** (column grants plus RLS on `user_id`); bands and status are written only by the service role.
+- **`speaking_responses`:**
+  - `session_id`, `user_id`, `topic_id`, `part`;
+  - `audio_paths` (≤ 12: one for Part 2, one per answer for Parts 1 and 3; **emptied by a later 30-day clean-up**, plan §2.6);
+  - `duration_sec`, `transcript`, `signals` (jsonb), `scores` (`fc`, `lr`, `gra`, `pron`, all four required), `band` (half), `feedback` (the plan's shape), `prompt_version`;
+  - **one response per part per session**;
+  - a trigger checks the response belongs to the session's student, the part fits the session's mode, and the topic is for that part;
+  - **students read their own; only the service role writes**; staff don't read answers.
+- **`speaking-audio` bucket:**
+  - private; **15 MB**; WebM/Opus (Chrome, Android), MP4/AAC (Safari, iOS), plus OGG, MPEG and WAV;
+  - **own folder only** (`{user_id}/…`) for read, upload, replace and delete;
+  - every plan can record (Free has credits for 2 Part 2 scorings).
+  - Note for M7-F2: upload with the bare type (`audio/webm`, not `audio/webm;codecs=opus`).
+- Found while testing: students couldn't start a session with their own id. **`id` was added to the insert grant**, so the client can generate the id it uses in upload paths.
+
+**M7-C2: contract and mock** (`packages/shared`)
+- **`ielts/speaking.ts`:**
+  - the criteria and labels (Pronunciation is judged on intelligibility, not accent);
+  - `SPEAKING_PARTS`: credit actions; Part 2 is 60 s prep and 120 s max; Part 1 answers up to ~45 s, Part 3 up to ~90 s; `PART2_MIN_SECONDS` = 60;
+  - **`speakingPartBand`**: the average rounded down to a half band, as for a Writing task;
+  - **`countFillers`** (um, uh, er, erm, ah, hmm, "you know", "I mean": whole words only; "like", "so" and "actually" are left to the AI); `countSpokenWords`; `wordsPerMinute`.
+- **`api/score-speaking.ts`:**
+  - **Request:** `session_id`, `topic_id`, `part`, `audio_path` (`{uuid}/{file}.webm|ogg|m4a|mp4|aac|mp3|wav`), `duration_sec`. One recording for now; M8 extends it for Parts 1 and 3.
+  - **`ScoredSpeaking`** (the AI's output): scores, summary, `better_phrases` (≤ 15, `original` quoted from the transcript, `better`, `why`), strengths, improvements, model answer.
+  - **`SpeakingSignals`:** duration, words, wpm, pauses, longest pause, filler count.
+  - **Response:**
+    - **everyone gets** the transcript, signals and fillers (measured, not AI coaching), the four criteria, the band and the summary;
+    - **`full`** adds better phrases, strengths, improvements and the model answer;
+    - **`summary`** (Free) adds only `better_phrases_count`.
+    - Refines: the band equals `speakingPartBand(scores)`, and `filler_count` adds up the fillers.
+  - The stored `SpeakingFeedback`; `speakingFeedbackFor` and `toSpeakingSummary`; the errors documented (including 409 for a part already scored).
+- **`mocks/speaking.ts`:**
+  - a cue card and a band-6 Part 2 transcript (~1 min 50 s, with fillers);
+  - `mockScoreSpeaking`: better phrases quoted from the transcript, fillers counted, scores from fillers and phrases, short answers lose FC;
+  - credits per part (5, 4, 6) and 402 errors; every response parsed by the contract.
+
+**Tests**
+- pgTAP **`speaking_schema.test.sql`** (+51):
+  - structure, grants and the bucket;
+  - the editor writes topics and gets refused for: the wrong shape, 1 point, an orphan or wrong-parent Part 3, blank questions, Part 4; publishing order; drafts not visible to students; published topics can't be deleted;
+  - students: start their own Part 2 session, but not for someone else, not with a band, and can't update it; can't write responses;
+  - the service role: saving; one per part; the owner, mode and topic-part checks; a full test takes any part; four criteria; half bands; the completed check; a topic with responses can't be deleted;
+  - RLS: students read only their own, and staff don't read answers;
+  - audio: Free records into their own folder, not another student's; others can't see or delete it; the owner can.
+- Unit (+13): `speaking.test.ts` (4), `score-speaking.test.ts` (6), `mocks/speaking.test.ts` (3).
+
+**Verified**
+- `supabase migration up` locally ✓. The grant fix was applied to the local DB by hand, because the migration had already run; CI's "Apply migrations to a fresh DB" checks the file from scratch. `supabase test db`: **629 passed** (23 files) ✓; `db lint`: no errors ✓; types regenerated, `--check` ✓.
+- `pnpm test`: **557 passed** (59 files) ✓; typecheck ✓ (shared, web, admin).
+- **Not verified:** the bucket's audio types and size through the Storage API (local Storage isn't running; covered when M7-F2 uploads in CI); CI.
+
+## 2026-11-26 — M7-B1 + M7-B2: Groq Whisper client with word timings; Speaking audio signals
+
+**Stacked on M7-C1/C2 (#66, open):** the signals use and extend its contract.
+
+**Checked against Groq's docs** (console.groq.com, read 2026-11-26)
+- `POST https://api.groq.com/openai/v1/audio/transcriptions` (multipart, Bearer key).
+- Request fields: `model`, `file`, `response_format=verbose_json`, `timestamp_granularities[]` (word and segment), `language`, `prompt` (≤ 224 tokens), `temperature`.
+- `whisper-large-v3-turbo` costs **$0.04 per hour**, with a 10 s minimum billed.
+- Formats: webm, m4a, mp4, ogg, mp3, wav, flac; 25 MB on the free tier.
+- Retry 429 (Retry-After) and 5xx; **server errors aren't charged**.
+- **Not documented:** the full `verbose_json` top-level shape (`duration`, the key of the `words` array). The client reads it leniently. Also not stated: data retention.
+
+**M7-B1: `_shared/stt.ts`**
+- **`transcribe({ audio, mimeType, language="en", prompt, … })`** sends the multipart request with **word and segment timings**. It returns the text, language, duration, `words` (`word`, `start`, `end`, trimmed), `segments` (`start`, `end`, `text`, `avg_logprob`, `no_speech_prob`) and `usage` (`audio_seconds`, `cost_usd`).
+- **The filler prompt:** Whisper tends to drop "um" and "uh", so the request's `prompt` is written with fillers to keep them. Whether it works is checked by the eval (M7-B5).
+- **Formats:** Safari's `audio/mp4` and AAC are sent as `.m4a`; codec parameters like `;codecs=opus` are ignored when picking the extension. **Unsupported types fail before any call.**
+- **Retries**, like `ai.ts`: 429 (Retry-After), 498, 500, 502, 503, network errors, timeouts and unreadable replies. Not retried: 400, 401, 413, 422. Per-attempt timeout 60 s, deadline 90 s, a fresh form body per attempt.
+- **Usage and cost:**
+  - **`sttCost`:** the 10 s minimum; zero seconds costs nothing; a 2-minute answer ≈ $0.0013.
+  - **Failures throw `AiCallError` with zero cost** (Groq doesn't bill them), so `withCredits` logs and refunds as for the AI.
+- **Config:** `GROQ_API_KEY` (a missing key fails before any call); a `GROQ_API_URL` override (for a CI stub later); `sttConfigured()`.
+- **`stt_live_test.ts`:** one real call with a generated 2 s WAV tone, checking the key, request and reply shape (about $0.0001). Skipped without the key and network permission.
+
+**M7-B2: `_shared/speaking.ts`** (no imports; vitest loads the exact file)
+- Copies of the shared rules: `speakingPartBand`, `FILLERS`, `countFillers`, `countSpokenWords`, `wordsPerMinute`.
+- **`speakingSignals({ transcript, durationSec, words?, segments? })`** returns the signals plus the fillers:
+  - **words per minute over the speech itself** (first word's start to last word's end), so silence before or after doesn't lower it; the whole recording without timings;
+  - **pauses:** gaps of **1 s or more** between consecutive words (sorted by start), and the longest, to 0.1 s;
+  - **filler count**;
+  - **transcript confidence** (0–1): the time-weighted mean of exp(`avg_logprob`) over segments with `no_speech_prob` < 0.5, capped at 1. **It hints at intelligibility for Pronunciation** (DeepSeek only sees text), and is **never about accent**.
+- **Contract change (M7-C2):** `SpeakingSignals` gains **`transcript_confidence`** (0–1, nullable); the mock sends 0.86.
+
+**Docs `docs/ai.md`:** a Groq section (endpoint, `GROQ_API_KEY`, price, formats, limits, the filler prompt, retries, the URL override, the data-policy note, the live test) and how each signal is measured.
+
+**Tests**
+- Deno **`_shared/stt_test.ts`** (+8, fake fetch):
+  - the multipart fields (model, `verbose_json`, `timestamp_granularities[]` = word and segment, `en`, `0`, the filler prompt, `answer.webm` even with `;codecs=opus`); MP4 sent as `.m4a`;
+  - reading the reply (trimmed text and words, segments, duration, language); the cost with the 10 s minimum; 2 minutes ≈ $0.0013; zero costs nothing;
+  - a reply without words or segments;
+  - retries: 429 then 503 then network → backoffs [3000, 1500, 3000]; timeout then 498;
+  - no retry for 400/401/413/422, with zero cost; an unreadable reply retried; the deadline;
+  - an unsupported type and a missing key fail without any call.
+- vitest **`tests/speaking-signals.test.ts`** (+5):
+  - **parity with the shared rules** (fillers, word counts, wpm, part bands);
+  - the signals: 65 wpm over the speech, not the recording; pauses (1.2 s and 3.2 s); confidence 0.88 with the silent segment skipped;
+  - without timings: no pauses or confidence;
+  - the pause threshold and sorting; the confidence cap and skips;
+  - the signals fit the contract's `SpeakingSignals`.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions, `_shared`, `prompts` and `_eval` ✓; `deno test`: **48 passed, 5 ignored** (the live tests) ✓.
+- `pnpm test`: **562 passed** (60 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:**
+  - **a real Groq call** (no key here): the exact `verbose_json` shape (top-level `words` and `duration`), whether word timings come back with the turbo model, and whether the filler prompt keeps "um" in practice;
+  - real recordings from Chrome (WebM/Opus) and Safari (MP4/AAC): M7-B4;
+  - CI.
+
+**Manual steps for you** (details in `docs/ai.md`)
+1. Create a Groq API key, then put `GROQ_API_KEY=…` in `supabase/functions/.env` (locally) and run `supabase secrets set GROQ_API_KEY=…` on staging.
+2. Run the live check once (about $0.0001): `deno test --frozen --env-file=.env --allow-env --allow-net=api.groq.com _shared/stt_live_test.ts`. It prints the reply's shape; tell me if `words` or `duration` look different.
+3. Before real students record: check Groq's data policy and name it in the privacy policy.
+
+## 2026-11-26 — M7-B3..B5: score-speaking; browser audio formats; accent-diverse Speaking eval (harness)
+
+**Stacked on M7-B1/B2 (#67, open).** M7-C1/C2 (#66) are merged.
+
+**M7-B3: `score-speaking`** (`supabase/functions/score-speaking/index.ts`), Part 2 now; Parts 1 and 3 come in M8 (400 until then).
+- **Checks before spending:**
+  - **the session:** the caller's (else 404); in progress (else 409); a mode with this part (else 400); this part not yet scored (409);
+  - **the topic:** a published Part 2 card (else 404);
+  - **the recording:** in the caller's folder (else 400); it exists (404); ≤ 15 MB; **real audio by its first bytes** (else 400);
+  - the plan's `detailed_feedback`; **both keys** (Groq, the AI): a missing one gives 500 with nothing charged.
+- **Inside `withCredits('speaking_p2')`:**
+  1. Groq transcribes with word timings.
+  2. **Under 20 words is refused with 400 "couldn't hear enough", and refunded.**
+  3. The signals are measured.
+  4. The AI scores, via `generateJson`, with **`prompts/speaking-part2.v1.ts` (`s2-v1`)**; the reply is validated with `ScoredSpeaking`.
+  5. **Better phrases that don't quote the transcript are dropped** (`keepFoundPhrases`), and **the band is recomputed**.
+  6. The response is inserted with the plan's feedback (Free: the summary).
+  7. **The session gets `part2_band`. A single-part session is completed, with `overall_band` = that band.**
+  - A failed or duplicate insert throws `AiCallError`, so the credits are refunded.
+- **One `ai_usage` row for both providers:** the AI's model and tokens, Whisper's `audio_seconds`, and **the cost summed**. Also on failure: the AI's `AiCallError` usage gets Whisper's seconds and cost added.
+- **Prompts:**
+  - `speaking-rubric.v1.ts`: FC, LR, GRA and Pron descriptors **paraphrased, not verbatim**;
+  - **Pronunciation without audio:** judged on intelligibility from the transcript and `transcript_confidence`; **"NEVER lower Pronunciation for an accent"**; kept between 5 and 8 unless the evidence is strong;
+  - fluency uses the measured rate, pauses and fillers; transcription slips aren't counted as errors;
+  - feedback rules: better phrases quoted exactly, a spoken-style model answer of 250–300 words;
+  - the transcript is fenced in `<transcript>`, and instructions inside it are ignored.
+- **`prompts/speaking.ts`:** `buildPart2Request` sends the card, the signals as JSON with a short-turn note under 60 s, and the transcript (with `</transcript>` escaped).
+- `_shared/speaking.ts` gains `keepFoundPhrases`, `speakingFeedbackFor`, `toSpeakingSummary` and `MIN_SCORABLE_WORDS` (parity-tested); `_shared/speaking_schemas.ts` holds the Deno Zod copies.
+- **The stub** answers **Groq transcriptions** (multipart) with a fixed, timed Part 2 transcript (≈ 70 s, one 2.8 s pause; `stub-short` / `stub-fail` file names select the edge cases) and **Speaking scoring**. CI sets `GROQ_API_KEY=e2e-stub` and `GROQ_API_URL=…/ai-stub`.
+
+**M7-B4: browser formats**
+- **`_shared/audio.ts` `sniffAudioType`** reads the container from the first bytes: WebM (EBML), MP4 (`ftyp`), Ogg, WAV, MP3/ID3, ADTS AAC. The function uses it rather than the upload's label, so Chrome's WebM/Opus goes as `.webm` and **Safari's fragmented MP4/AAC as `.m4a`**.
+- **No transcoding:** Groq's docs list webm, m4a and mp4.
+- **Fixtures** in `_eval/speaking/fixtures/` (50 KB and 105 KB): synthetic speech (espeak-ng, ~12 s), encoded with ffmpeg like each browser: **Opus in WebM, 48 kHz mono (Chrome)**, and **AAC in fragmented MP4 (Safari: `frag_keyframe+empty_moov+default_base_moof`)**. Made in Docker (alpine:3.20).
+- `stt_live_test.ts` now also transcribes both fixtures, expecting the key words and timings, and logs whether "um" was kept.
+
+**M7-B5: the accent-diverse Speaking eval (harness)**
+- **`_eval/speaking_eval.ts`:** each recording goes through exactly what score-speaking does (sniff → Whisper → signals → prompt → AI). It's compared with a human reference: **word error rate**, **filler retention**, **band within ±0.5**, **Pronunciation bias** (AI minus teacher), and cost, **per accent**.
+- **Fairness flags (`accentFlags`):**
+  - an accent whose Pronunciation bias is **≥ 0.5 band below** the overall;
+  - an accent whose WER is **≥ 10 points above** the overall.
+  - It exits 1 on any flag.
+- **Recordings stay local** (`_eval/speaking/recordings/` and `recordings.local.json`, gitignored). Without them, it runs the two synthetic fixtures (a pipeline check only). `--dry-run` needs no key.
+- **`_eval/speaking/README.md`:** what to collect (the plan's 4 accents and more; ≥ 3–5 speakers each, across levels; verbatim transcripts with fillers; a qualified teacher's bands), **consent and privacy** (written consent, local only, sent to Groq and DeepSeek, delete afterwards), the manifest format, how to run it, and **"any flag blocks releasing the prompt"**.
+- **I can't produce real accented recordings.** Synthetic voices wouldn't test accents, and real ones need consenting speakers. That part is yours.
+
+**Tests**
+- Deno (+8):
+  - `ai_stub_test.ts` (+3): the Speaking chain via the stubs (transcript, signals: 1 pause of 2.8 s, confidence 0.89, fillers um/uh/you know; `s2-v1`; a valid `ScoredSpeaking` with scores 6/6/6/6.5 and band 6; 3 phrases found); the stub hooks; the Part 2 request (card, short-turn note, signals, fenced transcript, the accent and no-audio rules);
+  - `stt_test.ts` (+1): `sniffAudioType` for every container;
+  - `_eval/speaking_eval_test.ts` (+4): WER cases, the group summary, the fairness flags, the manifest check (fixtures valid).
+- vitest (+5): `speaking-signals.test.ts` (+2: feedback parity, `keepFoundPhrases`, the Deno schema's path rule); **`speaking-formats.test.ts` (+3: the real Chrome and Safari fixtures sniffed correctly, the MP4 is fragmented, truncated and non-audio files)**.
+- e2e **`speaking-ai.spec.ts`** (API):
+  - **always:** 401; a bad path; Part 1 (400); another student's session (404); an unpublished card (404); a missing recording (404); another student's folder (400); **a non-audio file (400)**; no credits spent.
+  - **with the stub (CI):**
+    - Gold gets the full feedback (band 6, transcript, pauses, confidence, fillers, 3 phrases, 4 credits);
+    - Free gets the summary;
+    - **the session is completed with `part2_band` and `overall_band` 6**; `s2-v1` is stored;
+    - **`ai_usage` has deepseek-flash, `speaking_p2`, audio_seconds > 60 and a cost**;
+    - a second scoring gives 409;
+    - **a too-short recording (400) and an AI failure (500) are both refunded**, and the failure row keeps Whisper's seconds.
+
+**Verified**
+- Deno 2.9.8 (Docker): `deno check --frozen` on all functions (score-speaking included), `_shared`, `prompts` and `_eval` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** (the live tests) ✓. Speaking eval `--dry-run`: 2/2 fixtures readable ✓.
+- `pnpm test`: **567 passed** (61 files) ✓; typecheck ✓ (shared, web); lint ✓.
+- **Not verified:**
+  - **the e2e spec** (no local Storage; your runtime predates score-speaking): **CI runs it with the stubs**;
+  - **any real Groq or DeepSeek Speaking call**: the fixtures through Groq (live test), the real score of a real answer;
+  - **whether Pronunciation from text alone is good enough, and fair across accents**: that's the eval with real recordings.
+
+**Manual steps for you** (details in `docs/ai.md` and `_eval/speaking/README.md`)
+1. With `GROQ_API_KEY` set: run `stt_live_test.ts` with `--allow-read=_eval`. It confirms Groq reads **both Chrome WebM and Safari MP4** with timings, and whether "um" survives.
+2. Collect accent-diverse recordings with consent (≥ 3–5 speakers each for Indian, Nepali, Filipino and Vietnamese English, plus a teacher's bands and verbatim transcripts). Run `_eval/speaking_eval.ts`. **Any fairness flag blocks releasing `s2-v1`.**
+3. On staging: `supabase secrets set GROQ_API_KEY=…`, and check `GROQ_API_URL` and `AI_STUB` are **not** set there.
+
+## 2026-11-26 — M7-F1..F3: Speaking screens (mic check, cue card and recorder, upload, feedback)
+
+**Stacked on M7-B3..B5 (#68, open).** M7-B1/B2 (#67) are merged.
+
+**Pages** (`apps/web/src/app/(app)/app/speaking/`)
+- **`/app/speaking`:** published Part 2 cue cards (with their points, "Best band", "Start" or "Answer again"), the scoring cost from `credit_costs`, a note that the Parts 1 and 3 examiner is coming (M8), and **the student's scored answers**.
+- **`/app/speaking/[topicId]`:** the recorder for one card (published Part 2 only; a bad id gives 404).
+- **`/app/speaking/responses/[id]`:** the feedback, read through RLS (**another student gets 404**), with the student's recording played through a 1-hour **signed URL** while it's kept.
+- **The dashboard's Speaking tile is open: all four modules are now available.** New routes: `routes.speaking`, `speakingTopicPath`, `speakingResponsePath`.
+
+**M7-F1: microphone** (`components/speaking/mic-check.tsx`)
+- **An explainer before asking** (plan §5.1): why we need it, that we record only while the timer runs, private, **deleted after 30 days** (transcript and feedback kept), and tips.
+- "Allow microphone" triggers the browser prompt (with echo cancellation and noise suppression).
+- **The mic test:** a live **level meter** (Web Audio analyser, RMS × 4) with "We can hear you" once the level passes 0.15. "Continue" is disabled until then.
+- **Problems:** blocked, no microphone, in use by another app, not https, unsupported, other. **For a block, steps per browser:** Chrome, Edge, Safari on Mac, **iPhone/iPad (every iOS browser uses Safari's settings)**, Firefox, Samsung Internet, other. Plus "Try again".
+- The microphone is released when the student leaves.
+
+**M7-F2: the cue card** (`components/speaking/speaking-flow.tsx`)
+- The card ("You should say:" points), then **"Start my 1 minute"**: a **60 s prep countdown with a notes box**, and **recording starts by itself at 0:00**, as in the exam (or earlier with "Start speaking now").
+- **Recording:**
+  - real `MediaRecorder`, **Opus/WebM preferred, else MP4 (Safari)**, else the browser's choice;
+  - a 0:00 / 2:00 clock and bar (amber under 1 minute);
+  - the notes stay visible;
+  - **it stops by itself at 2:00**, or with "Stop".
+- **Listen back:** playback of the recording; the length; **a warning under 1 minute** (short turn: lower Fluency); "Record again"; **"Get my band score"**, which confirms the credits (4).
+
+**M7-F3: sending and feedback**
+- The session is created **only on submit**, with a client-generated id, so abandoned recordings leave nothing behind. The recording goes to `speaking-audio/{uid}/{session}.{webm|m4a}` with **the bare content type** (the bucket refuses `;codecs=`).
+- **Upload with progress and retries** (`lib/speaking/upload.ts`):
+  - XHR to Storage's REST endpoint (supabase-js's upload reports no progress), with `x-upsert`;
+  - **retries network errors, timeouts, 408, 429 and 5xx (3 attempts, 1 s then 3 s)**; not 4xx;
+  - **"Resumable" was handled differently from TUS:** a 2-minute answer is 1–3 MB, below Supabase's 6 MB TUS chunk, so TUS would add nothing. Instead **the recording stays on the device** (`lib/speaking/pending.ts`, IndexedDB) until it's scored, together with the session and upload path once they exist, so a retry resumes where it stopped. After a dropped connection, a failed scoring or a closed tab, the card offers **"You have a recording that wasn't scored": Send it / Record a new answer**. A 409 (session finished) starts a fresh session on retry.
+- **Progress:** "Uploading… N%" (a progress bar), then four scoring steps with the seconds so far, and that leaving is safe.
+- Credit refusals open the existing dialog; other errors keep the recording and say "no credits were kept".
+- **The feedback screen** (`components/speaking/speaking-feedback.tsx`):
+  - the band; **the four criteria with bars**; the summary; a note that **Pronunciation is judged on how easy you are to understand, never your accent**;
+  - **"How you spoke":** length (amber under 1 minute), speaking rate (with the natural 110–170 range), pauses of 1 s+ (longest), fillers (each counted);
+  - **the student's recording**;
+  - **the transcript with fillers highlighted in amber, for everyone**, and **numbered better phrases in blue linking to the list**;
+  - "Better ways to say it"; strengths; next steps; the model answer (collapsible);
+  - **Free:** three locked cards ("1 better phrase found", strengths and next steps, model answer) and "Upgrade to Gold".
+
+**Pure helpers** (`lib/speaking/speaking.ts`): recorder type choice, upload type and extension, error classification, browser detection and help, the level meter's maths, transcript highlighting (`transcriptPieces`: phrases first, then fillers, no overlaps), `mmss`.
+
+**Playwright:** the desktop and mobile Chromium projects now run with **a fake microphone** (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`: a steady beep), so the mic test and real recording run headless.
+
+**Tests**
+- Unit (+12): `speaking.test.ts` (8): recorder type preference and exceptions, upload types, error classes, browser detection (iOS Chrome uses Safari's settings), the level meter, transcript pieces, `mmss`. `upload.test.ts` (4, a fake XHR): URL encoding, headers and upsert, progress; retries after a drop and a 503; no retry for 413; gives up after 3. `dashboard.test.ts`: all four modules open.
+- e2e **`speaking-ui.spec.ts`** (5 × desktop and mobile):
+  - **F1 + F2:** dashboard → Speaking (cost) → card → explainer (30 days) → Allow → **"We can hear you"** (fake mic) → card → prep timer → notes → speak → stop after 3 s → review "0:03 recorded" and the under-a-minute warning, **a real WebM recording (> 1 KB)**, "Record again";
+  - **F1:** a blocked microphone (`NotAllowedError`) shows the Chrome steps and "Try again";
+  - **F3:** **every upload aborted** → confirm 4 credits → "The upload failed… saved on this device" → **reload → the unsent recording is offered** → "Record a new answer" → the explainer, and still discarded after another reload;
+  - **F3 with the stubbed AI (E2E_AI=1, CI):** record → upload → scored → the feedback page (band 6.0, fillers, 3 phrases, playback);
+  - **stored feedback:** Gold (6.5, Pronunciation, 120 wpm, longest 2.4 s, fillers Um/you know/Uh, a linked phrase, model answer); Free (locked "1 better phrase found", fillers still highlighted, no phrases); **Gold's answer is 404 for Free**; history and "Best band 6.5".
+- `dashboard.spec.ts`: Speaking open.
+
+**Verified**
+- `pnpm test`: **579 passed** (63 files) ✓; web typecheck ✓; web lint ✓.
+- e2e desktop + mobile: **`speaking-ui` and `dashboard`: 12 passed, 2 skipped** (the stubbed-AI scoring path: Storage and the stub run in CI).
+- Screenshot checked: the full Speaking feedback (desktop).
+- Regression (`writing-ui`, `reading-ui`, `listening-home`, `credits-ui`, `journey`): **35 passed, 14 skipped, 1 failed: the Reading "timer sends the answers at zero" (desktop).** It waits for grade-test to save at 0:00, and the page didn't navigate in time. **I couldn't re-run it:** the machine had **0.7 GB of 7.3 GB RAM free** (Memory Compression 1.8 GB, VS Code, Docker/WSL, Chrome), and `next build` then failed with out-of-memory (also after clearing `.next`). No Reading code changed, and the fake-mic flags don't affect it. **CI will show whether it's real.**
+- **Not verified:**
+  - **a real phone:** Safari's MP4 recording on an iPhone, Android Chrome, the iOS permission flow and the help steps (M7-I1);
+  - the stubbed-AI scoring path and the recording playback via signed URL (Storage isn't running locally; CI);
+  - the Free mobile feedback and dark mode by eye.
+
+## 2026-11-26 — M7-A1: Speaking topic manager (admin); M7-I1: real-device test plan
+
+On a branch from `develop` (#68 and #69 merged; the stub-marker fix is in PR #70).
+
+**M7-A1: the Speaking topic manager**
+- **Scope:** Part 2 cue cards and their linked Part 3 discussions (`parent_topic_id`), as the step says. **Part 1 question sets come with M8-A1.**
+- **Contract `packages/shared/src/api/admin-speaking.ts`:**
+  - `CueCardForm`: a task, and 2–5 points;
+  - `Part3Form`: a theme, 1–12 questions and the parent card;
+  - **blank form rows are dropped before counting**; `cueCardRow` and `part3Row` give the right column shape per part;
+  - **`speakingPublishCheck`:**
+    - **blocks:** a card without 2–5 points; a Part 3 without questions, or **whose card isn't published**;
+    - **warns:** the task doesn't start with "Describe…", the last point isn't "and explain why…", or Part 3 has fewer than 4 questions.
+- **Server Functions `apps/admin/src/lib/speaking-actions.ts`** (editor's own session; the database re-checks):
+  - save a cue card or a Part 3 (create redirects to the new topic);
+  - set the status (publishing runs the checklist with the parent's status);
+  - delete. **A topic with linked Part 3 discussions or students' answers gives 23503: "Archive it instead."**
+- **`StatusActions`** now also takes `module="speaking"` (from a lookup table instead of chained ternaries), with Speaking wording.
+- **Pages:**
+  - **`/speaking`:** cue cards with their status, point count, **"N Part 3 (M published)"**, and the updated time; plus "New cue card".
+  - **`/speaking/[id]`:**
+    - for a card: status and workflow, the checklist, the details form, **"What students see"** (the card as the student app shows it), **the linked Part 3 discussions, and a form to add one**;
+    - for a Part 3: the same, with a link back to its card.
+- **`components/speaking/topic-form.tsx`:** one form for both. The rows can be **added, removed and moved up or down**, with numbered labels and example placeholders; it keeps the input when the server refuses.
+- The admin nav marks Speaking as built.
+
+**M7-I1: on real devices with real recordings (staging): a plan, not done**
+- **`docs/speaking-device-testing.md`:**
+  - the prerequisites (staging keys, **no stub settings**, a published card, a Free and a Gold account);
+  - **six device/browser rows** (iPhone Safari, iPhone Chrome, Android Chrome, Samsung Internet, desktop Chrome/Edge, Mac Safari);
+  - **eight checks per device:** permission and meter; blocked-mic help; auto-start and the 2:00 stop; playback (including the iPhone silent switch); upload and scoring time; the feedback (transcript accuracy, whether "um" is kept); **aeroplane mode → saved on the device → reopen → Send it**; the Free view;
+  - SQL to check `audio_paths` (`.m4a` from Safari, `.webm` elsewhere), `audio_seconds` and cost;
+  - **a results table to copy into this log**; the plan's M7 exit criterion.
+- I can't run it: it needs real phones, microphones and staging.
+
+**Tests**
+- Unit (+7): `admin-speaking.test.ts` (6: blank rows, order, limits, the Part 3 link, the checklist); `nav.test.ts` (Speaking built).
+- e2e **`speaking-admin.spec.ts`** (API, 2):
+  - an editor creates a card from the form contract (the blank row dropped) and a linked Part 3;
+  - **the Part 3 can't be published before its card** (checklist and 23514), then publishes after it;
+  - a student reads both, can't insert or update;
+  - a card with a linked Part 3 gives 23503 on delete, then archives and disappears for students;
+  - a card students have answered also gives 23503.
+
+**Verified**
+- `pnpm test`: **585 passed** (64 files) ✓; typecheck ✓ (admin, web); admin lint ✓.
+- `speaking-admin.spec.ts`: **2 passed**, run with a temporary Playwright config without the web build, because the machine had 1.6 GB free and `next build` ran out of memory earlier. The config was removed afterwards.
+- **The admin screens in a browser:** a temporary admin dev server on :3301 and a temporary spec (both removed). It covered: a new card with a blank row and a reorder → the student preview in order → a Part 3 from the card page, with **Publish disabled ("Publish its Part 2 cue card first")** → publish the card → the discussion listed → publish the discussion → "1 Part 3 (1 published)". The screenshot was checked by eye.
+- **Not verified:** M7-I1 itself (the real-device run); CI.
+## 2026-11-26 — Fix (PR #68): the stub's too-short / AI-failure hooks never fired in CI
+
+**What CI showed** (job 139802130052, Playwright): `speaking-ai.spec.ts` "a too-short recording and an AI failure are refunded" expected **400 validation_failed** but got **200**: the answer was scored normally. 150 passed, 57 skipped, 1 failed (also on retry).
+
+**Cause:** the ai-stub picked its transcript from the **uploaded file's name** (`stub-short.webm`, `stub-fail.webm`). But **score-speaking always sends the recording to Groq as `answer.<ext>`** (`stt.ts transcriptionForm`), so the stub never saw that name and returned the normal transcript.
+- **My Deno unit test hid it:** it renamed the multipart file to `stub-short.webm` itself before calling the stub, which production never does. My test design was wrong, not score-speaking.
+
+**Fix:**
+- **The markers moved into the recording's bytes:** `STUB_SHORT` / `STUB_FAIL` after a real container header. The stub decodes the uploaded audio and looks for them (exported `STUB_SHORT_MARKER`, `STUB_FAIL_MARKER`). They reach it whatever the file is called, and the WebM header still makes `sniffAudioType` accept the file.
+- **The Deno test now drives the stub exactly as score-speaking does** (`transcribe()` with the marked bytes, named `answer.webm`), for both hooks, with no renaming.
+- The e2e uploads `WebM header + "STUB_SHORT"` / `"STUB_FAIL"`; `docs/ai.md` is updated.
+
+**Verified**
+- Deno 2.9.8: `deno check` ✓; `deno test _shared/ _eval/`: **56 passed, 7 ignored** ✓ (the hook test now goes through the real request path); web typecheck ✓.
+- **Not verified locally:** the e2e itself (it needs Storage and the stub-served functions, which CI has). The re-run on this push is the check.
+- **Landed through its own PR:** #68 and #69 were merged into `develop` (09:12 and 09:33 UTC) before this fix was pushed, so `develop`'s E2E run failed the same way (job 139816552034: 160 passed, 57 skipped, 1 failed, status 200). The fix commit was cherry-picked onto `fix/speaking-stub-markers` from `develop`.
+
+## 2026-11-26 — M8-C1 + M8-C2: examiner-turn contract and Speaking session state machine; IELTS band rounding
+
+On a branch from `develop` (the stub-marker fix, #70, merged; M7-A1 #71 is open and independent).
+
+**M8-C2: IELTS rounding** (`packages/shared/src/ielts/bands.ts`)
+- **`ieltsRound(average)`:** to the nearest half band, **with the quarters going up**: under .25 goes down (6.24 → 6); .25 to under .75 becomes .5 (6.25 → 6.5, 6.74 → 6.5); .75 and over goes to the next band (6.75 → 7).
+  - **The value is snapped to 1e-9 first**, so floating-point averages such as 6.2499999999 count as 6.25.
+  - It refuses values outside 0–9, NaN and infinity.
+- **`overallBand(bands)`:** the IELTS-rounded mean, for the Speaking test's three parts and also the 4-module overall band.
+
+**M8-C1: the session state machine** (`ielts/speaking-session.ts`)
+- **The stage is derived from which parts are already scored** (`speaking_responses`, one per part, M7-C1), so there's **no stage column to keep in sync**.
+  - `full_test`: part1 → part2 → part3 → finished;
+  - `partN`: that part → finished.
+- `partsOf`, `sessionStage`, **`canAnswer`** (only the current part: no skipping ahead or going back), `stageAfter` (throws for the wrong part).
+- **`sessionOverallBand`:** a single part's own band, or the IELTS-rounded mean of Parts 1–3; null until finished.
+- **Examiner turns:** `QUESTIONS_PER_PART` (Parts 1 and 3: 4–5); **`examinerDone`** never stops before 4 and always stops at 5. Between those, the AI decides.
+
+**M8-C1: the `examiner-turn` contract** (`api/examiner-turn.ts`)
+- **Request:** `session_id`, `part` (**1 or 3 only**: Part 2 is the cue card), `topic_id` (a Part 1 set, or a Part 3 discussion), and `turns[]`. Each turn is `question` plus `audio_path` and/or `transcript`, with an optional `duration_sec`.
+  - **The newest answer may be a recording only; earlier ones must have their transcript.**
+  - At most 5 turns; an empty `turns` asks for the opening question.
+- **Design:** examiner-turn **transcribes the newest answer itself** (Groq, M7-B1) and returns it, so the client builds the whole Q&A without a separate speech-to-text call.
+  - **No credits per turn:** the turns are included in the part's scoring price (`speaking_p1` 5, `speaking_p3` 6), charged once by score-speaking at the end of the part (M8-B2).
+- **Response:** `transcribed` ({index, transcript} or null), **`next_question`**, `source` (`set` or `follow_up`), `question_no`, **`done`**.
+  - A refine requires: **done means no next question; open means exactly one**.
+- The errors are documented (400, 401, 404, **409 when the session isn't at this part**, 500 with nothing charged).
+- **`mocks/examiner.ts`:** five Part 1 questions; `mockExaminerTurn` asks them in order, **transcribes the newest recording**, **adds one follow-up after a long second answer**, and stops at the count. It's parsed by the contract.
+
+**Tests** (+9 unit)
+- `rounding.test.ts` (5): the quarters, both sides of each boundary, floating-point averages (6.2499999999 → 6.5, 6.2499 → 6), invalid values, `overallBand` for 3 parts and 4 modules.
+- `speaking-session.test.ts` (5): the full-test order (scored in any order), no skipping or going back, single-part sessions, the overall band, the examiner's 4–5.
+- `examiner-turn.test.ts` (5): request (first call; a recording as the newest answer; Part 2, too many turns, an untranscribed older answer, an empty answer and a foreign path all refused); response (done vs open); **the mock driven through a whole 5-question conversation**; errors.
+
+**Verified**
+- `pnpm test`: **594 passed** (66 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:** nothing runs on it yet (M8-B1 examiner-turn, M8-B2/B3 scoring, M8-F screens).
+
+## 2026-11-26 — M8-B1..B3: examiner-turn; scoring Parts 1 and 3; the session's overall band
+
+On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
+
+**M8-B1: `examiner-turn`** (`supabase/functions/examiner-turn/index.ts`), Parts 1 and 3, **no credits**
+- **Checks:**
+  - the session is the caller's and **at this part** (the state machine, from the parts already scored), else 409 (finished / "at Part N");
+  - the topic is a published set (Part 1) or discussion (Part 3), for that part;
+  - **in a full test, the Part 3 must follow the student's own Part 2 card** (400 otherwise);
+  - the recordings are in the caller's folder.
+- **The newest answer**, if it came as a recording only, is downloaded, **sniffed** and **transcribed** (Groq), then returned as `transcribed`.
+- **The next question:** `deepseek-flash` with **thinking off**, using `prompts/examiner.v1.ts` (`examiner-v1`). It chooses `set` (an index into the remaining set questions), `follow_up` (its own question on the last answer) or `stop`.
+  - **The function enforces the limits, whatever the AI says:** 4–5 questions (`examinerDone`); **follow-ups capped (`MAX_FOLLOW_UPS`: Part 1 1, Part 3 3)**; no repeats; no stopping before 4; the set index clamped.
+  - **If the AI fails or isn't configured, the next set question is asked, so the conversation never stalls.** If the set runs out before the minimum, a neutral follow-up is used.
+- **The prompt:** one question under 25 words, natural British English; Part 1 personal and simple, Part 3 abstract (explain, compare, speculate) and linked to the Part 2 card; **never comments on or corrects the answer**; answers are fenced in `<answer>`.
+- **`ai_usage`:** one row per turn under the part's action key, **`credits_charged` 0**, with the AI's tokens and Whisper's seconds and cost, so a part's real cost is visible.
+
+**M8-B2: scoring Parts 1 and 3** (`score-speaking`)
+- **Contract change:** `ScoreSpeakingRequest` is now a union. **Part 2** sends one `audio_path`; **Parts 1 and 3** send **`answers`** (4–5 × `{question, audio_path, duration_sec?}`). The shared contract, the Deno copy, the mock and the tests are updated; the web app's Part 2 call is unchanged.
+- **Every recording is transcribed again here, in parallel.** A score never rests on a transcript the browser could change, at about $0.003 extra per part. If one fails, the Whisper cost already spent is still logged with the refund.
+- **Signals:** `combineSignals` adds durations, words, pauses and fillers; computes **wpm over the total speech** (from each answer's own rate); takes the longest pause of any answer; weights confidence by length.
+- **Stored transcript:** `Examiner: …\nYou: …` per question (`conversationTranscript`). Under **30 words** in all is refused and refunded.
+- **New versioned prompts:** `speaking-part1.v1.ts` (`s1-v1`: short, direct, extended a little) and `speaking-part3.v1.ts` (`s3-v1`: developed, abstract answers), both on the shared rubric (Pronunciation: intelligibility, never accent). `buildConversationRequest` sends the topic (+ the Part 2 card for Part 3), the combined signals and the Q&A.
+- **Credits:** `speaking_p1` 5, `speaking_p2` 4, `speaking_p3` 6, so **15 for a full test**.
+- **The state machine is now enforced for Part 2 too:** in a full test, Part 2 only after Part 1 (409).
+
+**M8-B3: the session's band**
+- After each part, `partN_band` is saved. **When the state machine says the session is finished**, it's `completed` with `completed_at` and **`overall_band` = `sessionOverallBand`**: a single part's own band, or **the IELTS-rounded mean of Parts 1–3** (`ieltsRound`, M8-C2).
+- `_shared/speaking.ts` gains the Deno copies (parity-tested): `ieltsRound`, `overallBand`, `partsOf`, `sessionStage`, `sessionOverallBand`, `QUESTIONS_PER_PART`, `examinerDone`, plus the new `MAX_FOLLOW_UPS`, `combineSignals`, `conversationTranscript` and `MIN_SCORABLE_WORDS_CONVERSATION`.
+
+**The stub:** the examiner gets the next set question, **or a follow-up when the answer's audio carries `STUB_FOLLOW_UP`** (passed through the transcription stub like the other markers).
+
+**Tests**
+- vitest (+5): parity of rounding (every 0.05 from 0 to 9), the state machine and the examiner limits; `combineSignals` (107 wpm over 1.5 min of speech, 4 pauses, longest 3.2 s, confidence 0.7, fillers merged); answers without timings; the stored transcript. Shared contract (+1): Parts 1/3 `answers` (4–5, paths) vs Part 2. The mock now takes the union.
+- Deno (+2): **the examiner through the real client into the stub** (opening question; follow-up on a marked answer; `examiner-v1`, thinking off; the prompt's rules); **Part 1/3 scoring through the stub** (`s1-v1`/`s3-v1`, combined signals, band 6); the follow-up marker's transcript.
+- e2e **`speaking-ai.spec.ts`**, new: **a whole test through the API with the stubs.**
+  - **Part 3 and Part 2 first are refused with 409.**
+  - **Part 1:** 6 examiner calls (the opening, then 5 answers uploaded and transcribed) → done → scored, **5 credits**, transcript `Examiner: … You: …`.
+  - Part 2 (4).
+  - **Part 3:** 4 set questions + **1 follow-up** on the marked answer → done → **6 credits**.
+  - **The session is completed with bands 6/6/6 and overall 6**; **the balance drops by 15**; `ai_usage` has the 4/5/6 charges plus ≥ 10 uncharged examiner rows; a finished session gives 409.
+
+**Verified**
+- Deno 2.9.8: `deno check --frozen` on all functions (examiner-turn included), `_shared`, `prompts` and `_eval` ✓; `deno test`: **58 passed, 7 ignored** ✓.
+- `pnpm test`: **606 passed** (67 files) ✓; typecheck ✓ (shared, web).
+- **Not verified:**
+  - **the e2e** (no local Storage; **CI runs the whole-test flow with the stubs**);
+  - a real examiner conversation with DeepSeek (the follow-up quality, the 25-word questions);
+  - the M8 screens that will use it (M8-F1..F3).
+
+**Fix (same PR, after CI):** the full-test e2e got **402 insufficient_credits on Part 3** (balance 5, needs 6). The system behaved correctly; my test didn't plan its credits. The Gold test student starts with the 18 sign-up credits (setting the plan doesn't grant Gold's 100), and the earlier tests in the file had already spent some. The test now grants 20 top-up credits first (`grant_credits`, as `credits-concurrency.spec.ts` does) and measures the balance after that. Gold's daily cap (40) allows the day's 19.
+- **Landed through its own PR:** #73 was merged into `develop` at 11:27 UTC, before its E2E run finished and before this fix was pushed, so `develop` had the test without the top-up. The fix commit was cherry-picked onto `fix/speaking-full-test-credits` from `develop`.
+
+## 2026-11-26 — M8-F1..F3: the AI examiner screen, the full test, session results and history
+
+**M8-F1: the examiner screen** (`components/speaking/examiner-part.tsx`, used for practice and inside the full test)
+- **Each question is shown as text and read aloud** with the browser's voice (`speechSynthesis`). `pickExaminerVoice` prefers **British English, then Australian, then any English voice**, and an on-device voice over a network one (it also reads Android's `en_GB` tags). With no English voice, the browser's default reads it with `lang en-GB`; with no speech at all, the student reads the question and taps "Start answering".
+- **Recording starts by itself when the examiner stops speaking.** There's a 15 s fallback if the browser never fires `end`, plus "Start answering" and "Hear it again" buttons. The student taps **Done**; the recorder stops at **45 s (Part 1) or 90 s (Part 3)** per answer.
+- **Each answer is uploaded on its own** (`uploadWithRetry`, `{user}/{session}-p{part}-q{n}-{nonce}.{ext}`). Then **examiner-turn** gets the conversation: older answers with their transcripts, the newest with its recording only. It returns the transcript and the next question. When it says `done`, the part is **scored** (score-speaking with the 4–5 answers, charging the part's credits) and the parent moves on.
+- **Errors keep the work done:** a failed upload retries from the clip in memory; a failed turn repeats the turn; a failed or refused scoring repeats only the scoring (the answers are already uploaded). A 409 conflict offers no retry.
+- **Practice page `/app/speaking/examiner/[topicId]`** (`examiner-practice.tsx`) for a published Part 1 set or Part 3 discussion: how it works → cost confirm (5 or 6 credits) → mic check → a `part1`/`part3` session → the examiner → the part's feedback page. A Part 3 says which cue card it follows.
+
+**M8-F2: the full test** (`/app/speaking/test`, `components/speaking/full-test-flow.tsx`)
+- **Topics:** `pickFullTest` (pure, unit-tested) chooses a Part 1 set, **a cue card that has a published Part 3 discussion**, and one of its discussions. The page **redirects to put the three ids in the URL**, so a reload asks the same questions. `?not=` avoids a card when another exists.
+- **Flow:** intro and **cost confirm for the three parts added up** (15 now, from `credit_costs`; charged part by part, nothing for a part that can't be scored) → **one mic check for the whole test** → a `full_test` session (its id is put in the URL) → **Part 1** (the examiner) → a break screen → **Part 2** (the M7 cue-card flow) → a break → **Part 3** (the discussion following the card) → the results page. A progress bar shows Parts 1–3.
+- **`SpeakingFlow` (M7) now runs inside the test:** it takes the test's `session`, the shared mic `stream` (it no longer stops a stream it doesn't own) and `onScored`. It skips the second cost dialog ("Send and continue to Part 3") and the on-device pending store. Outside the test it is unchanged.
+- **Resume:** `?session=` loads the parts already scored. The state machine (`sessionStage`) gives the part to continue at, and the scored parts keep their topics. A finished test redirects to its results.
+
+**M8-F3: session results and history**
+- **`/app/speaking/sessions/[sessionId]`:**
+  - the **overall band** (stored, or the same IELTS rule over the part bands if the session update didn't land);
+  - **each part's band, the four criteria and the summary**, with a link to the full feedback and transcript;
+  - for an unfinished test, "Continue the test";
+  - after a full test, **"Go deeper"** (another Part 3 discussion of the same card, one not done yet if there is one) and **"Next cue card"** (a new full test avoiding this card).
+- **Speaking home:**
+  - a **Full test** entry with its cost;
+  - **Part 1** question sets;
+  - cue cards with a **Part 3** button when they have a discussion;
+  - **"Your full tests"** (date, overall band, "not finished");
+  - "Your answers" now says which part.
+- **The part feedback page:**
+  - says "Part N" (and "· full test");
+  - links back to the test results;
+  - "Practise this Part N again" goes to the right screen;
+  - plays the recording only for Part 2 (Parts 1/3 have one per answer);
+  - doesn't flag Parts 1/3 as "under a minute".
+
+**Tests**
+- vitest `examiner.test.ts` (+11):
+  - voice choice (GB > AU > any English, local first, Android tags, none);
+  - recording paths;
+  - the examiner-turn and score-speaking requests are valid against the shared contracts;
+  - the full test's cost;
+  - `pickFullTest` (URL topics kept while published, scored parts locked, `not`, not enough content).
+- e2e `speaking-test-ui.spec.ts` (new; the browser's voice is replaced by a recorder):
+  - **home → full test**: topics in the URL survive a reload; "This costs 15 credits"; the mic check;
+  - **a seeded finished full test**: overall 6.5, part bands, summaries, Go deeper → the card's other discussion, Next cue card → `?not=`, the part page → back to results, history, a finished test can't be resumed;
+  - **the examiner with the functions routed in the browser**: 4 questions spoken in order, 5 turn calls (the opening, then one per answer; older answers carry transcripts), paths, the score request's 4 questions, and "Try again" repeating only the scoring;
+  - with `E2E_AI=1` (CI stubs): **Part 1 practice end to end** (a British voice, scored → the feedback page) and **a whole full test Parts 1 → 2 → 3 → results** (overall 6.0).
+- `speaking-ui.spec.ts`: the home's cost text changed.
+
+**Verified**
+- `pnpm test`: **617 passed** (68 files) ✓. Web typecheck (with `next typegen`) ✓; lint ✓; `next build` ✓ (the 3 new routes).
+- Playwright, desktop, local (production build): `speaking-test-ui` + `speaking-ui` **7 passed, 3 skipped** ✓. The 3 skipped are the stubbed-AI flows: no local Storage or functions with the stub.
+- **Not verified:**
+  - **the two stubbed-AI browser flows** (Part 1 practice and the whole full test): they run in CI;
+  - the mobile project (these tests skip mobile);
+  - **real voices on real devices** (which en-GB/en-AU voices iOS/Android/Windows offer, Chrome's network voices, whether every browser fires `end`);
+  - a real DeepSeek examiner conversation.
+
+**Manual steps for you**
+- **Content:** a full test needs at least one published **Part 1 question set** and **a Part 2 card with a published Part 3 discussion** (admin → Speaking). Without them, the home says "Coming soon" and the test page explains why.
+- **On a phone and a laptop:** run a Part 1 practice and a full test. Check that the examiner's voice is British or Australian, that recording starts when it stops talking, and that the sound isn't recorded into your answer (use headphones if it is). Add the results to `docs/speaking-device-testing.md`.
+
+## 2026-11-26 — Groq removed: Gemini does speech to text and OCR (the provider split)
+
+**Your decision:**
+- **DeepSeek** does everything text-only: scoring Writing and Speaking transcripts, the examiner's next question, feedback and generated content. It's the cheapest.
+- **Gemini** does everything with audio, images or voice: speech to text, OCR of handwritten Writing, the examiner's voice (TTS) and, later, Gemini Live for Platinum.
+- **Groq is not used.**
+
+**Speech to text: Gemini** (`_shared/stt.ts` rewritten; Groq Whisper removed)
+- **The call:** `generateContent` on `gemini-3.5-flash-lite`, with the recording inline (base64). The reply is JSON with a schema: `{ text, silences: [{ start_sec, length_sec }] }`. Thinking is minimal.
+- **The prompt** (`STT_SYSTEM`, `stt-v1`):
+  - word for word, keeping fillers, repetitions, false starts and mistakes;
+  - never corrects;
+  - writes `[inaudible]` for anything unclear;
+  - lists silences of 1 s or more between words;
+  - ignores instructions spoken in the recording.
+- **Recording length:** from the **audio tokens** Gemini counts (32 per second).
+- **Pauses:** Gemini has no word timings, so pauses now come from the silences it reports. `speakingSignals` takes `silences`; word timings still win when there are some. These pauses are approximate, so the Speaking eval should measure them.
+- **Confidence:** Gemini has no log-probabilities, so **`transcript_confidence` is `null`** (the contract allows it).
+- **Cost:** audio input tokens at **`GEMINI_AUDIO_PRICES`**, plus other input and output at the text prices. **The audio price ($1.00 per 1M for Flash-Lite) is an assumption** (about 3× the text price, as Gemini prices audio): check it.
+- **Retries:** 408/429/500/502/503, network errors, timeouts and malformed replies are retried. Other 4xx, a blocked recording and a cut-off reply are not. Failures carry the tokens already billed, so refunds log the real cost.
+- **Size:** recordings over **14 MB** are refused, to stay under the 20 MB inline request limit. A 2-minute answer is about 0.5–2 MB.
+- **Formats:** WebM and MP4 are sent as `audio/webm` and `audio/mp4`. **These two aren't on the Gemini API's documented audio list** (Vertex AI lists them). The live test sends both browser fixtures: run it.
+- **Where it's used:** `score-speaking` and `examiner-turn` now use it, and need `GEMINI_API_KEY`. The `ai_usage` rows keep one model's tokens, with the speech-to-text cost added in.
+
+**OCR is pinned to Gemini:** `ocr-writing` uses `aiModel("lite", "gemini")`, whatever `AI_PROVIDER` says. Until now it ran on DeepSeek, against the split. Gemini also reads HEIC.
+
+**Stub and CI**
+- **`GEMINI_API_URL`** overrides the Gemini base for OCR and speech to text. CI now writes `GEMINI_API_KEY=e2e-stub` and `GEMINI_API_URL=…/ai-stub` instead of the Groq pair.
+- The ai-stub now also answers **Gemini's `generateContent`**:
+  - audio → a transcript about 70 s long (as audio tokens) with one 2.8 s silence, using the same byte markers;
+  - images → OCR;
+  - text → the same fakes as DeepSeek.
+- The DeepSeek shape is unchanged.
+
+**Docs:** `docs/ai.md` (the split, keys, speech to text, signals, stub), `speaking-device-testing.md`, the eval README and script, `plan.md`, the implementation plan, and comments.
+
+**Tests**
+- **Deno `stt_test.ts`** (rewritten, 10 tests):
+  - the request (key, inline audio, schema, prompt rules) and formats;
+  - length from audio tokens; silences under 1 s dropped; cost;
+  - retries; no retry for 4xx, blocked or cut-off replies;
+  - the deadline; a malformed reply still billed; the schema; refusals before any call.
+- **`ai_stub_test.ts`:** OCR through Gemini (HEIC included, `gemini-3.5-flash-lite` usage); Gemini text scoring; speaking via Gemini STT (pauses 1 / 2.8 s, confidence null).
+- **vitest:** pauses from silences (and word timings winning).
+- **e2e `speaking-ai`:** confidence now `null`.
+
+**Verified**
+- **Deno 2:** `deno check` on `_shared`, `score-speaking`, `examiner-turn`, `ocr-writing`, `score-writing`, `ai-stub` and `_eval` ✓. `deno test _shared/`: **53 passed, 0 failed, 7 ignored** (live tests, no keys) ✓.
+- **`pnpm test`:** **618 passed** ✓. Web lint ✓.
+- **Not verified:**
+  - **a real Gemini transcription:** the live test, WebM/MP4 acceptance, filler retention, silence accuracy and the real audio price;
+  - **the e2e here** (no local Storage: CI runs the stubbed Speaking and OCR flows).
+
+**Not done (needs your call):** the examiner's voice is still the **browser's** speech (M8-F1, as the plan said). Moving it to **Gemini TTS** means:
+- a new function returning audio per question;
+- a cost for every examiner question;
+- a delay before each one.
+
+**Manual steps for you**
+- **`supabase secrets set GEMINI_API_KEY=<paid-tier key>`** on staging (and later production), and add `GEMINI_API_KEY=…` to your local `supabase/functions/.env`. Speaking and OCR now need it.
+- **Remove the Groq secret:** `supabase secrets unset GROQ_API_KEY`, and delete it from your local `.env`. Revoke the key at console.groq.com.
+- Run the live check (well under a cent) from `supabase/functions`:
+  `deno test --frozen --env-file=.env --allow-env --allow-net=generativelanguage.googleapis.com --allow-read=_eval _shared/stt_live_test.ts`
+  It must pass for **both** `chrome-opus.webm` and `safari-aac.mp4`. Also look at `kept_um` in its output.
+- **Check Gemini's audio input price** for `gemini-3.5-flash-lite` and correct `GEMINI_AUDIO_PRICES` in `stt.ts` if it differs.
+- **Privacy policy:** name Google (Gemini) as the processor of Speaking recordings and Writing photos.
+
+## 2026-11-26 — Fix: M1-B2 was never built — profiles for new sign-ups (trigger + backfill)
+
+**What you saw:** on staging, `auth.users` had 3 Google accounts but `profiles` only 1 (your admin, made by hand). The admin Users page showed 1 user.
+
+**Cause:** **M1-B2** (a `profiles` row for every new auth user) was **never built**. No migration creates the trigger, and earlier log entries say "M1-B2 not built" in many places. `plan.agent.md` marked it ✅ Done by mistake (corrected now).
+
+**What that broke for every Google sign-up so far:**
+- they don't appear in the admin panel;
+- onboarding and the country from sign-up (M2-B3) aren't saved, since the update only fills an existing row;
+- the profile page says "still being set up";
+- the credits engine treats them as Free;
+- an admin can't give them a plan.
+
+**Fix:** migration `20261128090000_profile_on_signup.sql`
+- **Trigger `create_profile_on_signup`** (after insert on `auth.users`, security definer, empty `search_path`):
+  - inserts `profiles (id, full_name)` with role `user` and plan `free` (the column defaults);
+  - **`on conflict do nothing`**, so a row made another way is never overwritten.
+- **The name:** `signup_full_name(metadata)` takes Google's `full_name`, else `name`, trimmed, cut to the column's 100 characters, and null if blank.
+- **Not wrapped in an exception handler:** a missing profile breaks everything, so a failure should fail the sign-up visibly rather than leave a half-made account.
+- **Order:** same-event triggers fire by name, so it runs **before** `grant_credits_on_signup` (M3-B4), which then sees the profile.
+- **Backfill:** every existing auth user without a profile gets one. On staging that's your two newer accounts (`…044`, `…022`).
+- **Not set by the backfill:** country and time zone. Country comes from the auth callback at the next sign-in (M2-B3); onboarding asks the rest.
+- Execute is revoked from public, anon and authenticated on both functions.
+- **DB types:** `signup_full_name` added to both `db.ts` copies **by hand**. Docker couldn't start the generator's container locally (low memory; `pg_prove` and `postgres-meta` stayed in "Created"). CI's `gen-db-types --check` will confirm it matches.
+
+**Tests**
+- **pgTAP `profile_on_signup.test.sql` (13):**
+  - the trigger exists and fires before the credit grant;
+  - a Google user gets a trimmed name, role `user` and plan `free`;
+  - `name` is the fallback; blank or no metadata gives null; a 150-character name is cut to 100;
+  - one row per user; sign-up credits are still granted;
+  - the helper; no API access to either function.
+- **`profiles.test.sql`:** its setup now updates the names the trigger left empty (`on conflict do update`). With "do nothing", User A kept the trigger's null name and 1 test failed.
+
+**Verified**
+- Migration applied locally (`supabase migration up --local`): 1 auth user, 0 without a profile, the trigger present ✓.
+- **All 24 pgTAP files pass**, run file by file with `psql` in the DB container (`supabase test db` hung: its `pg_prove` container never started). Including the new 13 and `profiles` 26/26 ✓.
+- `speaking-admin.spec.ts` (editor role over the trigger's default row) 2/2 ✓. `pnpm test` 618 ✓; shared typecheck ✓.
+- **Not verified:**
+  - a real Google sign-up with the trigger (needs staging);
+  - the types `--check` (CI).
+
+**Manual steps for you**
+- **After it merges** (the "Push migrations to staging" action runs it), check in the staging SQL editor:
+  `select count(*) from auth.users u where not exists (select 1 from public.profiles p where p.id = u.id);` → **0**.
+  The admin Users page should show all 3 accounts.
+- Sign in once more with each of the two newer accounts: the callback then saves their country (or onboarding asks for it).
+- Sign up a fresh Google account on staging: it should appear in admin → Users at once, as Free / user.
+## 2026-11-26 — M8-A1: Part 1 question sets (admin); M8-I1: the full test on staging (checklist)
+
+**M8-A1: Part 1 question sets in the admin panel**
+- **Shared contract (`api/admin-speaking.ts`):**
+  - `Part1Form`: a theme and 1–12 questions, blank rows dropped; no card or parent.
+  - `part1Row`.
+  - `PART1_THEMES`: 15 usual themes (work or studies, hometown, hobbies, family, food…).
+  - **`speakingPublishCheck` for Part 1:** **blocks publishing under 4 questions**, because the examiner asks 4–5 (`QUESTIONS_PER_PART`). It warns when there are fewer than 6 (the examiner can't vary its questions) and when a question doesn't end with "?" (they're read aloud).
+- **Admin:**
+  - The Speaking page has a **"Part 1 question sets"** section: each set's theme, question count, status and "AI" badge, plus a "New question set" form.
+  - The theme field suggests the usual themes (a `datalist`); any theme can be typed.
+  - **The topic page** opens Part 1 sets with the status actions, the publish checklist, the editable theme and questions (add, remove, reorder), and **"What the examiner asks"**: the questions in order, how many are asked, the one follow-up and the 5 credits.
+  - `savePart1` follows the other builders: the form contract, the editor's own session (staff RLS), and "no longer exists" handling.
+  - Nav note updated.
+- **The database already allowed Part 1** (M7-C1: questions, no card, no parent), so there's no migration. Students see published sets on the Speaking home and in the full test (M8-F).
+
+**M8-I1: the full test end to end on staging:** a checklist in **`docs/speaking-full-test-staging.md`**:
+- prerequisites: secrets, content, a Gold student with 15+ credits;
+- the run, part by part, with the balance after each part (−5, −4, −6) and a reload test;
+- **SQL** for:
+  - the session's bands, with the expected rounded overall band computed alongside;
+  - **the credits through `credit_ledger`** (ledger `ref_id` = the response id), net of refunds, expected −15;
+  - `ai_usage`: 3 charged rows plus 8–10 uncharged examiner turns, and the real cost;
+- a **rounding table**: part bands give means ending .0/.17/.33/.5/.67/.83, so e.g. 6/6.5/6.5 → 6.5 and 6/6/6.5 → 6.0;
+- a results table to fill in.
+
+**Finding: Free students can't take a full test.** Free's daily cap is **8 credits** and a full test is **15** (Part 1 5 + Part 2 4 would already be 9). The test's cost dialog checks the 15 against the cap and shows why, so nobody is charged for a test they can't finish. Options: a cap of 15+ for Free, or full tests for Gold/Platinum only. Your call.
+
+**Tests**
+- vitest `admin-speaking.test.ts` (+4): Part 1 form → row; needs a theme and 1–12 questions, no parent; the themes; the publish check (under 4 blocks; fewer than 6 warns; "?" warns).
+- e2e `speaking-admin.spec.ts` (+1, API):
+  - an editor creates a set from the form contract (3 questions → blocked), saves 6, and publishes;
+  - the database refuses a Part 1 with a card (23514);
+  - a student reads it and can't change it.
+
+**Verified**
+- `pnpm test`: **622 passed** ✓. Admin typecheck (with `next typegen`) ✓; lint ✓.
+- `speaking-admin.spec.ts` against local Supabase: **3 passed** ✓.
+- **The admin pages in a browser** (a temporary admin dev server on :3301 with local Supabase, an editor session, and a throwaway spec, deleted afterwards):
+  - create a set with 3 questions → the topic page;
+  - "needs at least 4 questions";
+  - add a 4th, Save → "enough questions";
+  - the list shows "4 questions". ✓ (screenshot checked)
+- **M8-I1's SQL** run on local Postgres: the rounding expression gives the table's values for all 6 rows, and the ledger and `ai_usage` queries run ✓.
+- **Not verified:** **the staging run itself (M8-I1)**: it needs staging with real keys and a person speaking.
+- Also confirmed: **#76 (Gemini speech to text) CI is green**: E2E 169 passed, the same as before, so the stubbed Speaking and OCR flows pass through Gemini.
+
+**Manual steps for you**
+- **Content on staging:** create and publish a few **Part 1 question sets** (admin → Speaking → New question set; at least 4 questions, ideally 6+), e.g. Work or studies, Hometown, Hobbies. The full test needs at least one, plus a card with a published Part 3.
+- **M8-I1:** follow `docs/speaking-full-test-staging.md` on staging with a Gold student, run the three SQL checks, and paste the results row into `log.md`.
+- **Decide** Free and the full test (see the finding above).
+
+
+## 2026-11-27 — M8.5: practice streaks on the dashboard and the profile
+
+**What a streak is**
+- A **practice day** is a day, in the student's own time zone (`profiles.timezone`, else UTC), on which they finished at least one scored piece of practice: a Reading or Listening test, a Writing answer or a Speaking part.
+- **Current** streak: consecutive practice days ending today, or ending yesterday while today is still open. **Best**: the longest run ever. **All time**: every practice day.
+- Nothing new is stored. The days are derived from `test_attempts`, `writing_submissions` and `speaking_responses`, so the streak can't drift from the history. All three already have `(user_id, created_at)` indexes.
+
+**Plan:** added milestone **M8.5 — Practice streaks** (between M8 and M9) to `plan.md`. It's the streak part of Phase 9; daily goals and email / web-push reminders stay in Phase 9.
+
+**Built**
+- **M8.5-C1** `packages/shared/src/api/streak.ts`: the zod `Streak` contract (`timezone`, `today`, `current`, `longest`, `total_days`, `practised_today`, `recent`), plus `lastDays()`, `lastSevenDays()`, `weekdayIndex()` and `streakMessage()`.
+- **M8.5-B1/B2** migration `20261129090000_streaks.sql`: `get_my_streak(p_days integer default 7)`.
+  - It answers for `auth.uid()` only: anon can't call it, and signed out raises 42501.
+  - `p_days` must be 1–120 (else 22023).
+  - It computes runs of days with gaps-and-islands; `recent` lists the practice days among the last `p_days`.
+  - `db.ts` types were updated by hand in both copies.
+- **M8.5-F1** dashboard `StreakCard`:
+  - a flame and the current streak, a "Best: N days" badge and a next-step message;
+  - a last-7-days strip; every day has an accessible label ("Today: practised", "Monday: no practice");
+  - empty and error states.
+- **M8.5-F2** profile (`/app/profile`) "Practice streak" section:
+  - Current, Best and All time stats;
+  - a **12-week calendar** from `get_my_streak(84)`: weeks are columns, Monday is at the top, today is outlined, and every day is labelled with its full date.
+
+**Tests**
+- vitest `streak.test.ts` (6): the contract (84 days OK, 121 refused, `total_days` required), calendar arithmetic across months and leap days, 84-day `lastDays`, Monday-first weekdays, and the messages.
+- pgTAP `streaks.test.sql` (22):
+  - access;
+  - a 3-day streak made of a test, a Writing answer and a Speaking part; best 5; `total_days` 8;
+  - `p_days` 15, 84 and 120, and the 0 and 121 refusals;
+  - not yet today;
+  - nothing yet;
+  - the time-zone boundary (00:30 in Kolkata);
+  - a broken run;
+  - another student's practice never counts.
+- e2e `dashboard.spec.ts`: the empty state, then a test seeded yesterday and one today. After that, both the dashboard and the profile must show 2 (best 2, all time 2), with 84 calendar days and today practised.
+
+**Verified**
+- `pnpm test`: **628 passed** ✓. Web `tsc --noEmit` ✓; eslint on the changed files ✓.
+- pgTAP: the first version passed **16/16** on local Postgres ✓.
+- **Not verified locally: the `p_days` / `total_days` version of the migration, the 22-assertion pgTAP file and the dashboard + profile e2e.** Docker Desktop won't start on this machine (a WSL problem), so there's no local Supabase. CI runs `supabase test db` and Playwright on the PR, so those checks happen there.
+- Not looked at in a browser yet (same reason).
+
+**Manual steps for you**
+- Fix Docker / WSL. `wsl --update`, then `wsl --shutdown`, then restarting Docker Desktop usually does it. Then `supabase start`, `supabase migration up --local`, and look at `/app` and `/app/profile`.
+- After merge, apply the migration on staging and production (`supabase db push`).

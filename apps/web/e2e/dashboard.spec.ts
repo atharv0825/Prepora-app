@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { ONBOARDED, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
+import { ONBOARDED, adminClient, createTestUser, deleteTestUser, type TestUser } from "./support/local-supabase";
 
 // M2-F3: the home dashboard for an onboarded student: greeting, goal card with the exam
-// countdown, credits card and the four module tiles (all "coming soon" for now).
+// countdown, credits card and the four module tiles (Reading open since M4-F1, Listening since
+// the Listening, Writing and Speaking home pages).
 
 function inDays(days: number): string {
   const d = new Date();
@@ -40,10 +41,11 @@ test.describe("home dashboard", () => {
 
     const modules = page.getByRole("region", { name: "Practise" }).getByRole("listitem");
     await expect(modules).toHaveCount(4);
-    for (const name of ["Reading", "Listening", "Writing", "Speaking"]) {
+    // All four modules are open (Speaking since M7).
+    for (const [name, href] of [["Reading", "/app/reading"], ["Listening", "/app/listening"], ["Writing", "/app/writing"], ["Speaking", "/app/speaking"]]) {
       const tile = modules.filter({ has: page.getByRole("heading", { name }) });
-      await expect(tile).toContainText("Coming soon");
-      await expect(tile.getByRole("link")).toHaveCount(0);
+      await expect(tile.getByRole("link")).toHaveAttribute("href", href);
+      await expect(tile).not.toContainText("Coming soon");
     }
   });
 
@@ -55,5 +57,42 @@ test.describe("home dashboard", () => {
     await expect(goal).toContainText("7.0");
     await expect(goal).toContainText("Academic");
     await expect(goal).toContainText("Not booked yet");
+  });
+
+  test("practice streak: none yet, then today and yesterday make 2, on the dashboard and the profile", async ({ page, context, baseURL }) => {
+    await signIn(context, baseURL!, { ...ONBOARDED, timezone: "UTC" });
+    await page.goto("/app");
+    const streak = page.getByRole("region", { name: "Practice streak" });
+    await expect(streak.getByTestId("streak-current")).toHaveText("0");
+    await expect(streak).toContainText("Finish any practice today to start your streak.");
+    await expect(streak.getByRole("listitem")).toHaveCount(7);
+    await expect(streak.getByRole("listitem", { name: "Today: no practice" })).toBeVisible();
+
+    // Two graded Reading tests: yesterday and today (noon UTC, so the dates don't depend on the hour).
+    const noon = (daysAgo: number) => `${inDays(-daysAgo)}T12:00:00Z`;
+    const at = (daysAgo: number) => (daysAgo === 0 ? new Date().toISOString() : noon(daysAgo));
+    const { error } = await adminClient().from("test_attempts").insert(
+      [1, 0].map((d) => ({ user_id: user!.id, module: "reading" as const, test_id: crypto.randomUUID(), raw_score: 30, band: 7, created_at: at(d) })),
+    );
+    expect(error).toBeNull();
+
+    await page.reload();
+    await expect(streak.getByTestId("streak-current")).toHaveText("2");
+    await expect(streak).toContainText("days in a row");
+    await expect(streak).toContainText("Best: 2 days");
+    await expect(streak.getByRole("listitem", { name: "Today: practised" })).toBeVisible();
+    await expect(streak.getByRole("listitem", { name: /: practised$/ })).toHaveCount(2);
+
+    // M8.5-F2: the profile shows the same streak, the all-time total and the 12-week calendar.
+    await page.goto("/app/profile");
+    const profile = page.getByRole("region", { name: "Practice streak" });
+    await expect(profile.getByTestId("profile-streak-current")).toHaveText("2");
+    await expect(profile.getByTestId("profile-streak-best")).toHaveText("2");
+    await expect(profile.getByTestId("profile-streak-total")).toHaveText("2");
+    await expect(profile).toContainText("2 practice days");
+    const calendar = profile.getByRole("list", { name: "Practice in the last 12 weeks" });
+    await expect(calendar.getByRole("listitem", { name: /: (practised|no practice)$/ })).toHaveCount(84);
+    await expect(calendar.getByRole("listitem", { name: /^Today, .*: practised$/ })).toHaveCount(1);
+    await expect(calendar.getByRole("listitem", { name: /: practised$/ })).toHaveCount(2);
   });
 });

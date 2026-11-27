@@ -55,6 +55,7 @@ export const navGroups: NavGroup[] = [
         label: "Speaking",
         icon: Mic,
         milestone: "M7–M8",
+        built: true, // M7-A1: Part 2 cue cards and linked Part 3 discussions; M8-A1: Part 1 question sets
         summary: "Part 1 question sets, Part 2 cue cards and linked Part 3 discussions.",
         features: [
           "Part 1 question sets",
@@ -68,6 +69,7 @@ export const navGroups: NavGroup[] = [
         label: "Writing",
         icon: PenLine,
         milestone: "M6",
+        built: true, // M6-A1: task manager (Task 1 Academic with image, Task 1 General, Task 2), publish
         summary: "Task 1 reports and letters, Task 2 essay prompts.",
         features: [
           "Academic Task 1 with chart image upload",
@@ -80,6 +82,7 @@ export const navGroups: NavGroup[] = [
         label: "Reading",
         icon: BookOpen,
         milestone: "M4",
+        built: true, // M4-A1: builder (3 passages, 11 question types), preview, publish
         summary: "Build tests: 3 passages and all 11 question types.",
         features: [
           "Create a test → 3 passages → questions",
@@ -93,6 +96,7 @@ export const navGroups: NavGroup[] = [
         label: "Listening",
         icon: Headphones,
         milestone: "M5",
+        built: true, // M5-A1: builder (4 sections, R2 audio, transcripts, labelling images)
         summary: "Build tests: 4 sections, audio upload, 40 questions.",
         features: [
           "4 sections with audio uploaded to R2",
@@ -167,6 +171,7 @@ export const navGroups: NavGroup[] = [
         label: "Plans & pricing",
         icon: ScrollText,
         milestone: "M3",
+        built: true, // M3-A1: limits per plan, credit cost per action (prices come with M9)
         summary: "Credits, allowances and caps per plan; regional prices.",
         features: [
           "Monthly credits, allowances and daily caps per plan",
@@ -179,11 +184,12 @@ export const navGroups: NavGroup[] = [
         label: "Credits",
         icon: Coins,
         milestone: "M3",
+        built: true, // M3-A2: recent grants and refunds; per-user tools on the user page
         summary: "User balances and ledger; grants and refunds; real AI cost per credit.",
         features: [
           "Balance and full ledger per user",
           "Grant or refund credits (support)",
-          "Real AI cost per credit from ai_usage",
+          "Real AI cost per credit from ai_usage (M11)",
         ],
       },
     ],

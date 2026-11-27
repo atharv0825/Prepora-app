@@ -68,6 +68,36 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          admin_id: string | null
+          at: string
+          details: Json
+          entity: string
+          entity_id: string | null
+          id: number
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          entity: string
+          entity_id?: string | null
+          id?: never
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          at?: string
+          details?: Json
+          entity?: string
+          entity_id?: string | null
+          id?: never
+        }
+        Relationships: []
+      }
       country_regions: {
         Row: {
           country_code: string
@@ -206,6 +236,136 @@ export type Database = {
           },
         ]
       }
+      listening_questions: {
+        Row: {
+          answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["listening_question_type"]
+          section_id: string
+          test_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["listening_question_type"]
+          section_id: string
+          test_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          prompt?: string
+          q_no?: number
+          q_type?: Database["public"]["Enums"]["listening_question_type"]
+          section_id?: string
+          test_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_questions_section_id_test_id_fkey"
+            columns: ["section_id", "test_id"]
+            isOneToOne: false
+            referencedRelation: "listening_sections"
+            referencedColumns: ["id", "test_id"]
+          },
+        ]
+      }
+      listening_sections: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          duration_sec: number | null
+          id: string
+          order_no: number
+          test_id: string
+          title: string
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          order_no: number
+          test_id: string
+          title: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          order_no?: number
+          test_id?: string
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listening_sections_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "listening_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listening_tests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          min_plan: Database["public"]["Enums"]["plan_tier"]
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plans: {
         Row: {
           id: Database["public"]["Enums"]["plan_tier"]
@@ -272,6 +432,333 @@ export type Database = {
         }
         Relationships: []
       }
+      reading_passages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          order_no: number
+          test_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          order_no: number
+          test_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          order_no?: number
+          test_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_passages_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "reading_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_questions: {
+        Row: {
+          answer: Json
+          created_at: string
+          explanation: string | null
+          id: string
+          options: Json
+          passage_id: string
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["reading_question_type"]
+          test_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          passage_id: string
+          prompt: string
+          q_no: number
+          q_type: Database["public"]["Enums"]["reading_question_type"]
+          test_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: Json
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          passage_id?: string
+          prompt?: string
+          q_no?: number
+          q_type?: Database["public"]["Enums"]["reading_question_type"]
+          test_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_questions_passage_id_test_id_fkey"
+            columns: ["passage_id", "test_id"]
+            isOneToOne: false
+            referencedRelation: "reading_passages"
+            referencedColumns: ["id", "test_id"]
+          },
+        ]
+      }
+      reading_tests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          min_plan: Database["public"]["Enums"]["plan_tier"]
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          test_type: Database["public"]["Enums"]["ielts_test_type"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          test_type: Database["public"]["Enums"]["ielts_test_type"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_plan?: Database["public"]["Enums"]["plan_tier"]
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          test_type?: Database["public"]["Enums"]["ielts_test_type"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      speaking_responses: {
+        Row: {
+          audio_paths: string[]
+          band: number
+          created_at: string
+          duration_sec: number | null
+          feedback: Json
+          id: string
+          part: number
+          prompt_version: string | null
+          scores: Json
+          session_id: string
+          signals: Json
+          topic_id: string
+          transcript: string
+          user_id: string
+        }
+        Insert: {
+          audio_paths?: string[]
+          band: number
+          created_at?: string
+          duration_sec?: number | null
+          feedback?: Json
+          id?: string
+          part: number
+          prompt_version?: string | null
+          scores: Json
+          session_id: string
+          signals?: Json
+          topic_id: string
+          transcript: string
+          user_id: string
+        }
+        Update: {
+          audio_paths?: string[]
+          band?: number
+          created_at?: string
+          duration_sec?: number | null
+          feedback?: Json
+          id?: string
+          part?: number
+          prompt_version?: string | null
+          scores?: Json
+          session_id?: string
+          signals?: Json
+          topic_id?: string
+          transcript?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaking_responses_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "speaking_responses_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speaking_sessions: {
+        Row: {
+          completed_at: string | null
+          id: string
+          mode: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band: number | null
+          part1_band: number | null
+          part2_band: number | null
+          part3_band: number | null
+          started_at: string
+          status: Database["public"]["Enums"]["speaking_session_status"]
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          mode: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band?: number | null
+          part1_band?: number | null
+          part2_band?: number | null
+          part3_band?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["speaking_session_status"]
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          mode?: Database["public"]["Enums"]["speaking_session_mode"]
+          overall_band?: number | null
+          part1_band?: number | null
+          part2_band?: number | null
+          part3_band?: number | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["speaking_session_status"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      speaking_topics: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cue_card_points: string[] | null
+          id: string
+          parent_topic_id: string | null
+          part: number
+          published_at: string | null
+          questions: string[] | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cue_card_points?: string[] | null
+          id?: string
+          parent_topic_id?: string | null
+          part: number
+          published_at?: string | null
+          questions?: string[] | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cue_card_points?: string[] | null
+          id?: string
+          parent_topic_id?: string | null
+          part?: number
+          published_at?: string | null
+          questions?: string[] | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speaking_topics_parent_topic_id_fkey"
+            columns: ["parent_topic_id"]
+            isOneToOne: false
+            referencedRelation: "speaking_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_attempts: {
+        Row: {
+          answers: Json
+          band: number
+          created_at: string
+          id: string
+          mode: string | null
+          module: Database["public"]["Enums"]["test_module"]
+          raw_score: number
+          results: Json | null
+          test_id: string
+          time_taken_sec: number | null
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          band: number
+          created_at?: string
+          id?: string
+          mode?: string | null
+          module: Database["public"]["Enums"]["test_module"]
+          raw_score: number
+          results?: Json | null
+          test_id: string
+          time_taken_sec?: number | null
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          band?: number
+          created_at?: string
+          id?: string
+          mode?: string | null
+          module?: Database["public"]["Enums"]["test_module"]
+          raw_score?: number
+          results?: Json | null
+          test_id?: string
+          time_taken_sec?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       usage_allowance: {
         Row: {
           listening_tests_used: number
@@ -335,11 +822,130 @@ export type Database = {
         }
         Relationships: []
       }
+      writing_submissions: {
+        Row: {
+          band: number
+          created_at: string
+          feedback: Json
+          id: string
+          input_mode: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths: string[] | null
+          prompt_version: string | null
+          scores: Json
+          task_id: string
+          text: string
+          time_taken_sec: number | null
+          user_id: string
+          word_count: number
+        }
+        Insert: {
+          band: number
+          created_at?: string
+          feedback?: Json
+          id?: string
+          input_mode: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths?: string[] | null
+          prompt_version?: string | null
+          scores: Json
+          task_id: string
+          text: string
+          time_taken_sec?: number | null
+          user_id: string
+          word_count: number
+        }
+        Update: {
+          band?: number
+          created_at?: string
+          feedback?: Json
+          id?: string
+          input_mode?: Database["public"]["Enums"]["writing_input_mode"]
+          photo_paths?: string[] | null
+          prompt_version?: string | null
+          scores?: Json
+          task_id?: string
+          text?: string
+          time_taken_sec?: number | null
+          user_id?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "writing_submissions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "writing_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      writing_tasks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          image_alt: string | null
+          image_url: string | null
+          prompt: string
+          published_at: string | null
+          source: Database["public"]["Enums"]["content_source"]
+          status: Database["public"]["Enums"]["content_status"]
+          task_no: number
+          test_type: Database["public"]["Enums"]["ielts_test_type"] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_alt?: string | null
+          image_url?: string | null
+          prompt: string
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          task_no: number
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_alt?: string | null
+          image_url?: string | null
+          prompt?: string
+          published_at?: string | null
+          source?: Database["public"]["Enums"]["content_source"]
+          status?: Database["public"]["Enums"]["content_status"]
+          task_no?: number
+          test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      admin_audit_entries: {
+        Args: { p_entities: string[]; p_entity_id?: string; p_limit?: number }
+        Returns: {
+          action: string
+          admin_email: string
+          admin_name: string
+          at: string
+          details: Json
+          entity: string
+          entity_id: string
+          id: number
+        }[]
+      }
+      admin_get_listening_test: { Args: { p_test_id: string }; Returns: Json }
+      admin_get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       admin_get_user: {
         Args: { p_id: string }
         Returns: {
@@ -358,6 +964,15 @@ export type Database = {
           timezone: string
           updated_at: string
         }[]
+      }
+      admin_grant_credits: {
+        Args: {
+          p_amount: number
+          p_expires_in_days: number
+          p_note: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       admin_list_users: {
         Args: {
@@ -379,6 +994,41 @@ export type Database = {
           total_count: number
         }[]
       }
+      admin_note: { Args: { p_note: string }; Returns: string }
+      admin_order_listening_questions: {
+        Args: { p_ids: string[]; p_test_id: string }
+        Returns: undefined
+      }
+      admin_order_reading_questions: {
+        Args: { p_ids: string[]; p_test_id: string }
+        Returns: undefined
+      }
+      admin_refund_credits: {
+        Args: { p_note: string; p_reservation_id: string; p_user_id: string }
+        Returns: Json
+      }
+      admin_update_credit_cost: {
+        Args: { p_action_key: string; p_credits: number }
+        Returns: Json
+      }
+      admin_update_plan: {
+        Args: { p_id: Database["public"]["Enums"]["plan_tier"]; p_limits: Json }
+        Returns: Json
+      }
+      admin_user_credits: { Args: { p_user_id: string }; Returns: Json }
+      admin_user_ledger: {
+        Args: { p_limit?: number; p_user_id: string }
+        Returns: {
+          action_key: string
+          bucket_source: Database["public"]["Enums"]["credit_source"]
+          created_at: string
+          delta: number
+          id: number
+          reason: Database["public"]["Enums"]["credit_ledger_reason"]
+          refunded: boolean
+          reservation_id: string
+        }[]
+      }
       admin_waitlist_by_country: {
         Args: never
         Returns: {
@@ -391,12 +1041,17 @@ export type Database = {
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }
       credits_spent_today: { Args: { p_user_id: string }; Returns: number }
+      credits_summary: { Args: { p_user_id: string }; Returns: Json }
       expire_credit_buckets: { Args: never; Returns: number }
       get_launch_status: {
         Args: { p_country: string }
         Returns: Database["public"]["Enums"]["launch_status"]
       }
+      get_listening_attempt: { Args: { p_attempt_id: string }; Returns: Json }
+      get_listening_test: { Args: { p_test_id: string }; Returns: Json }
       get_my_credits: { Args: never; Returns: Json }
+      get_my_streak: { Args: { p_days?: number }; Returns: Json }
+      get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {
         Args: {
           p_amount: number
@@ -408,15 +1063,40 @@ export type Database = {
       }
       grant_free_monthly_credits: { Args: never; Returns: number }
       grant_signup_credits: { Args: { p_user_id: string }; Returns: undefined }
+      has_plan: {
+        Args: { p_min_plan: Database["public"]["Enums"]["plan_tier"] }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_staff: { Args: never; Returns: boolean }
       join_waitlist: {
         Args: { p_country_code?: string; p_email: string; p_source?: string }
         Returns: undefined
       }
+      jsonb_changes: { Args: { p_after: Json; p_before: Json }; Returns: Json }
       lock_user_credits: { Args: { p_user_id: string }; Returns: undefined }
       plan_limits_valid: { Args: { p_limits: Json }; Returns: boolean }
+      plan_rank: {
+        Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
+        Returns: number
+      }
+      record_test_attempt: {
+        Args: {
+          p_answers: Json
+          p_band: number
+          p_mode?: string
+          p_module: Database["public"]["Enums"]["test_module"]
+          p_raw_score: number
+          p_results?: Json
+          p_test_id: string
+          p_time_taken_sec?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
       refund_credits: { Args: { p_reservation_id: string }; Returns: Json }
       run_credit_maintenance: { Args: never; Returns: Json }
+      signup_full_name: { Args: { meta: Json }; Returns: string }
       spend_credits: {
         Args: { p_action_key: string; p_ref_id?: string; p_user_id: string }
         Returns: Json
@@ -426,9 +1106,20 @@ export type Database = {
         Returns: Json
       }
       user_plan_limits: { Args: { p_user_id: string }; Returns: Json }
+      write_audit: {
+        Args: {
+          p_action: string
+          p_details: Json
+          p_entity: string
+          p_entity_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"
+      content_source: "admin" | "ai"
+      content_status: "draft" | "review" | "published" | "archived"
       credit_ledger_reason:
         | "grant"
         | "spend"
@@ -438,8 +1129,38 @@ export type Database = {
       credit_source: "monthly" | "welcome" | "exam_pack" | "topup" | "admin"
       ielts_test_type: "academic" | "general"
       launch_status: "enabled" | "waitlist"
+      listening_question_type:
+        | "mcq"
+        | "tfng"
+        | "ynng"
+        | "matching_headings"
+        | "matching_information"
+        | "matching_features"
+        | "sentence_completion"
+        | "summary_completion"
+        | "note_table_completion"
+        | "flowchart_completion"
+        | "short_answer"
+        | "map_labelling"
+        | "diagram_labelling"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
       plan_tier: "free" | "gold" | "platinum"
+      reading_question_type:
+        | "mcq"
+        | "tfng"
+        | "ynng"
+        | "matching_headings"
+        | "matching_information"
+        | "matching_features"
+        | "sentence_completion"
+        | "summary_completion"
+        | "note_table_completion"
+        | "flowchart_completion"
+        | "short_answer"
+      speaking_session_mode: "part1" | "part2" | "part3" | "full_test"
+      speaking_session_status: "in_progress" | "completed" | "abandoned"
+      test_module: "reading" | "listening"
+      writing_input_mode: "typed" | "photo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -568,6 +1289,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
+      content_source: ["admin", "ai"],
+      content_status: ["draft", "review", "published", "archived"],
       credit_ledger_reason: [
         "grant",
         "spend",
@@ -578,8 +1301,40 @@ export const Constants = {
       credit_source: ["monthly", "welcome", "exam_pack", "topup", "admin"],
       ielts_test_type: ["academic", "general"],
       launch_status: ["enabled", "waitlist"],
+      listening_question_type: [
+        "mcq",
+        "tfng",
+        "ynng",
+        "matching_headings",
+        "matching_information",
+        "matching_features",
+        "sentence_completion",
+        "summary_completion",
+        "note_table_completion",
+        "flowchart_completion",
+        "short_answer",
+        "map_labelling",
+        "diagram_labelling",
+      ],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
       plan_tier: ["free", "gold", "platinum"],
+      reading_question_type: [
+        "mcq",
+        "tfng",
+        "ynng",
+        "matching_headings",
+        "matching_information",
+        "matching_features",
+        "sentence_completion",
+        "summary_completion",
+        "note_table_completion",
+        "flowchart_completion",
+        "short_answer",
+      ],
+      speaking_session_mode: ["part1", "part2", "part3", "full_test"],
+      speaking_session_status: ["in_progress", "completed", "abandoned"],
+      test_module: ["reading", "listening"],
+      writing_input_mode: ["typed", "photo"],
     },
   },
 } as const

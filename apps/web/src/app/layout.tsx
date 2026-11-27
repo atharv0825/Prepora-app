@@ -38,6 +38,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      // The signed-in app's theme script adds `dark` before React hydrates (lib/theme.ts).
+      suppressHydrationWarning
       className={`${hankenGrotesk.variable} ${instrumentSerif.variable} h-full scroll-smooth motion-reduce:scroll-auto`}
     >
       <body className="flex min-h-full flex-col">

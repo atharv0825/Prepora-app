@@ -14,3 +14,10 @@ dist/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Writing prompt eval (M6-B5): reports, and examiner-marked scripts that can't be committed
+supabase/functions/_eval/results/
+supabase/functions/_eval/writing_essays.local.json
+# Speaking eval (M7-B5): people's recordings and their manifest stay local, never committed
+supabase/functions/_eval/speaking/recordings/
+supabase/functions/_eval/speaking/recordings.local.json

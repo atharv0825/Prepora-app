@@ -175,7 +175,8 @@ function historyLabel(e: LedgerEntry, costs: CreditCosts): string {
     case "refund":
       return `Refund: ${action}`;
     case "grant":
-      return `${source} added`;
+      // Admin grants (M3-A2): "From Prepora support added" would read oddly.
+      return e.bucket?.source === "admin" ? "Credits from Prepora support" : `${source} added`;
     case "expire":
       return `${source} expired`;
     case "admin_adjust":

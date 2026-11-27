@@ -12,15 +12,19 @@ import {
 } from "./dashboard";
 
 describe("modules", () => {
-  it("lists the four IELTS modules in exam order, all coming soon for now", () => {
+  it("lists the four IELTS modules in exam order, all open", () => {
     expect(dashboardModules.map((m) => m.key)).toEqual(["reading", "listening", "writing", "speaking"]);
-    expect(dashboardModules.every((m) => m.status === "soon" && !m.href)).toBe(true);
+    expect(dashboardModules[0]).toMatchObject({ status: "available", href: "/app/reading" });
+    expect(dashboardModules[1]).toMatchObject({ status: "available", href: "/app/listening" });
+    expect(dashboardModules[2]).toMatchObject({ key: "writing", status: "available", href: "/app/writing" });
+    expect(dashboardModules[3]).toMatchObject({ key: "speaking", status: "available", href: "/app/speaking" });
   });
 
   it("recommends the first available module, none while all are coming soon", () => {
-    expect(recommendedModule(dashboardModules)).toBeNull();
+    expect(recommendedModule(dashboardModules)).toBe("reading");
+    expect(recommendedModule(dashboardModules.map((m) => ({ ...m, status: "soon" as const, href: undefined })))).toBeNull();
     const withWriting: DashboardModule[] = dashboardModules.map((m) =>
-      m.key === "writing" ? { ...m, status: "available", href: "/app/writing" } : m,
+      m.key === "writing" ? { ...m, status: "available", href: "/app/writing" } : { ...m, status: "soon", href: undefined },
     );
     expect(recommendedModule(withWriting)).toBe("writing");
   });

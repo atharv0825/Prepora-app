@@ -4,8 +4,10 @@ import type { CSSProperties } from "react";
 // colour classes), so a card can never end up with white text on a missing background.
 //
 //   fresh   the glossy "not done" card: a gradient in the section colour
-//   done    a light tint of it, with a matching outline
+//   done    a light tint of it, with a matching outline (dark mode: the dark card, lightly tinted)
 //   pick    "Pick for me": a stronger tint, outlined in the section colour, with an accent pill
+//           (dark mode: the dark card with more of the colour mixed in)
+// done and pick come as light + dark variables; SURFACE_CLASS picks one.
 //
 // Text: white on the Reading blue (4.8 : 1 or more), deep ink on amber, pink and green (6 : 1+).
 
@@ -39,20 +41,48 @@ export function freshStyle(m: PracticeModule): CSSProperties {
   };
 }
 
+/**
+ * Classes that paint a surface from the variables below: the light pair, or the dark pair under
+ * .dark. The same fixed classes for every section; only the variable values differ.
+ */
+export const SURFACE_CLASS =
+  "[background-image:var(--pc-bg)] [box-shadow:var(--pc-shadow)] dark:[background-image:var(--pc-bg-dark)] dark:[box-shadow:var(--pc-shadow-dark)]";
+
+/** A light and a dark surface, as variables that SURFACE_CLASS picks between. */
+function surface(light: { bg: string; shadow: string }, dark: { bg: string; shadow: string }): CSSProperties {
+  return { "--pc-bg": light.bg, "--pc-shadow": light.shadow, "--pc-bg-dark": dark.bg, "--pc-shadow-dark": dark.shadow } as CSSProperties;
+}
+
+/** Dark mode: the dark card colour with some of the section colour mixed in. */
+const darkTint = (accent: string, top: number, bottom: number) =>
+  `linear-gradient(to bottom, color-mix(in srgb, ${accent} ${top}%, #0f3b47), color-mix(in srgb, ${accent} ${bottom}%, #0f3b47))`;
+
 export function doneStyle(m: PracticeModule): CSSProperties {
   const t = THEMES[m];
-  return {
-    backgroundImage: `linear-gradient(to bottom, #ffffff, ${t.tint})`,
-    boxShadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(8 34 43 / 0.35), 0 0 0 1px ${t.tintRing}`,
-  };
+  return surface(
+    {
+      bg: `linear-gradient(to bottom, #ffffff, ${t.tint})`,
+      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(8 34 43 / 0.35), 0 0 0 1px ${t.tintRing}`,
+    },
+    {
+      bg: darkTint(t.accent, 6, 14),
+      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 22px -12px rgb(0 0 0 / 0.6), 0 0 0 1px color-mix(in srgb, ${t.accent} 45%, transparent)`,
+    },
+  );
 }
 
 export function pickStyle(m: PracticeModule): CSSProperties {
   const t = THEMES[m];
-  return {
-    backgroundImage: `linear-gradient(to bottom, #ffffff, ${t.pickTint})`,
-    boxShadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(${t.rgb} / 0.6), 0 0 0 2px ${t.accent}`,
-  };
+  return surface(
+    {
+      bg: `linear-gradient(to bottom, #ffffff, ${t.pickTint})`,
+      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(${t.rgb} / 0.6), 0 0 0 2px ${t.accent}`,
+    },
+    {
+      bg: darkTint(t.accent, 14, 26),
+      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 22px -12px rgb(0 0 0 / 0.6), 0 0 0 2px ${t.accent}`,
+    },
+  );
 }
 
 export function accentStyle(m: PracticeModule): CSSProperties {

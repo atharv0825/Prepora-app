@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { doneStyle, freshStyle, type PracticeModule, THEMES } from "./themes";
+import { doneStyle, freshStyle, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
 
 export type { PracticeModule } from "./themes";
 
@@ -77,8 +77,9 @@ export function PracticeCard({
   const light = onGreen && THEMES[module].text === "light";
   const Extra = extraLink?.icon;
   // Colours come from inline styles (themes.ts): text classes only, so the text always has its
-  // background. Done cards are light in both colour schemes, so their text stays deep ink.
-  const className = look === "locked" ? locked : look === "fresh" ? (light ? "text-white" : "text-brand-ink") : "text-brand-ink";
+  // background. Done cards: a light tint (ink text), or in dark mode the dark card tinted (light text).
+  const className =
+    look === "locked" ? locked : look === "fresh" ? (light ? "text-white" : "text-brand-ink") : cn(SURFACE_CLASS, "text-brand-ink dark:text-foreground");
   const style = look === "fresh" ? freshStyle(module) : look === "done" ? doneStyle(module) : undefined;
 
   return (
@@ -88,7 +89,7 @@ export function PracticeCard({
           aria-hidden
           className={cn(
             "grid size-10 shrink-0 place-items-center rounded-full",
-            onGreen ? "bg-white/25 ring-1 ring-white/60" : look === "done" ? "bg-white ring-1 ring-black/5" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
+            onGreen ? "bg-white/25 ring-1 ring-white/60" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
           )}
         >
           {lockedPlan ? <Lock className="size-4" /> : <Icon className="size-4" />}
@@ -98,8 +99,8 @@ export function PracticeCard({
           <Link href={href} aria-label={label} className="line-clamp-2 text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
             {title}
           </Link>
-          <span className={cn("text-xs", light ? "text-white/85" : look === "locked" ? "text-muted-foreground" : "text-brand-ink/75")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
-          {detail && <span className={cn("line-clamp-2 text-xs", light ? "text-white/80" : look === "locked" ? "text-muted-foreground" : "text-brand-ink/70")}>{detail}</span>}
+          <span className={cn("text-xs", light ? "text-white/85" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
+          {detail && <span className={cn("line-clamp-2 text-xs", light ? "text-white/80" : onGreen ? "text-brand-ink/70" : look === "done" ? "text-brand-ink/70 dark:text-muted-foreground" : "text-muted-foreground")}>{detail}</span>}
         </span>
       </span>
 
@@ -108,7 +109,7 @@ export function PracticeCard({
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
-              onGreen || look === "done" ? "bg-white/85 text-brand-ink ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
+              onGreen ? "bg-white/85 text-brand-ink ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
             )}
           >
             <span aria-hidden className={cn("size-1.5 rounded-full", onGreen ? DOT[module] : done ? DOT[module] : "bg-muted-foreground")} />
@@ -136,7 +137,7 @@ export function PracticeCard({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full transition-transform group-hover:translate-x-0.5",
-            "bg-brand-ink text-white",
+            onGreen ? "bg-brand-ink text-white" : "bg-brand-ink text-white dark:bg-white/15",
           )}
         >
           <ArrowRight className="size-4" />

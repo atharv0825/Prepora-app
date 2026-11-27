@@ -2,9 +2,11 @@ import "server-only";
 import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { CreditBalance } from "@prepora/shared/api/credits";
+import type { Streak } from "@prepora/shared/api/streak";
 import type { Profile } from "@prepora/shared/types/profile";
 import { displayName } from "@/lib/account";
 import { type CreditCosts, fetchCreditCosts, fetchMyCredits } from "@/lib/credits";
+import { fetchMyStreak } from "@/lib/streak";
 import { SupabaseConfigError } from "./env";
 import { createClient } from "./server";
 
@@ -56,6 +58,16 @@ export const getMyCredits = cache(async (): Promise<CreditBalance | null> => {
   const user = await getCurrentUser();
   if (!user) return null;
   return fetchMyCredits(await createClient());
+});
+
+/**
+ * The signed-in user's practice streak (get_my_streak) with the practice days among the last
+ * `days` (7 for the dashboard, 84 for the profile). Null when signed out or on any error.
+ */
+export const getMyStreak = cache(async (days: number = 7): Promise<Streak | null> => {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  return fetchMyStreak(await createClient(), days);
 });
 
 /** Active credit costs and labels (public table). Cached per request. */

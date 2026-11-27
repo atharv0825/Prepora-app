@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, CalendarDays, Coins, Headphones, Mic, PenLine, type LucideIcon } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, Coins, Flame, Headphones, Mic, PenLine, type LucideIcon } from "lucide-react";
 import { type CreditBalance, spendableToday } from "@prepora/shared/api/credits";
+import { type Streak, lastSevenDays, streakMessage } from "@prepora/shared/api/streak";
 import { Badge } from "@prepora/ui/components/badge";
 import { cn } from "@prepora/ui/lib/utils";
 import type { DashboardModule, ExamCountdown, ModuleKey } from "@/lib/dashboard";
@@ -94,6 +95,69 @@ export function CreditsCard({ plan, credits }: { plan: string; credits: CreditBa
       <Link href={routes.credits} className="flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline">
         Credits &amp; usage <ArrowRight className="size-4" aria-hidden />
       </Link>
+    </section>
+  );
+}
+
+const weekday = (date: string, style: "narrow" | "long") =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: style, timeZone: "UTC" });
+
+/** Days in a row with any scored practice, the best run, and this week at a glance. */
+export function StreakCard({ streak, className }: { streak: Streak | null; className?: string }) {
+  return (
+    <section aria-labelledby="streak-heading" className={cn(cardClass, className)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="streak-heading" className="text-eyebrow text-muted-foreground">
+          Practice streak
+        </h2>
+        {streak && streak.longest > 0 && <Badge variant="outline">Best: {streak.longest} {streak.longest === 1 ? "day" : "days"}</Badge>}
+      </div>
+      {streak ? (
+        <>
+          <div className="flex items-start gap-3">
+            <span
+              className={cn(
+                "grid size-10 shrink-0 place-items-center rounded-full",
+                streak.current > 0 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground",
+              )}
+            >
+              <Flame className="size-5" aria-hidden />
+            </span>
+            <div className="flex flex-col gap-1">
+              <p>
+                <span className="text-h2 tabular-nums" data-testid="streak-current">{streak.current}</span>{" "}
+                <span className="text-muted-foreground">{streak.current === 1 ? "day" : "days"} in a row</span>
+              </p>
+              <p className="text-sm text-muted-foreground">{streakMessage(streak)}</p>
+            </div>
+          </div>
+          <ol className="grid grid-cols-7 gap-1.5" aria-label="The last 7 days">
+            {lastSevenDays(streak).map((d) => (
+              <li
+                key={d.date}
+                className="flex flex-col items-center gap-1"
+                aria-label={`${d.today ? "Today" : weekday(d.date, "long")}: ${d.practised ? "practised" : "no practice"}`}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "grid size-8 place-items-center rounded-full border text-xs",
+                    d.practised ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
+                    d.today && !d.practised && "border-dashed border-primary",
+                  )}
+                >
+                  {d.practised && <Check className="size-4" />}
+                </span>
+                <span aria-hidden className={cn("text-xs", d.today ? "font-medium" : "text-muted-foreground")}>
+                  {weekday(d.date, "narrow")}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Your streak couldn&apos;t be loaded just now.</p>
+      )}
     </section>
   );
 }

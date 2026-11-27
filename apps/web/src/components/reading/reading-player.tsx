@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarCheck, ChevronLeft, ChevronRight, Clock, Highlighter, Save, Timer, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@prepora/ui/components/button";
 import {
@@ -55,7 +55,9 @@ type Question = ReadingTestPayload["questions"][number];
  */
 export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
   const router = useRouter();
-  const { run } = useCredits();
+  const { run, credits } = useCredits();
+  // The monthly Reading allowance (Free and Gold), shown on the start screen.
+  const allowance = credits?.allowances.find((a) => a.type === "reading_tests") ?? null;
   const key = readingDraftKey(payload.test.id);
   const passages = useMemo(() => [...payload.passages].sort((a, b) => a.order_no - b.order_no), [payload.passages]);
 
@@ -195,22 +197,47 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
 
   if (!draft) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
         <div className="self-start">{backLink}</div>
-        <div className="flex max-w-xl flex-col gap-5 rounded-3xl border border-foreground/5 bg-card p-6 shadow-sm" data-testid="reading-intro">
+        {/* White card with a green outline, like the dashboard's module tiles. */}
+        <div className="flex flex-col gap-5 rounded-3xl bg-card p-6 shadow-sm ring-2 ring-primary/70" data-testid="reading-intro">
           <div className="flex flex-col gap-1">
             <h1 className="text-h2">{payload.test.title}</h1>
             <p className="text-sm text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
           </div>
-          <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            <li>60 minutes for {passages.length} passages and {allNos.length} questions.</li>
-            <li>The clock keeps running if you leave; your answers are sent when it reaches zero.</li>
-            <li>Select text in a passage to highlight it.</li>
-            <li>Answers are saved on this device as you go.</li>
+          <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
+            <IntroLine icon={Clock}>
+              60 minutes for {passages.length} passages and {allNos.length} questions.
+            </IntroLine>
+            <IntroLine icon={Timer}>The clock keeps running if you leave; your answers are sent when it reaches zero.</IntroLine>
+            <IntroLine icon={Highlighter}>Select text in a passage to highlight it.</IntroLine>
+            <IntroLine icon={Save}>Answers are saved on this device as you go.</IntroLine>
+            {allowance && (
+              <IntroLine icon={CalendarCheck}>
+                Reading tests this month: <span data-testid="allowance">{allowance.used} of {allowance.limit} used</span>
+                {allowance.used >= allowance.limit && (
+                  <span className="block text-foreground">
+                    You&apos;ve used this month&apos;s Reading tests.{" "}
+                    <Link href={routes.upgrade} className="font-medium underline underline-offset-4">
+                      See plans
+                    </Link>{" "}
+                    for more.
+                  </span>
+                )}
+              </IntroLine>
+            )}
           </ul>
-          <Button size="lg" className="self-start" onClick={start}>
+          {/* 3D green button, like the test cards on the list. */}
+          <button
+            type="button"
+            onClick={start}
+            className="inline-flex h-12 items-center gap-2 self-start rounded-full bg-gradient-to-b from-[#62d7a5] to-brand-primary px-6 font-medium text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_10px_20px_-10px_rgb(15_164_103/0.8)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_14px_26px_-10px_rgb(15_164_103/0.85)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-0 motion-reduce:hover:translate-y-0"
+          >
             Start the test
-          </Button>
+            <span aria-hidden className="grid size-7 place-items-center rounded-full bg-brand-ink text-white">
+              <ArrowRight className="size-4" />
+            </span>
+          </button>
         </div>
       </div>
     );
@@ -399,5 +426,17 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** One line of the start screen, with its icon in a small mint circle. */
+function IntroLine({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-full bg-accent text-accent-green">
+        <Icon className="size-3.5" />
+      </span>
+      <span className="pt-1">{children}</span>
+    </li>
   );
 }

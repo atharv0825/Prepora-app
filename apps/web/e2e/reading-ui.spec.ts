@@ -76,7 +76,9 @@ test("M4-F1: list filtered by test type, allowance, locked Gold test; dashboard 
   const cards = page.getByTestId("reading-test");
   await expect(cards.filter({ hasText: "Sample General Training Test" })).toHaveCount(1);
   await expect(cards.filter({ hasText: "Sample Academic Test" })).toHaveCount(0);
-  await expect(page.getByTestId("allowance")).toHaveText("0 of 2 used");
+  // Completion bar (the monthly limit moved to each test's start page): nothing completed yet.
+  await expect(page.getByTestId("reading-progress")).toContainText(/^0 of \d+ General Training tests? completed · 0%$/);
+  await expect(page.getByRole("progressbar", { name: "Reading tests completed" })).toHaveAttribute("aria-valuenow", "0");
 
   await page.getByRole("link", { name: "Academic", exact: true }).click();
   await expect(page).toHaveURL(/type=academic/);
@@ -159,7 +161,7 @@ test("M4-F2..F4: take the Academic sample, all correct → band 9, results and h
   expect(await page.evaluate((id) => localStorage.getItem(`prepora:reading:${id}`), ACADEMIC)).toBeNull();
 
   await page.getByRole("link", { name: "Choose another test" }).click();
-  await expect(page.getByTestId("allowance")).toHaveText("1 of 2 used");
+  await expect(page.getByTestId("reading-progress")).toContainText(/^1 of \d+ Academic tests? completed · \d+%$/);
   await expect(page.getByTestId("reading-test").filter({ hasText: "Sample Academic Test" })).toContainText("Taken 1 time · best band 9.0");
   await expect(page.getByRole("region", { name: "Your attempts" }).getByRole("link")).toHaveCount(1);
 });
@@ -281,11 +283,10 @@ test("M4-F2: a third test this month on Free opens the monthly-limit dialog", as
     });
     expect(res.status).toBe(200);
   }
-  await page.goto("/app/reading?type=academic");
+  // The start page shows the monthly limit (moved there from the list).
+  await page.goto(`/app/reading/${ACADEMIC}`);
   await expect(page.getByTestId("allowance")).toHaveText("2 of 2 used");
   await expect(page.getByText("You've used this month's Reading tests.")).toBeVisible();
-
-  await page.goto(`/app/reading/${ACADEMIC}`);
   await page.getByRole("button", { name: "Start the test" }).click();
   await answer(page, 1, "true");
   await pressSubmit(page);

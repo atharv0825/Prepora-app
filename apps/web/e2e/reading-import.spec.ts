@@ -13,7 +13,7 @@ import { adminClient, createTestUser, deleteTestUser, type TestUser } from "./su
 // contract), imported through admin_import_reading_content, and read back. A student can't import
 // and still can't read the answer keys.
 
-const SAMPLE = readFileSync(join(__dirname, "../../admin/src/lib/fixtures/reading-import-sample.md"), "utf8");
+const SAMPLE = readFileSync(join(__dirname, "../../admin/src/lib/fixtures/reading-import-sample.txt"), "utf8");
 
 test.describe("Reading import API", () => {
   test.skip(({ browserName, isMobile }) => browserName !== "chromium" || isMobile, "API test: run once");

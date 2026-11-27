@@ -1,0 +1,24 @@
+/* Reading completion bar (reading-progress.tsx): the fill grows from 0 to its width and the
+   percentage bubble rides on its end. The final width/position are inline styles; the keyframes
+   only say where to start, so there's nothing to resolve at animation time. */
+
+.fill {
+  animation: grow 1.4s cubic-bezier(0.3, 0.7, 0.4, 1) 0.15s both;
+}
+.bubble {
+  animation: ride 1.4s cubic-bezier(0.3, 0.7, 0.4, 1) 0.15s both;
+}
+
+@keyframes grow {
+  from { width: 0; }
+}
+@keyframes ride {
+  from { left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill,
+  .bubble {
+    animation: none;
+  }
+}

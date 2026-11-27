@@ -1,4 +1,5 @@
 import styles from "./completion-bar.module.css";
+import { type PracticeModule, THEMES } from "./themes";
 
 // Practice list headers (Reading, Listening, Writing, Speaking): how many of the listed items the
 // student has completed, as a compact 3D green bar beside the page title. The percentage rides on
@@ -17,6 +18,7 @@ export function CompletionBar({
   ariaLabel,
   testId,
   className,
+  module,
 }: {
   completed: number;
   total: number;
@@ -25,11 +27,25 @@ export function CompletionBar({
   /** The progress bar's name, e.g. "Reading tests completed". */
   ariaLabel: string;
   testId: string;
+  /** The section, for its colour (Reading blue, Listening amber, Writing pink, Speaking green). Green without one. */
+  module?: PracticeModule;
   className?: string;
 }) {
   // Nothing published yet: nothing to complete, so no bar.
   if (total === 0) return null;
   const pct = completionPercent(completed, total);
+  // Section colours inline (themes.ts), like the cards: they can't go missing with stale CSS.
+  const theme = module ? THEMES[module] : null;
+  const bubbleStyle = theme
+    ? {
+        backgroundImage: `linear-gradient(to bottom, ${theme.from}, ${theme.to})`,
+        color: theme.text === "light" ? "#ffffff" : "#08222b",
+        boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.5), 0 4px 8px -4px rgb(${theme.rgb} / 0.8)`,
+      }
+    : undefined;
+  const fillStyle = theme
+    ? { backgroundImage: `linear-gradient(to bottom, ${theme.from}, ${theme.to})`, boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.45), 0 1px 2px rgb(${theme.rgb} / 0.5)` }
+    : undefined;
   const label = `${completed} of ${total} ${total === 1 ? noun[0] : noun[1]} completed`;
 
   return (
@@ -39,7 +55,7 @@ export function CompletionBar({
         <span
           aria-hidden
           className={`absolute bottom-0 -translate-x-1/2 rounded-full bg-gradient-to-b from-[#62d7a5] to-brand-primary px-2 py-0.5 text-[0.6875rem] font-semibold text-brand-ink tabular-nums ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_4px_8px_-4px_rgb(15_164_103/0.8)] ${styles.bubble}`}
-          style={{ left: `clamp(1.25rem, ${pct}%, calc(100% - 1.25rem))` }}
+          style={{ left: `clamp(1.25rem, ${pct}%, calc(100% - 1.25rem))`, ...bubbleStyle }}
         >
           {pct}%
         </span>
@@ -56,7 +72,7 @@ export function CompletionBar({
         {pct > 0 && (
           <div
             className={`h-full rounded-full bg-gradient-to-b from-[#62d7a5] via-brand-primary to-brand-logo shadow-[inset_0_1px_0_rgb(255_255_255/0.55),0_1px_2px_rgb(15_164_103/0.5)] ${styles.fill}`}
-            style={{ width: `${pct}%` }}
+            style={{ width: `${pct}%`, ...fillStyle }}
           />
         )}
       </div>

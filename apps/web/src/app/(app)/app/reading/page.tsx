@@ -63,6 +63,7 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
         title="Reading"
         progress={
           <CompletionBar
+            module="reading"
             completed={(tests ?? []).filter((t) => summary.has(t.id)).length}
             total={tests?.length ?? 0}
             noun={filter === "all" ? ["Reading test", "Reading tests"] : [`${testTypeLabel(filter)} test`, `${testTypeLabel(filter)} tests`]}

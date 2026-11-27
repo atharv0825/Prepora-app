@@ -53,6 +53,7 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
         title={`Task ${taskNo}`}
         progress={
           <CompletionBar
+            module="writing"
             completed={items.filter((t) => summary.has(t.id)).length}
             total={items.length}
             noun={[`Task ${taskNo} topic`, `Task ${taskNo} topics`]}

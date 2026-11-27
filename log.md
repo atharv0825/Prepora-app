@@ -3853,3 +3853,26 @@ On a branch from `develop` (M8-C1/C2 #72 and M7-A1 #71 merged).
 **Manual steps for you**
 - Fix Docker / WSL. `wsl --update`, then `wsl --shutdown`, then restarting Docker Desktop usually does it. Then `supabase start`, `supabase migration up --local`, and look at `/app` and `/app/profile`.
 - After merge, apply the migration on staging and production (`supabase db push`).
+
+
+## 2026-11-27 — Fix: streak pgTAP test 15 (the 84-day window)
+
+**Repo move:** the code now lives in the public repo **atharv0825/Prepora-app**, with history rewritten.
+- The leaked Google OAuth commit is gone.
+- Commit emails are now the GitHub no-reply address.
+- The old private repo is the remote `old-private`.
+
+**Result of the first full CI run there:** draft PR #1, develop → main, run on develop with M8.5 included.
+- Vitest ✓, Playwright ✓ (the dashboard + profile streak e2e passes), Web build ✓, Edge Functions ✓.
+- **pgTAP failed 1 of 22** in `streaks.test.sql`, test 15. It was the test's mistake, not the function's: the "long ago" day was 40 days ago, which is *inside* an 84-day window.
+- Admin build and Cloudflare preview failed: the secrets aren't set in the new repo yet.
+
+**Fix:** the old day is now 100 days ago. That's outside `get_my_streak(84)` and inside `get_my_streak(120)`, so both assertions test what they say.
+
+**Verified**
+- I worked the date arithmetic through by hand.
+- Not run locally: Docker / WSL is still down. The DB migrations CI job on this PR is the check.
+
+**Manual steps for you**
+- Rotate the Google OAuth secret.
+- Re-enter the repo and `staging` environment secrets in Prepora-app (listed in the previous message).

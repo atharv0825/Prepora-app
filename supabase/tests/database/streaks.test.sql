@@ -46,8 +46,8 @@ values ('5e200000-0000-0000-0000-000000000001', '5e000000-0000-0000-0000-0000000
         'I like the beach.', '{"fc": 6, "lr": 6, "gra": 6, "pron": 6}', 6, pg_temp.noon('Asia/Kolkata', 2));
 select pg_temp.attempt('5e000000-0000-0000-0000-000000000001', pg_temp.noon('Asia/Kolkata', d)) from generate_series(10, 14) d;
 
--- Student 2 (UTC): yesterday and the day before, not yet today → still 2. Plus one day long ago.
-select pg_temp.attempt('5e000000-0000-0000-0000-000000000002', pg_temp.noon('UTC', d)) from unnest(array[1, 2, 40]) d;
+-- Student 2 (UTC): yesterday and the day before, not yet today → still 2. Plus one day 100 days ago.
+select pg_temp.attempt('5e000000-0000-0000-0000-000000000002', pg_temp.noon('UTC', d)) from unnest(array[1, 2, 100]) d;
 
 -- Student 4 (Kolkata): one test at 00:30 today in Kolkata, which is still yesterday in UTC.
 select pg_temp.attempt('5e000000-0000-0000-0000-000000000004',
@@ -85,7 +85,7 @@ select results_eq(
   'not practised yet today: the streak from yesterday still counts; no time zone → UTC'
 );
 select is(public.get_my_streak(84) -> 'recent', jsonb_build_array(pg_temp.day('UTC', 2), pg_temp.day('UTC', 1)),
-  'get_my_streak(84): the 12-week calendar leaves out the day 40 days ago');
+  'get_my_streak(84): the 12-week calendar leaves out the day 100 days ago');
 select is(jsonb_array_length(public.get_my_streak(120) -> 'recent'), 3, 'get_my_streak(120): includes it');
 
 -- ── Student 3: nothing yet ──────────────────────────────────────────────────────────────────

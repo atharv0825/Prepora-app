@@ -27,19 +27,38 @@ type Theme = {
 };
 
 export const THEMES: Record<PracticeModule, Theme> = {
-  reading: { from: "#2f6fdb", to: "#2459bd", text: "light", rgb: "47 111 219", tint: "#eaf1fd", tintRing: "#bcd2f6", pickTint: "#dbe7fb", accent: "#2459bd" },
+  reading: { from: "#3b6fe0", to: "#2250b8", text: "light", rgb: "34 80 184", tint: "#eaf1fd", tintRing: "#bcd2f6", pickTint: "#dbe7fb", accent: "#2250b8" },
   listening: { from: "#f2a93f", to: "#e08a00", text: "dark", rgb: "224 138 0", tint: "#fdf2e1", tintRing: "#f3d29b", pickTint: "#fbe4bf", accent: "#e08a00" },
   writing: { from: "#f78fbb", to: "#f472a8", text: "dark", rgb: "244 114 168", tint: "#fde9f2", tintRing: "#f8c1d9", pickTint: "#fbd6e6", accent: "#f472a8" },
   speaking: { from: "#62d7a5", to: "#3fc48c", text: "dark", rgb: "15 164 103", tint: "#eafaf0", tintRing: "#a7e6c9", pickTint: "#d3f3e2", accent: "#3fc48c" },
 };
 
+/**
+ * The glossy card: a vertical gradient, a 1px light line along the top, a soft inner shadow at the
+ * bottom and a tinted shadow underneath (bigger on hover). The shadows are variables, so
+ * LIFT_CLASS can swap them on hover (an inline box-shadow would beat any class).
+ */
 export function freshStyle(m: PracticeModule): CSSProperties {
   const t = THEMES[m];
+  const inner = `inset 0 1px 0 rgb(255 255 255 / ${t.text === "light" ? 0.45 : 0.6}), inset 0 -10px 16px -10px rgb(8 18 40 / 0.35)`;
   return {
     backgroundImage: `linear-gradient(to bottom, ${t.from}, ${t.to})`,
-    boxShadow: `inset 0 1px 0 rgb(255 255 255 / ${t.text === "light" ? 0.35 : 0.55}), inset 0 -2px 0 rgb(8 34 43 / 0.1), 0 10px 22px -12px rgb(${t.rgb} / 0.8)`,
-  };
+    "--pc-shadow": `${inner}, 0 12px 24px -12px rgb(${t.rgb} / 0.75)`,
+    "--pc-shadow-hover": `${inner}, 0 24px 40px -14px rgb(${t.rgb} / 0.8)`,
+  } as CSSProperties;
 }
+
+/**
+ * Every practice card's shape and hover: a 24px radius, and on hover a slight 3D tilt (4° on X,
+ * −6° on Y, light perspective) and a 4px lift over 400ms. No tilt with reduced motion.
+ */
+export const CARD_3D_CLASS =
+  "flex h-full min-h-32 flex-col justify-between gap-4 rounded-3xl p-5 transition-[transform,box-shadow] duration-400 ease-in-out " +
+  "hover:[transform:perspective(800px)_rotateX(4deg)_rotateY(-6deg)_translateY(-4px)] motion-reduce:transition-none motion-reduce:hover:[transform:none]";
+
+/** The card's shadow from the variables, swapped for the bigger one on hover (both modes). */
+export const LIFT_CLASS =
+  "[box-shadow:var(--pc-shadow)] hover:[box-shadow:var(--pc-shadow-hover)] dark:[box-shadow:var(--pc-shadow-dark,var(--pc-shadow))] dark:hover:[box-shadow:var(--pc-shadow-hover-dark,var(--pc-shadow-hover))]";
 
 /**
  * Classes that paint a surface from the variables below: the light pair, or the dark pair under
@@ -62,6 +81,9 @@ export function doneStyle(m: PracticeModule): CSSProperties {
   return {
     // The outline as a real border (inline, both modes), so it shows even without the classes.
     border: `1px solid color-mix(in srgb, ${t.accent} 45%, transparent)`,
+    // Hover: the same surface, lifted further (LIFT_CLASS).
+    "--pc-shadow-hover": `inset 0 1px 0 #ffffff, 0 20px 34px -14px rgb(${t.rgb} / 0.45)`,
+    "--pc-shadow-hover-dark": `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 22px 38px -14px rgb(0 0 0 / 0.7)`,
     ...surface(
     {
       bg: `linear-gradient(to bottom, #ffffff, ${t.tint})`,
@@ -72,7 +94,7 @@ export function doneStyle(m: PracticeModule): CSSProperties {
       shadow: `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 22px -12px rgb(0 0 0 / 0.6)`,
     },
     ),
-  };
+  } as CSSProperties;
 }
 
 export function pickStyle(m: PracticeModule): CSSProperties {
@@ -80,6 +102,8 @@ export function pickStyle(m: PracticeModule): CSSProperties {
   return {
     // A solid border in the section colour (inline, both modes).
     border: `2px solid ${t.accent}`,
+    "--pc-shadow-hover": `inset 0 1px 0 #ffffff, 0 20px 34px -14px rgb(${t.rgb} / 0.7)`,
+    "--pc-shadow-hover-dark": `inset 0 1px 0 rgb(255 255 255 / 0.08), 0 22px 38px -14px rgb(0 0 0 / 0.7)`,
     ...surface(
     {
       bg: `linear-gradient(to bottom, #ffffff, ${t.pickTint})`,
@@ -90,7 +114,7 @@ export function pickStyle(m: PracticeModule): CSSProperties {
       shadow: `inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 22px -12px rgb(0 0 0 / 0.6)`,
     },
     ),
-  };
+  } as CSSProperties;
 }
 
 export function accentStyle(m: PracticeModule): CSSProperties {

@@ -1,7 +1,8 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { doneStyle, freshStyle, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
+import { CARD_3D_CLASS, doneStyle, freshStyle, LIFT_CLASS, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
 
 export type { PracticeModule } from "./themes";
 
@@ -40,9 +41,20 @@ export type PracticeCardProps = {
   extraLink?: { href: string; label: string; icon?: LucideIcon; testId?: string };
 };
 
-const base =
-  "group relative flex h-full min-h-28 flex-col justify-between gap-3 rounded-2xl p-4 transition-[transform,box-shadow] duration-200 " +
-  "hover:-translate-y-0.5 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0";
+// The 3D tilt and lift on hover come from CARD_3D_CLASS; the shadow grows with it (LIFT_CLASS).
+const base = cn(
+  "group relative isolate overflow-hidden",
+  CARD_3D_CLASS,
+  "has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring",
+);
+
+// A faint dot pattern in the top-right corner of the coloured card, fading out towards the middle.
+const DOTS: CSSProperties = {
+  backgroundImage: "radial-gradient(rgb(255 255 255 / 0.9) 1px, transparent 1.5px)",
+  backgroundSize: "10px 10px",
+  maskImage: "radial-gradient(circle at top right, black, transparent 70%)",
+  WebkitMaskImage: "radial-gradient(circle at top right, black, transparent 70%)",
+};
 
 const DOT: Record<PracticeModule, string> = {
   reading: "bg-chart-reading",
@@ -79,27 +91,32 @@ export function PracticeCard({
   // Colours come from inline styles (themes.ts): text classes only, so the text always has its
   // background. Done cards: a light tint (ink text), or in dark mode the dark card tinted (light text).
   const className =
-    look === "locked" ? locked : look === "fresh" ? (light ? "text-white" : "text-brand-ink") : cn(SURFACE_CLASS, "text-brand-ink dark:text-foreground");
+    look === "locked"
+      ? locked
+      : look === "fresh"
+        ? cn(LIFT_CLASS, light ? "text-white" : "text-brand-ink")
+        : cn(SURFACE_CLASS, LIFT_CLASS, "text-brand-ink dark:text-foreground");
   const style = look === "fresh" ? freshStyle(module) : look === "done" ? doneStyle(module) : undefined;
 
   return (
     <div className={cn(base, className)} style={style} data-state={look} data-module={module}>
-      <span className="flex items-start gap-3">
+      {onGreen && <span aria-hidden className="pointer-events-none absolute top-0 right-0 -z-10 size-32 opacity-25" style={DOTS} />}
+      <span className="flex items-center gap-3.5">
         <span
           aria-hidden
           className={cn(
-            "grid size-10 shrink-0 place-items-center rounded-full",
-            onGreen ? "bg-white/25 ring-1 ring-white/60" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
+            "grid size-14 shrink-0 place-items-center rounded-full",
+            onGreen ? "bg-white/[0.18] ring-1 ring-white/35" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
           )}
         >
-          {lockedPlan ? <Lock className="size-4" /> : <Icon className="size-4" />}
+          {lockedPlan ? <Lock className="size-6" strokeWidth={1.5} /> : <Icon className="size-6" strokeWidth={1.5} />}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
           {/* The main link: its ::after covers the whole card. */}
-          <Link href={href} aria-label={label} className="line-clamp-2 text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
+          <Link href={href} aria-label={label} className="line-clamp-2 text-[1.0625rem] leading-snug font-bold tracking-tight outline-none after:absolute after:inset-0 after:rounded-3xl">
             {title}
           </Link>
-          <span className={cn("text-xs", light ? "text-white/85" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
+          <span className={cn("text-[0.8125rem]", light ? "text-white/75" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
           {detail && <span className={cn("line-clamp-2 text-xs", light ? "text-white/80" : onGreen ? "text-brand-ink/70" : look === "done" ? "text-brand-ink/70 dark:text-muted-foreground" : "text-muted-foreground")}>{detail}</span>}
         </span>
       </span>
@@ -108,8 +125,8 @@ export function PracticeCard({
         <span className="flex flex-wrap items-center gap-1.5">
           <span
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
-              onGreen ? "bg-white/85 text-brand-ink ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              onGreen ? "bg-white text-[#0b1220] shadow-sm ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
             )}
           >
             <span aria-hidden className={cn("size-1.5 rounded-full", onGreen ? DOT[module] : done ? DOT[module] : "bg-muted-foreground")} />
@@ -136,11 +153,11 @@ export function PracticeCard({
         <span
           aria-hidden
           className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-full transition-transform group-hover:translate-x-0.5",
-            onGreen ? "bg-brand-ink text-white" : "bg-brand-ink text-white dark:bg-white/15",
+            "grid size-11 shrink-0 place-items-center rounded-full text-white transition-transform duration-400 group-hover:translate-x-0.5",
+            onGreen ? "bg-[#0b1220] shadow-[0_6px_14px_-6px_rgb(11_18_32/0.6)]" : "bg-[#0b1220] dark:bg-white/15",
           )}
         >
-          <ArrowRight className="size-4" />
+          <ArrowRight className="size-5" />
         </span>
       </span>
     </div>

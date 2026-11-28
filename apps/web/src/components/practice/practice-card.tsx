@@ -96,7 +96,7 @@ export function PracticeCard({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           {/* The main link: its ::after covers the whole card. */}
-          <Link href={href} aria-label={label} className="line-clamp-2 text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
+          <Link href={href} aria-label={label} className="text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
             {title}
           </Link>
           <span className={cn("text-xs", light ? "text-white/85" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>

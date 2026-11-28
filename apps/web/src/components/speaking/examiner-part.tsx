@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Mic, RotateCcw, Square, Volume2 } from "lucide-react";
+import { Loader2, Mic, RotateCcw, Square, Undo2, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@prepora/ui/components/button";
 import type { ScoreSpeakingResponse } from "@prepora/shared/api/score-speaking";
 import { QUESTIONS_PER_PART } from "@prepora/shared/ielts/speaking-session";
@@ -19,14 +19,21 @@ type Clip = { blob: Blob; recorderType: string | null; seconds: number };
 type Phase = "asking" | "reading" | "recording" | "sending" | "scoring" | "error";
 /** What a "Try again" repeats after an error. */
 type Retry = { kind: "send"; clip: Clip } | { kind: "turn" } | { kind: "score" };
+/**
+ * exam      like test day: recording starts as soon as the examiner stops talking; the question
+ *           can be heard again only before answering.
+ * practice  the student starts answering when ready; "Hear it again" and "Stop" stay available the
+ *           whole time (the recording pauses while the examiner talks), and an answer can be redone.
+ */
+export type SpeakingMode = "exam" | "practice";
 
 /**
- * M8-F1: the AI examiner for one Part 1 or Part 3 (practice or inside the full test). The examiner
- * asks a question: it's shown as text and read aloud by the browser (a British voice, else an
- * Australian one, when the device has it) → recording starts when it stops talking → the student
- * taps "Done" (or the recorder stops at the part's limit) → the answer is uploaded and sent to
- * examiner-turn, which transcribes it and picks the next question (4–5 in all) → when the
- * examiner is done, the part is scored (score-speaking, charging its credits) and `onScored` runs.
+ * M8-F1: the AI examiner for one Part 1 or Part 3 practice. The examiner
+ * asks a question: it's shown as text and read aloud by the browser's own voice (a British voice,
+ * else an Australian one, when the device has it) → the student answers (exam: recording starts
+ * when it stops talking) → "Done" (or the part's limit) uploads the answer to examiner-turn, which
+ * transcribes it and picks the next question (4–5 in all) → when the examiner is done, the part is
+ * scored (score-speaking, charging its credits) and `onScored` runs.
  * The microphone stream belongs to the parent: this never stops it.
  */
 export function ExaminerPart({
@@ -35,6 +42,7 @@ export function ExaminerPart({
   topic,
   userId,
   stream,
+  mode = "exam",
   onScored,
 }: {
   sessionId: string;
@@ -42,13 +50,16 @@ export function ExaminerPart({
   topic: { id: string; title: string };
   userId: string;
   stream: MediaStream;
+  mode?: SpeakingMode;
   onScored: (result: ScoreSpeakingResponse) => void;
 }) {
   const { run } = useCredits();
+  const practice = mode === "practice";
   const [phase, setPhase] = useState<Phase>("asking");
   const [question, setQuestion] = useState<{ text: string; no: number } | null>(null);
   const [answered, setAnswered] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [talking, setTalking] = useState(false); // the examiner's voice is playing
   const [error, setError] = useState<{ message: string; retry: Retry | null } | null>(null);
   const qa = useRef<ExaminerQA[]>([]);
   // Refs, so the recorder's and the turns' callbacks always see the current ones.
@@ -60,15 +71,24 @@ export function ExaminerPart({
   const recorder = useRef<MediaRecorder | null>(null);
   const started = useRef(false);
   const live = useRef(true);
+  const redo = useRef(false); // the recorder was stopped to record the answer again
+  // Each reading gets a number; cancelling one for good bumps it, so its end event is ignored.
+  const voiceRun = useRef(0);
+  const voiceDone = useRef<(() => void) | null>(null);
+  // Answer time, without the pauses: what has run before + since when it is running now.
+  const runMs = useRef(0);
+  const runningSince = useRef<number | null>(null);
   const max = MAX_ANSWER_SECONDS[part];
   const tts = typeof window !== "undefined" && "speechSynthesis" in window ? window.speechSynthesis : null;
+
+  const answerMs = () => runMs.current + (runningSince.current === null ? 0 : Date.now() - runningSince.current);
 
   useEffect(() => {
     live.current = true;
     return () => {
       live.current = false;
       tts?.cancel();
-      if (recorder.current?.state === "recording") {
+      if (recorder.current && recorder.current.state !== "inactive") {
         recorder.current.onstop = null;
         recorder.current.stop();
       }
@@ -82,22 +102,33 @@ export function ExaminerPart({
   }, []);
 
   const startRecording = useCallback(() => {
-    if (recorder.current?.state === "recording") return;
+    if (recorder.current && recorder.current.state !== "inactive") return;
+    voiceRun.current++;
     tts?.cancel();
+    setTalking(false);
     const type = pickRecorderType((t) => MediaRecorder.isTypeSupported(t));
     const rec = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
     const chunks: Blob[] = [];
-    const t0 = Date.now();
     rec.ondataavailable = (e) => {
       if (e.data.size) chunks.push(e.data);
     };
     rec.onstop = () => {
+      recorder.current = null;
+      if (redo.current) {
+        // "Record again": drop this take and start a new one.
+        redo.current = false;
+        startRecording();
+        return;
+      }
       const recorderType = rec.mimeType || type;
-      const clip = { blob: new Blob(chunks, { type: recorderType ?? "audio/webm" }), recorderType, seconds: Math.min(max, Math.round((Date.now() - t0) / 1000)) };
-      void send(clip);
+      const seconds = Math.min(max, Math.round(answerMs() / 1000));
+      runningSince.current = null;
+      void send({ blob: new Blob(chunks, { type: recorderType ?? "audio/webm" }), recorderType, seconds });
     };
     rec.start(1000);
     recorder.current = rec;
+    runMs.current = 0;
+    runningSince.current = Date.now();
     setElapsed(0);
     setPhase("recording");
     // `send` is stable enough: it reads refs only.
@@ -105,15 +136,50 @@ export function ExaminerPart({
   }, [stream, max, tts]);
 
   const stopRecording = useCallback(() => {
-    if (recorder.current?.state === "recording") recorder.current.stop();
-  }, []);
+    const rec = recorder.current;
+    if (!rec || rec.state === "inactive") return;
+    voiceRun.current++;
+    tts?.cancel();
+    setTalking(false);
+    if (rec.state === "paused") rec.resume();
+    rec.stop();
+  }, [tts]);
 
-  /** Read the question aloud; recording starts when the voice stops (or after a fallback wait). */
+  function redoAnswer() {
+    const rec = recorder.current;
+    if (!rec || rec.state === "inactive") return;
+    silence();
+    redo.current = true;
+    rec.stop();
+  }
+
+  /** Practice, while answering: the recording pauses while the examiner talks. */
+  function pauseAnswer() {
+    const rec = recorder.current;
+    if (rec?.state !== "recording") return;
+    rec.pause();
+    if (runningSince.current !== null) runMs.current += Date.now() - runningSince.current;
+    runningSince.current = null;
+  }
+  function resumeAnswer() {
+    const rec = recorder.current;
+    if (rec?.state !== "paused") return;
+    rec.resume();
+    runningSince.current = Date.now();
+  }
+
+  /**
+   * Read the question aloud. Exam: recording starts when the voice stops (or after a fallback
+   * wait). Practice: nothing starts by itself; during an answer the recording pauses meanwhile.
+   */
   const readAloud = useCallback(
     (text: string) => {
-      setPhase("reading");
+      const answering = recorder.current !== null && recorder.current.state !== "inactive";
+      if (!answering) setPhase("reading");
       if (!tts) return; // no voice: the student reads it and taps "Start answering"
+      const my = ++voiceRun.current;
       tts.cancel();
+      if (answering) pauseAnswer();
       const u = new SpeechSynthesisUtterance(text);
       const voice = pickExaminerVoice(tts.getVoices());
       if (voice) {
@@ -123,18 +189,37 @@ export function ExaminerPart({
       u.rate = 0.95;
       let finished = false;
       const done = () => {
-        if (finished || !live.current) return;
+        if (finished || !live.current || my !== voiceRun.current) return;
         finished = true;
         clearTimeout(fallback);
-        startRecording();
+        voiceDone.current = null;
+        setTalking(false);
+        if (answering) resumeAnswer();
+        else if (!practice) startRecording();
       };
       const fallback = setTimeout(done, TTS_FALLBACK_MS);
       u.onend = done;
       u.onerror = done;
+      voiceDone.current = done;
+      setTalking(true);
       tts.speak(u);
     },
-    [tts, startRecording],
+    [tts, startRecording, practice],
   );
+
+  /** Silence the examiner for good: its end event is ignored. */
+  function silence() {
+    voiceRun.current++;
+    tts?.cancel();
+    setTalking(false);
+  }
+
+  /** Practice "Stop": end the reading now, as if it had finished (a paused answer resumes). */
+  function stopVoice() {
+    const finish = voiceDone.current;
+    tts?.cancel();
+    finish?.();
+  }
 
   /** examiner-turn with the answers so far: the newest is transcribed, then the next question or done. */
   const nextTurn = useCallback(async () => {
@@ -196,12 +281,11 @@ export function ExaminerPart({
     void nextTurn();
   }, [nextTurn]);
 
-  // The answer clock; the recorder stops at the part's limit.
+  // The answer clock (paused time not counted); the recorder stops at the part's limit.
   useEffect(() => {
     if (phase !== "recording") return;
-    const t0 = Date.now();
     const t = setInterval(() => {
-      const s = Math.floor((Date.now() - t0) / 1000);
+      const s = Math.floor(answerMs() / 1000);
       setElapsed(s);
       if (s >= max) stopRecording();
     }, 250);
@@ -209,12 +293,14 @@ export function ExaminerPart({
   }, [phase, max, stopRecording]);
 
   const { min, max: most } = QUESTIONS_PER_PART[part];
+  // The question's own buttons: exam, only before answering; practice, the whole time.
+  const showQuestionControls = phase === "reading" || (practice && phase === "recording");
 
   return (
-    <section className="flex flex-col gap-5" aria-label={`Part ${part} examiner`} data-testid="examiner">
+    <section className="flex flex-col gap-5" aria-label={`Part ${part} examiner`} data-testid="examiner" data-mode={mode}>
       <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          Part {part} · {topic.title}
+          Part {part} · {topic.title} · {practice ? "Practice mode" : "Exam mode"}
         </span>
         <span data-testid="examiner-progress">
           {answered} of {min}–{most} answered
@@ -227,19 +313,26 @@ export function ExaminerPart({
           <p className="text-h3" aria-live="polite">
             {question.text}
           </p>
-          {phase === "reading" && (
+          {showQuestionControls && (
             <div className="flex flex-wrap items-center gap-3">
-              {tts && (
+              {tts && talking && (
                 <span className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Volume2 className="size-4" aria-hidden /> The examiner is asking…
                 </span>
               )}
-              <Button onClick={startRecording} data-testid="start-answer">
-                <Mic /> Start answering
-              </Button>
+              {phase === "reading" && (
+                <Button onClick={startRecording} data-testid="start-answer">
+                  <Mic /> Start answering
+                </Button>
+              )}
               {tts && (
-                <Button variant="ghost" onClick={() => readAloud(question.text)}>
+                <Button variant="ghost" onClick={() => readAloud(question.text)} data-testid="hear-again">
                   <RotateCcw /> Hear it again
+                </Button>
+              )}
+              {tts && practice && talking && (
+                <Button variant="ghost" onClick={stopVoice} data-testid="stop-voice">
+                  <VolumeX /> Stop
                 </Button>
               )}
             </div>
@@ -250,14 +343,23 @@ export function ExaminerPart({
       {phase === "recording" && (
         <div className="flex flex-col items-start gap-3 rounded-3xl border border-foreground/10 bg-card p-6" data-testid="answer-recording">
           <p className="flex items-center gap-3 text-h3 tabular-nums" aria-live="off">
-            <span className="size-3 animate-pulse rounded-full bg-destructive" aria-hidden /> Answering {mmss(elapsed)} / {mmss(max)}
+            <span className={talking ? "size-3 rounded-full bg-muted-foreground" : "size-3 animate-pulse rounded-full bg-destructive"} aria-hidden />
+            {talking ? "Paused" : "Answering"} {mmss(elapsed)} / {mmss(max)}
           </p>
           <p className="text-sm text-muted-foreground">
             {part === 1 ? "Answer naturally in two or three sentences." : "Give your opinion, explain why, and add an example."} Tap Done when you&apos;ve finished.
+            {practice && " The recording pauses while the examiner repeats the question."}
           </p>
-          <Button onClick={stopRecording}>
-            <Square /> Done
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={stopRecording} data-testid="answer-done">
+              <Square /> Done
+            </Button>
+            {practice && (
+              <Button variant="outline" onClick={redoAnswer} data-testid="answer-redo">
+                <Undo2 /> Record again
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

@@ -12,6 +12,8 @@ import {
   GetPricesResult,
   ManageSubscriptionRequest,
   ManageSubscriptionResponse,
+  formatMoney,
+  purchaseConfirmed,
 } from "./billing";
 
 const razorpayBase = {
@@ -146,5 +148,26 @@ describe("manage-subscription", () => {
       current_period_end: "2027-02-01T00:00:00Z", cancel_at_period_end: false, scheduled_plan_id: "gold",
     };
     expect(ManageSubscriptionResponse.safeParse({ subscription }).success).toBe(true);
+  });
+});
+
+describe("formatMoney", () => {
+  it.each([
+    [29900, "INR", "₹299"],
+    [169900, "INR", "₹1,699"],
+    [1099, "USD", "$10.99"],
+    [1300, "NZD", "NZ$13"],
+    [1500, "JPY", "JP¥1,500"],
+  ])("%i %s → %s", (amount, currency, out) => {
+    expect(formatMoney(amount, currency)).toBe(out);
+  });
+});
+
+describe("purchaseConfirmed", () => {
+  it("a plan: when the profile shows it; a top-up: when its bucket appears", () => {
+    expect(purchaseConfirmed({ kind: "subscription", plan_id: "gold" }, { plan: "free", topupSince: false })).toBe(false);
+    expect(purchaseConfirmed({ kind: "exam_pack", plan_id: "platinum" }, { plan: "platinum", topupSince: false })).toBe(true);
+    expect(purchaseConfirmed({ kind: "topup", plan_id: null }, { plan: "gold", topupSince: false })).toBe(false);
+    expect(purchaseConfirmed({ kind: "topup", plan_id: null }, { plan: "free", topupSince: true })).toBe(true);
   });
 });

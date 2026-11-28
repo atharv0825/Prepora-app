@@ -1,8 +1,8 @@
 /* The Writing editor's side-by-side layout. Plain CSS (not new utility classes), so it is always
-   built: wide screens get the task and the answer in two columns of the same height, between the
+   built: from 768px wide (as Reading) the task and the answer in two columns of the same height, between the
    header and the bottom bar, each with its own scrollbar. */
 
-@media (min-width: 64rem) {
+@media (min-width: 48rem) {
   .columns {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -259,6 +259,8 @@ export interface Razorpay {
   createOrder(amountMinor: number, currency: string, receipt: string, notes: Record<string, string>): Promise<{ id: string }>;
   changePlan(subscriptionId: string, planId: string, when: "now" | "cycle_end"): Promise<void>;
   cancelAtCycleEnd(subscriptionId: string): Promise<void>;
+  /** Ends it now (support: admin-end-plan). No refund. */
+  cancelNow(subscriptionId: string): Promise<void>;
 }
 
 export function razorpay(f: Fetch = fetch): Razorpay {
@@ -285,6 +287,9 @@ export function razorpay(f: Fetch = fetch): Razorpay {
     async changePlan(subscriptionId, planId, when) {
       await send("PATCH", `/subscriptions/${encodeURIComponent(subscriptionId)}`, { plan_id: planId, schedule_change_at: when, customer_notify: 1 });
     },
+    async cancelNow(subscriptionId) {
+      await send("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { cancel_at_cycle_end: 0 });
+    },
     async cancelAtCycleEnd(subscriptionId) {
       await send("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { cancel_at_cycle_end: 1 });
     },
@@ -301,6 +306,8 @@ export interface Paddle {
   createCustomTransaction(name: string, amountMinor: number, currency: string, customData: Record<string, string>): Promise<{ id: string }>;
   changePrice(subscriptionId: string, priceId: string, proration: "prorated_immediately" | "do_not_bill"): Promise<void>;
   cancelAtPeriodEnd(subscriptionId: string): Promise<void>;
+  /** Ends it now (support: admin-end-plan). No refund. */
+  cancelNow(subscriptionId: string): Promise<void>;
   portalUrl(customerId: string, subscriptionIds: string[]): Promise<string>;
 }
 
@@ -348,6 +355,9 @@ export function paddle(f: Fetch = fetch): Paddle {
         items: [{ price_id: priceId, quantity: 1 }],
         proration_billing_mode: proration,
       });
+    },
+    async cancelNow(subscriptionId) {
+      await send("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { effective_from: "immediately" });
     },
     async cancelAtPeriodEnd(subscriptionId) {
       await send("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { effective_from: "next_billing_period" });

@@ -2,23 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mic } from "lucide-react";
+import { GraduationCap, Mic, Repeat } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "@prepora/ui/components/button";
 import { SPEAKING_PARTS } from "@prepora/shared/ielts/speaking";
 import { CostConfirm } from "@/components/credits/cost-confirm";
 import { speakingResponsePath } from "@/lib/routes";
 import { practiceMode } from "@/lib/speaking/examiner";
 import { createClient } from "@/lib/supabase/client";
-import { ExaminerPart } from "./examiner-part";
+import { ExaminerPart, type SpeakingMode } from "./examiner-part";
 import { MicCheck } from "./mic-check";
 
 /**
  * M8-F1: practise one Part 1 or Part 3 with the AI examiner: what happens and what it costs →
  * the mic check → a practice session (mode part1/part3) → the examiner → the feedback page.
+ * The student picks Exam mode (like test day) or Practice mode (replay, stop, record again).
  */
 export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: { id: string; title: string }; userId: string }) {
   const router = useRouter();
   const [step, setStep] = useState<"intro" | "mic" | "test">("intro");
+  const [mode, setMode] = useState<SpeakingMode>("exam");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -42,9 +45,27 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
         <h2 className="text-h3">How it works</h2>
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
           <li>The examiner asks 4–5 questions, out loud and on screen{part === 3 ? ", following up on what you say" : ""}.</li>
-          <li>Recording starts when the examiner stops speaking. Tap Done when you&apos;ve answered.</li>
+          <li>Tap Done when you&apos;ve answered each one.</li>
           <li>At the end you get a band for each criterion, your transcript and feedback.</li>
         </ul>
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="speaking-mode">
+          <ModeOption
+            selected={mode === "exam"}
+            onSelect={() => setMode("exam")}
+            icon={<GraduationCap className="size-4" aria-hidden />}
+            title="Exam mode"
+            body="Like test day: recording starts as soon as the examiner stops speaking. You can hear the question again only before you answer."
+            testId="mode-exam"
+          />
+          <ModeOption
+            selected={mode === "practice"}
+            onSelect={() => setMode("practice")}
+            icon={<Repeat className="size-4" aria-hidden />}
+            title="Practice mode"
+            body="Start answering when you're ready. Hear the question again or stop it at any time, even while answering, and record an answer again."
+            testId="mode-practice"
+          />
+        </div>
         <CostConfirm
           actionKey={SPEAKING_PARTS[part].actionKey}
           description={`Part ${part} with the AI examiner, scored at the end. Nothing is charged if it can't be scored.`}
@@ -52,7 +73,7 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
           onConfirm={() => setStep("mic")}
           trigger={
             <Button className="self-start">
-              <Mic /> Start Part {part}
+              <Mic /> Start Part {part} · {mode === "exam" ? "Exam" : "Practice"}
             </Button>
           }
         />
@@ -77,5 +98,27 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
       </div>
     );
   }
-  return <ExaminerPart sessionId={sessionId} part={part} topic={topic} userId={userId} stream={stream} onScored={(r) => router.push(speakingResponsePath(r.response_id))} />;
+  return <ExaminerPart sessionId={sessionId} part={part} topic={topic} userId={userId} stream={stream} mode={mode} onScored={(r) => router.push(speakingResponsePath(r.response_id))} />;
+}
+
+function ModeOption({ selected, onSelect, icon, title, body, testId }: { selected: boolean; onSelect: () => void; icon: React.ReactNode; title: string; body: string; testId: string }) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      data-testid={testId}
+      className={cn(
+        "flex flex-col gap-1.5 rounded-2xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        selected ? "border-primary bg-primary/10" : "border-foreground/15 hover:border-primary",
+      )}
+    >
+      <span className="flex items-center gap-2 font-semibold">
+        {icon}
+        {title}
+      </span>
+      <span className="text-sm text-muted-foreground">{body}</span>
+    </button>
+  );
 }

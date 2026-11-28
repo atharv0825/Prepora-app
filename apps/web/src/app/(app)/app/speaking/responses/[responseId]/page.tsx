@@ -45,7 +45,7 @@ export default async function SpeakingResponsePage({ params }: PageProps<"/app/s
   const fillers = countFillers(r.transcript).filter((f) => FillerCountSchema.safeParse(f).success);
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-6 pb-16">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-16">
       <Link href={routes.speaking} className="flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline">
         <ArrowLeft className="size-4" aria-hidden /> All Speaking
       </Link>

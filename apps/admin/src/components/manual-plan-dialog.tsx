@@ -52,8 +52,8 @@ export function ManualPlanDialog({ userId, userName }: { userId: string; userNam
           <DialogHeader>
             <DialogTitle>Change plan by hand</DialogTitle>
             <DialogDescription>
-              For {userName}. A manual plan ends on its date and never charges them. Free ends their manual plan and any exam pack (paid once). A monthly
-              subscription they pay for isn&apos;t changed: cancel it at Razorpay or Paddle so the charges stop.
+              For {userName}. A manual plan ends on its date and never charges them. Free ends everything: a manual plan, an exam pack, and a monthly
+              subscription, which is cancelled at Razorpay or Paddle straight away (no refund; refund in their dashboard if needed).
             </DialogDescription>
           </DialogHeader>
           <input type="hidden" name="user_id" value={userId} />
@@ -66,7 +66,7 @@ export function ManualPlanDialog({ userId, userName }: { userId: string; userNam
               <select id="manual-plan" name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} className={selectClass}>
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
-                <option value="free">Free (end manual plan and exam pack)</option>
+                <option value="free">Free (end every plan)</option>
               </select>
             </div>
             {!free && (
@@ -128,7 +128,7 @@ export function ManualPlanDialog({ userId, userName }: { userId: string; userNam
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
             <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : free ? "End manual plan" : "Give plan"}
+              {pending ? "Saving…" : free ? "End all plans" : "Give plan"}
             </Button>
           </DialogFooter>
         </form>

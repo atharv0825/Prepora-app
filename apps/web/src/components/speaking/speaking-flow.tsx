@@ -17,6 +17,7 @@ import { scoreSpeaking } from "@/lib/speaking/api";
 import { clearPending, loadPending, type PendingRecording, savePending } from "@/lib/speaking/pending";
 import { mmss, pickRecorderType, uploadTypeFor } from "@/lib/speaking/speaking";
 import { UploadError, uploadWithRetry } from "@/lib/speaking/upload";
+import { CueCardReveal } from "./cue-card-reveal";
 import { MicCheck } from "./mic-check";
 
 export type CueCardTopic = { id: string; title: string; points: string[] };
@@ -230,17 +231,21 @@ export function SpeakingFlow({
 
   if (phase === null) return <p className="text-muted-foreground">Loading…</p>;
 
+  // The cue card as a real card, revealed with a toss when it first shows (CueCardReveal); before
+  // preparing, the note and "Start my 1 minute" are on the card itself.
   const card = (
-    <section className="mint flex flex-col gap-3 rounded-3xl bg-background p-6 text-foreground" aria-label="Cue card" data-testid="cue-card">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Part 2 · Cue card</p>
-      <h2 className="text-h3">{topic.title}</h2>
-      <p className="text-sm">You should say:</p>
-      <ul className="flex list-disc flex-col gap-1 pl-5">
-        {topic.points.map((p) => (
-          <li key={p}>{p}</li>
-        ))}
-      </ul>
-    </section>
+    <CueCardReveal title={topic.title} points={topic.points}>
+      {phase === "card" && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            You&apos;ll have 1 minute to prepare, then speak for 1 to 2 minutes. Recording starts by itself when preparation ends.
+          </p>
+          <Button onClick={() => setPhase("prep")} className="self-start">
+            Start my 1 minute
+          </Button>
+        </>
+      )}
+    </CueCardReveal>
   );
 
   const reviewTarget = recording ?? (pending ? { url: "", seconds: pending.durationSec } : null);
@@ -278,17 +283,6 @@ export function SpeakingFlow({
       )}
 
       {(phase === "card" || phase === "prep" || phase === "recording") && card}
-
-      {phase === "card" && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">
-            You&apos;ll have 1 minute to prepare, then speak for 1 to 2 minutes. Recording starts by itself when preparation ends.
-          </p>
-          <Button onClick={() => setPhase("prep")} className="self-start">
-            Start my 1 minute
-          </Button>
-        </div>
-      )}
 
       {phase === "prep" && (
         <section className="flex flex-col gap-3" aria-label="Preparation">

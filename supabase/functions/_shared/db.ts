@@ -837,7 +837,9 @@ export type Database = {
           days: number
           id: string
           name: string
+          replaced_by: string | null
           test_type: Database["public"]["Enums"]["ielts_test_type"] | null
+          updated_at: string
         }
         Insert: {
           active?: boolean
@@ -845,7 +847,9 @@ export type Database = {
           days: number
           id?: string
           name: string
+          replaced_by?: string | null
           test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          updated_at?: string
         }
         Update: {
           active?: boolean
@@ -853,9 +857,19 @@ export type Database = {
           days?: number
           id?: string
           name?: string
+          replaced_by?: string | null
           test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "study_plan_templates_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "study_plan_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       test_attempts: {
         Row: {
@@ -1266,6 +1280,20 @@ export type Database = {
         }[]
       }
       allowance_period_start: { Args: never; Returns: string }
+      admin_save_study_template: {
+        Args: {
+          p_days: number
+          p_id: string | null
+          p_items: Json
+          p_name: string
+          p_test_type: Database["public"]["Enums"]["ielts_test_type"] | null
+        }
+        Returns: string
+      }
+      admin_set_study_template_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
       assign_my_study_plan: { Args: { p_restart?: boolean }; Returns: Json }
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }
@@ -1378,6 +1406,10 @@ export type Database = {
           p_user: string
         }
         Returns: Json
+      }
+      study_template_kinds: {
+        Args: never
+        Returns: Database["public"]["Enums"]["study_item_kind"][]
       }
       use_allowance: {
         Args: { p_type: string; p_user_id: string }

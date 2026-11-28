@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Check, Clock, Keyboard, Loader2 } from "lucide-react";
+import { ArrowLeft, Camera, Check, Clock, Keyboard, Loader2, X } from "lucide-react";
 import { cn } from "cn";
 import { Badge } from "@prepora/ui/components/badge";
 import { Button } from "@prepora/ui/components/button";
@@ -29,6 +29,7 @@ import {
 } from "@/lib/writing/writing";
 import { PhoneQr } from "./phone-qr";
 import { PhotoFlow } from "./photo-flow";
+import "./writing-editor.css";
 
 export type EditorTask = {
   id: string;
@@ -46,7 +47,8 @@ const SCORING_STEPS = ["Reading your answer", "Checking the four criteria", "Fin
 
 /**
  * M6-F1..F3: the Writing editor. The task and its chart; type the answer (live word count, the
- * exam timer: 20 min for Task 1, 40 for Task 2, starting with the first word) or upload a photo of
+ * exam timer: 20 min for Task 1, 40 for Task 2, starting with the first word, or with "Start timer"
+ * when writing on paper; "Reset timer" sets it back) or upload a photo of
  * handwriting (M6-F2); everything autosaves on this device. "Get my band score" confirms the
  * credits, shows progress while score-writing runs, then opens the feedback. The timer never sends
  * the answer by itself: scoring costs credits, so only the student starts it.
@@ -66,6 +68,15 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
   const [scoring, setScoring] = useState<number | null>(null); // when scoring started
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(false); // the chart, opened larger over the task column
+
+  // Escape closes the larger chart.
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoom]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load the draft saved on this device (client only: localStorage).
@@ -106,6 +117,20 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
     const startedAt = draft.startedAt ?? (text.trim() ? Date.now() : null);
     if (startedAt !== draft.startedAt) setNow(Date.now());
     persist({ ...draft, text, startedAt });
+  }
+
+  /** Writing on paper: start the clock without typing. */
+  function startTimer() {
+    if (!draft) return;
+    const at = Date.now();
+    setNow(at);
+    persist({ ...draft, startedAt: at }, true);
+  }
+
+  /** Back to the full time; only the timer, the answer stays. Typing starts it again. */
+  function resetTimer() {
+    if (!draft) return;
+    persist({ ...draft, startedAt: null }, true);
   }
 
   function onRead(result: OcrWritingResponse) {
@@ -159,7 +184,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
   const under = words < minWords;
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-6 pb-32">
+    <div className="we-page mx-auto flex w-full max-w-7xl flex-col gap-6 pb-32">
       <BackLink />
       <div className="flex flex-col gap-3">
         <div>
@@ -168,22 +193,45 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         <h1 className="text-h1">{task.title}</h1>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" aria-label="The task">
+      {/* Wide screens: the task and the answer side by side, each with its own scroll, both sized to fit
+          between the header and the bottom bar; the task stays in view while writing. */}
+      <div className="grid gap-6 we-columns">
+      <div className="relative min-w-0 we-pane">
+      <section
+        className="we-taskScroll flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6"
+        aria-label="The task"
+      >
         <p className="whitespace-pre-line leading-relaxed" data-testid="task-prompt">
           {task.prompt}
         </p>
         {task.image_url && (
-          <figure className="overflow-hidden rounded-2xl border border-foreground/10 bg-white">
-            {/* Plain <img>: CDN images, sized by the container; optimisation is off app-wide. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="block h-auto w-full" />
+          <figure className="shrink-0 overflow-hidden rounded-2xl border border-foreground/10 bg-white">
+            {/* Click to open it larger, over the task column only. */}
+            <button type="button" onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" aria-label="Open the chart larger" data-testid="chart-open">
+              {/* Plain <img>: CDN images, sized by the container; optimisation is off app-wide. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="block h-auto w-full" />
+            </button>
           </figure>
         )}
         <p className="text-sm text-muted-foreground">
           Spend about {WRITING_TASKS[task.task_no].minutes} minutes. Write at least {minWords} words.
         </p>
       </section>
+      {zoom && task.image_url && (
+        <div className="we-zoom" role="dialog" aria-label="The chart, larger" data-testid="chart-zoom">
+          <div className="we-zoomBar">
+            <Button variant="outline" size="sm" onClick={() => setZoom(false)} autoFocus>
+              <X className="size-4" aria-hidden /> Close
+            </Button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="we-zoomImg" />
+        </div>
+      )}
+      </div>
 
+      <div className="we-pane we-answerScroll flex min-w-0 flex-col gap-4">
       {scoring !== null ? (
         <ScoringProgress started={scoring} />
       ) : (
@@ -199,7 +247,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
               <PhoneQr path={writingTaskPath(task.id, { photo: true })} />
             </div>
           ) : (
-            <div className="flex flex-col gap-3" role="tabpanel" aria-label="Type your answer">
+            <div className="we-answerPanel flex flex-col gap-3" role="tabpanel" aria-label="Type your answer">
               {restored && <p className="text-sm text-muted-foreground">Your draft from this device is back.</p>}
               {ocrNote && (
                 <div className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-sm sm:flex-row sm:items-center sm:justify-between" role="status">
@@ -220,7 +268,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="sentences"
-                className="min-h-[50vh] text-base"
+                className="we-answerBox min-h-[50vh] text-base"
                 data-testid="answer"
               />
             </div>
@@ -233,10 +281,12 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
           {error}
         </p>
       )}
+      </div>
+      </div>
 
       {/* The bar stays on screen: words, timer, saved, and the score button. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-foreground/10 bg-background/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-4 text-sm">
             <span data-testid="word-count" className={cn("tabular-nums", under ? "text-muted-foreground" : "font-medium")}>
               {words} {words === 1 ? "word" : "words"}
@@ -254,6 +304,16 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
               <Clock className="size-4" aria-hidden />
               {writingClock(left)}
             </span>
+            {scoring === null &&
+              (started === null ? (
+                <Button variant="outline" size="sm" onClick={startTimer} disabled={!draft} data-testid="start-timer">
+                  Start timer
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={resetTimer} data-testid="reset-timer">
+                  Reset timer
+                </Button>
+              ))}
             {savedAt && (
               <span className="hidden items-center gap-1 text-muted-foreground sm:flex" data-testid="saved">
                 <Check className="size-4" aria-hidden /> Saved
@@ -274,7 +334,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
           />
         </div>
         {left < 0 && scoring === null && (
-          <p className="mx-auto w-full max-w-4xl px-4 pb-3 text-sm text-destructive" role="status">
+          <p className="mx-auto w-full max-w-7xl px-4 pb-3 text-sm text-destructive" role="status">
             Time&apos;s up: in the exam you&apos;d stop here. You can still finish and get your score.
           </p>
         )}

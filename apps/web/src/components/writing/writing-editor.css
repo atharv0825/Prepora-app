@@ -1,0 +1,84 @@
+/* The Writing editor's side-by-side layout, as plain global CSS with fixed "we-" class names: this
+   project's Turbopack CSS rule builds .module.css files without unique names, so module classes never
+   matched. From 768px wide (as Reading) the task and the answer sit in two columns of the same
+   height, between the header and the bottom bar, each with its own scrollbar. */
+
+@media (min-width: 48rem) {
+  .we-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  /* The page ends 1rem above the bottom bar (4.5rem tall): 2rem here + the layout's 3.5rem. */
+  .we-page {
+    padding-bottom: 2rem;
+  }
+
+  /* Both columns: stay in view, from 1rem under the header (4rem) to 1rem above the bottom bar. */
+  .we-pane {
+    position: sticky;
+    top: 5rem;
+    height: calc(100vh - 10.5rem);
+  }
+
+  /* The task: always shows its scrollbar. */
+  .we-taskScroll {
+    height: 100%;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(8 34 43 / 0.35) transparent;
+  }
+
+  .we-answerScroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .we-answerPanel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* The answer box fills its column and scrolls inside, instead of growing with the text. */
+  .we-answerBox {
+    flex: 1;
+    min-height: 10rem;
+    resize: none;
+    field-sizing: fixed;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* The chart, opened larger: covers the task column only. */
+.we-zoom {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 1.5rem;
+  border: 1px solid rgb(8 34 43 / 0.12);
+  background: #ffffff;
+  box-shadow: 0 12px 32px -16px rgb(8 34 43 / 0.45);
+}
+
+.we-zoomBar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem;
+  background: rgb(255 255 255 / 0.9);
+}
+
+.we-zoomImg {
+  display: block;
+  width: 170%;
+  max-width: none;
+  height: auto;
+}

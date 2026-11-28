@@ -39,7 +39,7 @@ export default async function ProfilePage() {
         <p className="text-xs text-muted-foreground">From your Google account. It can&apos;t be changed here.</p>
       </div>
 
-      <SubscriptionSettings plan={account.profile?.plan ?? "free"} subscription={subscription} monthly={pricing?.subscriptions ?? []} />
+      <SubscriptionSettings plan={account.profile?.plan ?? "free"} subscription={subscription} monthly={pricing?.subscriptions ?? []} packs={pricing?.exam_packs ?? []} />
 
       <ProfileStreak streak={streak} />
     </div>

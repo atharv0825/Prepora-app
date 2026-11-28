@@ -8,13 +8,15 @@
 //      already_subscribed: changing plan is manage-subscription). Top-ups can always be bought.
 //   3. India (Razorpay): a subscription for monthly plans, an order for exam packs and top-ups.
 //      Everyone else (Paddle): a transaction, opened in Paddle's overlay checkout.
+//      The provider's price (Razorpay plan, Paddle price) is created on first use
+//      (ensureProviderPrice) and saved in prices.provider_price_id.
 //   4. { user_id, price_id } travels with the checkout (notes / custom_data), so billing-webhook
 //      knows whose purchase it is. Nothing is granted here: only verified webhooks grant.
 
 import { z } from "../_shared/deps.ts";
 import { errors } from "../_shared/errors.ts";
 import { createHandler } from "../_shared/handler.ts";
-import { paddle, ProviderError, razorpay } from "../_shared/billing.ts";
+import { ensureProviderPrice, paddle, ProviderError, razorpay } from "../_shared/billing.ts";
 
 // Same as CreateCheckoutRequest (packages/shared/src/api/billing.ts).
 const Input = z.object({ price_id: z.string().regex(/^[a-z][a-z0-9_]{2,59}$/) }).strict();
@@ -71,17 +73,19 @@ Deno.serve(createHandler({ name: "create-checkout", auth: "required", input: Inp
         prefill: { ...(profile.full_name ? { name: profile.full_name } : {}), ...(me.email ? { email: me.email } : {}) },
       };
       if (price.kind === "subscription") {
-        if (!price.provider_price_id) throw notSetUp(price.id);
-        const sub = await rp.createSubscription(price.provider_price_id, metadata);
+        const planId = await ensureProviderPrice(db, price, { razorpay: () => rp });
+        if (!planId) throw notSetUp(price.id);
+        const sub = await rp.createSubscription(planId, metadata);
         return { ...base, mode: "subscription", subscription_id: sub.id };
       }
       const order = await rp.createOrder(price.amount_minor, price.currency, `${price.id}:${me.id.slice(0, 8)}`, metadata);
       return { ...base, mode: "order", order_id: order.id };
     }
 
-    if (!price.provider_price_id) throw notSetUp(price.id);
     const pd = paddle();
-    const txn = await pd.createTransaction(price.provider_price_id, metadata);
+    const paddlePriceId = await ensureProviderPrice(db, price, { paddle: () => pd });
+    if (!paddlePriceId) throw notSetUp(price.id);
+    const txn = await pd.createTransaction(paddlePriceId, metadata);
     return { provider: "paddle", price_id: price.id, environment: pd.environment, client_token: pd.clientToken, transaction_id: txn.id };
   } catch (err) {
     if (err instanceof ProviderError) {
@@ -92,7 +96,7 @@ Deno.serve(createHandler({ name: "create-checkout", auth: "required", input: Inp
   }
 }));
 
-/** A price whose product isn't created at the provider yet (prices.provider_price_id is empty). */
+/** A price the provider has no product for, and none could be made. */
 function notSetUp(priceId: string) {
   console.error(`[create-checkout] ${priceId} has no provider_price_id`);
   return errors.priceNotAvailable("This option isn't on sale yet.");

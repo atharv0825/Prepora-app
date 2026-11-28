@@ -83,7 +83,15 @@ export type CreateCheckoutResponse = z.infer<typeof CreateCheckoutResponse>;
  * Attached to every checkout (Razorpay `notes`, Paddle `custom_data`) and sent back in its
  * webhooks, so billing-webhook knows whose purchase it is and what was bought.
  */
-export const CheckoutMetadata = z.object({ user_id: z.uuid(), price_id: PriceId }).strict();
+export const CheckoutMetadata = z
+  .object({
+    user_id: z.uuid(),
+    price_id: PriceId,
+    /** Exam pack upgrades only: the pack (subscriptions.id) being upgraded and the extra credits. */
+    upgrade_of: z.uuid().optional(),
+    upgrade_credits: z.string().regex(/^\d{1,5}$/).optional(),
+  })
+  .strict();
 export type CheckoutMetadata = z.infer<typeof CheckoutMetadata>;
 
 // ── create-checkout errors ──────────────────────────────────────────────────────────────────
@@ -207,7 +215,10 @@ export const ManageSubscriptionRequest = z.discriminatedUnion("action", [
   z.object({ action: z.literal("portal") }).strict(),
   /** Cancel at the period end: the plan lasts until then. */
   z.object({ action: z.literal("cancel") }).strict(),
-  /** Upgrade at once (credit difference granted), or downgrade from the period end. */
+  /**
+   * Monthly: upgrade at once (credit difference granted) or downgrade from the period end.
+   * Exam pack: upgrade to a higher plan's exam pack for the days left (answer: { checkout }).
+   */
   z.object({ action: z.literal("change_plan"), price_id: PriceId }).strict(),
 ]);
 export type ManageSubscriptionRequest = z.infer<typeof ManageSubscriptionRequest>;
@@ -229,6 +240,8 @@ export type SubscriptionSummary = z.infer<typeof SubscriptionSummary>;
 export const ManageSubscriptionResponse = z.union([
   z.object({ url: z.url() }).strict(),
   z.object({ subscription: SubscriptionSummary }).strict(),
+  /** An exam pack upgrade: pay the difference in the provider's checkout, like a purchase. */
+  z.object({ checkout: CreateCheckoutResponse }).strict(),
 ]);
 export type ManageSubscriptionResponse = z.infer<typeof ManageSubscriptionResponse>;
 
@@ -261,3 +274,34 @@ export function purchaseConfirmed(
 ): boolean {
   return bought.kind === "topup" ? now.topupSince : now.plan === bought.plan_id;
 }
+
+// ── Exam pack upgrade (Settings) ────────────────────────────────────────────────────────────
+/**
+ * Upgrading an exam pack (Gold → Platinum) for the days it has left: the price difference and the
+ * extra credits, both scaled by the share of the pack still to run. manage-subscription charges
+ * this (its copy: supabase/functions/_shared/billing_events.ts, compared in tests/contract.test.ts).
+ */
+export function packUpgradeQuote(q: {
+  fromAmountMinor: number;
+  toAmountMinor: number;
+  fromCredits: number;
+  toCredits: number;
+  start: string;
+  end: string;
+  now?: number;
+}): { amount_minor: number; credits: number; days_left: number } {
+  const start = Date.parse(q.start);
+  const end = Date.parse(q.end);
+  const now = q.now ?? Date.now();
+  const total = Math.max(end - start, 1);
+  const left = Math.min(Math.max(end - now, 0), total);
+  const share = left / total;
+  return {
+    amount_minor: Math.max(0, Math.round((q.toAmountMinor - q.fromAmountMinor) * share)),
+    credits: Math.max(0, Math.round((q.toCredits - q.fromCredits) * share)),
+    days_left: Math.ceil(left / 86_400_000),
+  };
+}
+
+/** Below this (in minor units) an upgrade isn't charged: too close to the pack's end. */
+export const MIN_UPGRADE_MINOR = 100;

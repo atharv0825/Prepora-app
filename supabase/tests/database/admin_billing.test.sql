@@ -1,7 +1,7 @@
 -- M9-A1: admin subscriptions list, revenue by currency, a user's subscriptions, manual plan change.
 -- Run: supabase test db
 begin;
-select plan(24);
+select plan(26);
 
 insert into auth.users (id, email) values
   ('f0000000-0000-0000-0000-000000000001', 'boss@prepora.test'),
@@ -74,6 +74,16 @@ select is(public.admin_set_manual_plan('f0000000-0000-0000-0000-000000000003', '
 select is(public.admin_set_manual_plan('f0000000-0000-0000-0000-000000000002', 'free', null, false, 'ticket 13') ->> 'plan_after',
   'gold', 'a provider subscription is left alone (the student stays Gold)');
 
+-- Free also ends an exam pack (paid once): the student goes back to Free.
 reset role;
+select public.billing_apply_event((public.billing_record_event('razorpay', 'a5', 't', '{}') ->> 'id')::bigint,
+  jsonb_build_object('action', 'payment_completed', 'user_id', 'f0000000-0000-0000-0000-000000000003', 'price_id', 'in_gold_exam_pack',
+    'order_id', 'order_PK', 'payment_id', 'pay_PK'));
+set local role authenticated;
+select pg_temp.as_user('f0000000-0000-0000-0000-000000000001');
+select is(public.admin_set_manual_plan('f0000000-0000-0000-0000-000000000003', 'free', null, false, 'ticket 14: refunded') ->> 'plan_after',
+  'free', 'free ends an exam pack too');
+reset role;
+select is((select status::text from public.subscriptions where provider_subscription_id = 'order_PK'), 'cancelled', 'the pack is cancelled');
 select * from finish();
 rollback;

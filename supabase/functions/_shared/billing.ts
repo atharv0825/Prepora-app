@@ -7,6 +7,7 @@
 //   PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, PADDLE_CLIENT_TOKEN, PADDLE_ENV (sandbox | production)
 
 import { type BillingAction, billingAction, type CheckoutProvider } from "./billing_events.ts";
+export { MIN_UPGRADE_MINOR, packUpgradeQuote } from "./billing_events.ts";
 
 export type { BillingAction, CheckoutProvider };
 
@@ -71,6 +72,9 @@ export interface NormalisedEvent {
   cancel_at_period_end?: boolean;
   amount_minor?: number;
   currency?: string;
+  /** An exam pack upgrade: the pack (subscriptions.id) it upgrades and the prorated credits. */
+  upgrade_of?: string;
+  upgrade_credits?: string;
 }
 
 type Obj = Record<string, unknown>;
@@ -84,12 +88,21 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PRICE_ID = /^[a-z][a-z0-9_]{2,59}$/;
 
 /** Checkout metadata (Razorpay notes / Paddle custom_data): { user_id, price_id }, if valid. */
-function metadata(...sources: unknown[]): { user_id?: string; price_id?: string } {
+function metadata(...sources: unknown[]): { user_id?: string; price_id?: string; upgrade_of?: string; upgrade_credits?: string } {
   for (const s of sources) {
     const m = obj(s);
     const user = str(m.user_id);
     const price = str(m.price_id);
-    if (user && UUID.test(user)) return { user_id: user, price_id: price && PRICE_ID.test(price) ? price : undefined };
+    const of = str(m.upgrade_of);
+    const credits = str(m.upgrade_credits) ?? (int(m.upgrade_credits) !== undefined ? String(int(m.upgrade_credits)) : undefined);
+    if (user && UUID.test(user)) {
+      return {
+        user_id: user,
+        price_id: price && PRICE_ID.test(price) ? price : undefined,
+        upgrade_of: of && UUID.test(of) ? of : undefined,
+        upgrade_credits: credits && /^\d{1,5}$/.test(credits) ? credits : undefined,
+      };
+    }
   }
   return {};
 }
@@ -140,6 +153,8 @@ export function normaliseRazorpay(eventType: string, payload: unknown): Normalis
     action,
     user_id: meta.user_id,
     price_id: meta.price_id,
+    upgrade_of: meta.upgrade_of,
+    upgrade_credits: meta.upgrade_of ? meta.upgrade_credits : undefined,
     order_id: str(order.id) ?? str(pay.order_id),
     payment_id: str(pay.id),
     customer_id: str(pay.customer_id),
@@ -182,6 +197,8 @@ export function normalisePaddle(eventType: string, payload: unknown): Normalised
       // A renewal pays the subscription's current price; a one-time purchase, the metadata's.
       provider_price_id: subscriptionId ? firstPrice : undefined,
       price_id: subscriptionId && firstPrice ? undefined : meta.price_id,
+      upgrade_of: subscriptionId ? undefined : meta.upgrade_of,
+      upgrade_credits: !subscriptionId && meta.upgrade_of ? meta.upgrade_credits : undefined,
       subscription_id: subscriptionId,
       payment_id: str(d.id),
       customer_id: str(d.customer_id),
@@ -236,6 +253,8 @@ async function call(provider: CheckoutProvider, f: Fetch, url: string, init: Req
 
 export interface Razorpay {
   keyId: string;
+  /** A monthly plan (plan_…) for a price that has none yet. */
+  createPlan(name: string, amountMinor: number, currency: string): Promise<{ id: string }>;
   createSubscription(planId: string, notes: Record<string, string>): Promise<{ id: string }>;
   createOrder(amountMinor: number, currency: string, receipt: string, notes: Record<string, string>): Promise<{ id: string }>;
   changePlan(subscriptionId: string, planId: string, when: "now" | "cycle_end"): Promise<void>;
@@ -250,6 +269,10 @@ export function razorpay(f: Fetch = fetch): Razorpay {
     call("razorpay", f, `${base}${path}`, { method, headers: { Authorization: auth, "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return {
     keyId,
+    async createPlan(name, amountMinor, currency) {
+      const r = await send("POST", "/plans", { period: "monthly", interval: 1, item: { name, amount: amountMinor, currency } });
+      return { id: String(r.id) };
+    },
     async createSubscription(planId, notes) {
       // 120 monthly cycles = up to 10 years; the student cancels whenever they like.
       const r = await send("POST", "/subscriptions", { plan_id: planId, total_count: 120, customer_notify: 1, notes });
@@ -271,7 +294,11 @@ export function razorpay(f: Fetch = fetch): Razorpay {
 export interface Paddle {
   environment: "sandbox" | "production";
   clientToken: string;
+  /** A product and its price (pri_…) for a price that has none yet; monthly ones bill every month. */
+  createPrice(name: string, amountMinor: number, currency: string, monthly: boolean): Promise<{ id: string }>;
   createTransaction(priceId: string, customData: Record<string, string>): Promise<{ id: string }>;
+  /** A one-time charge at our own amount (exam pack upgrades): a non-catalog item. */
+  createCustomTransaction(name: string, amountMinor: number, currency: string, customData: Record<string, string>): Promise<{ id: string }>;
   changePrice(subscriptionId: string, priceId: string, proration: "prorated_immediately" | "do_not_bill"): Promise<void>;
   cancelAtPeriodEnd(subscriptionId: string): Promise<void>;
   portalUrl(customerId: string, subscriptionIds: string[]): Promise<string>;
@@ -286,6 +313,32 @@ export function paddle(f: Fetch = fetch): Paddle {
   return {
     environment,
     clientToken: secret("PADDLE_CLIENT_TOKEN"),
+    async createPrice(name, amountMinor, currency, monthly) {
+      const product = await send("POST", "/products", { name, tax_category: "standard" });
+      const r = await send("POST", "/prices", {
+        product_id: String(obj(product.data).id),
+        description: name,
+        name,
+        unit_price: { amount: String(amountMinor), currency_code: currency },
+        ...(monthly ? { billing_cycle: { interval: "month", frequency: 1 } } : {}),
+      });
+      return { id: String(obj(r.data).id) };
+    },
+    async createCustomTransaction(name, amountMinor, currency, customData) {
+      const r = await send("POST", "/transactions", {
+        items: [{
+          quantity: 1,
+          price: {
+            name,
+            description: name,
+            unit_price: { amount: String(amountMinor), currency_code: currency },
+            product: { name, tax_category: "standard" },
+          },
+        }],
+        custom_data: customData,
+      });
+      return { id: String(obj(r.data).id) };
+    },
     async createTransaction(priceId, customData) {
       const r = await send("POST", "/transactions", { items: [{ price_id: priceId, quantity: 1 }], custom_data: customData });
       return { id: String(obj(r.data).id) };
@@ -310,3 +363,53 @@ export function paddle(f: Fetch = fetch): Paddle {
 
 /** Plans in order (matches public.plan_rank). */
 export const PLAN_RANK: Record<string, number> = { free: 0, gold: 1, platinum: 2 };
+
+// ── Provider prices on first use ────────────────────────────────────────────────────────────
+type PriceRow = {
+  id: string;
+  kind: string;
+  plan_id: string | null;
+  provider: string;
+  provider_price_id: string | null;
+  currency: string;
+  amount_minor: number;
+  credits: number | null;
+};
+
+const PLAN_NAME: Record<string, string> = { gold: "Gold", platinum: "Platinum" };
+
+/** "Prepora Gold, monthly (in_gold_month)": shown in the provider's dashboard and checkout. */
+export function providerPriceName(p: Pick<PriceRow, "id" | "kind" | "plan_id" | "credits">): string {
+  const what = p.kind === "topup" ? `${p.credits} credits` : `${PLAN_NAME[p.plan_id ?? ""] ?? p.plan_id}, ${p.kind === "exam_pack" ? "3-month exam pack" : "monthly"}`;
+  return `Prepora ${what} (${p.id})`;
+}
+
+/**
+ * The provider's price id for one of our prices, created at the provider the first time it's
+ * needed (a Razorpay plan for monthly prices; a Paddle product + price for any Paddle price) and
+ * saved in prices.provider_price_id. Razorpay one-time orders need none (returns null).
+ * Two first buyers at once may both create one; the first saved wins and is used by both.
+ */
+export async function ensureProviderPrice(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  price: PriceRow,
+  clients: { razorpay?: () => Razorpay; paddle?: () => Paddle } = {},
+): Promise<string | null> {
+  if (price.provider_price_id) return price.provider_price_id;
+  if (price.provider === "razorpay" && price.kind !== "subscription") return null;
+  const name = providerPriceName(price);
+  const created = price.provider === "razorpay"
+    ? await (clients.razorpay ?? razorpay)().createPlan(name, price.amount_minor, price.currency)
+    : await (clients.paddle ?? paddle)().createPrice(name, price.amount_minor, price.currency, price.kind === "subscription");
+  const { data, error } = await db.from("prices")
+    .update({ provider_price_id: created.id })
+    .eq("id", price.id).is("provider_price_id", null)
+    .select("provider_price_id").maybeSingle();
+  if (error) throw error;
+  if (data?.provider_price_id) return data.provider_price_id as string;
+  // Someone else saved one first: use theirs.
+  const { data: saved, error: readError } = await db.from("prices").select("provider_price_id").eq("id", price.id).single();
+  if (readError) throw readError;
+  return (saved.provider_price_id as string | null) ?? created.id;
+}

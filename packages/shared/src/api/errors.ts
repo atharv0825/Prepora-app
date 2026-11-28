@@ -14,6 +14,9 @@ export type ApiErrorCode =
   | "daily_cap_reached"
   | "allowance_exceeded"
   | "feature_not_in_plan"
+  // Billing (M9-C2): see packages/shared/src/api/billing.ts.
+  | "price_not_available"
+  | "already_subscribed"
   | "rate_limited"
   | "wrong_region"
   | "internal";

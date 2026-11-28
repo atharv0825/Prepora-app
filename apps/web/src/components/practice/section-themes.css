@@ -165,3 +165,41 @@
   --ring: #f17aae;
   --accent-green: #f6a9cb;
 }
+
+/* Test start screens (Reading, Listening, Speaking Part 1/3): while the "How it works" box is
+   showing (.fit-screen-intro), the page's padding shrinks and the page fills the window under the
+   header (4rem), centring its content, so it fits without scrolling. Once the test starts the page
+   is back to normal. */
+main:has(.fit-screen-intro) {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+.fit-screen:has(.fit-screen-intro) {
+  min-height: calc(100dvh - 4rem - 2rem);
+  justify-content: center;
+  padding-bottom: 0;
+}
+
+/* Inside the box (Listening, Speaking): how it works, the mode choices, the start button. From
+   1024px wide: how it works and the button on the left, the choices stacked on the right. */
+.intro-split {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 64rem) {
+  .intro-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .intro-split > .intro-choices {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .intro-split > .intro-go {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+  }
+}

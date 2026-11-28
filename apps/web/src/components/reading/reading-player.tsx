@@ -197,16 +197,16 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
 
   if (!draft) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      <div className="fit-screen mx-auto flex w-full max-w-4xl flex-col gap-4">
         <div className="flex flex-col gap-1">
           <div className="self-start">{backLink}</div>
-          <h1 className="text-h1">{payload.test.title}</h1>
+          <h1 className="text-h2">{payload.test.title}</h1>
           <p className="text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
         </div>
         {/* Like Listening's start screen: how it works, then one button, in the section colour. */}
-        <section className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6" data-testid="reading-intro">
+        <section className="fit-screen-intro flex flex-col gap-3 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="reading-intro">
           <h2 className="text-h3">How it works</h2>
-          <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
+          <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
             <IntroLine icon={Clock}>
               60 minutes for {passages.length} passages and {allNos.length} questions.
             </IntroLine>

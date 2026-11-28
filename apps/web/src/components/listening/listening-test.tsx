@@ -123,15 +123,17 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
   if (!mode) {
     // Like Speaking: how it works, the two modes to pick from, and one start button.
     return (
-      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6" data-testid="listening-intro">
-        <h2 className="text-h3">How it works</h2>
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
-          <li>Four recordings and {payload.questions.length} questions. Answer while you listen.</li>
-          <li>Your answers are saved on this device as you go.</li>
-          <li>At the end you get your band, the right answers and the transcripts.</li>
-        </ul>
-        <MonthlyAllowance />
-        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="mode-choice">
+      <section className="fit-screen-intro intro-split w-full rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="listening-intro">
+        <div className="flex flex-col gap-3">
+          <h2 className="text-h3">How it works</h2>
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
+            <li>Four recordings and {payload.questions.length} questions. Answer while you listen.</li>
+            <li>Your answers are saved on this device as you go.</li>
+            <li>At the end you get your band, the right answers and the transcripts.</li>
+          </ul>
+          <MonthlyAllowance />
+        </div>
+        <div className="intro-choices grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="mode-choice">
           <ModeOption
             selected={choice === "exam"}
             onSelect={() => setChoice("exam")}
@@ -149,9 +151,11 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
             testId="mode-practice"
           />
         </div>
-        <Button size="lg" onClick={() => begin(choice)} className="self-start" data-testid="start-listening">
-          Start in {choice} mode <ArrowRight />
-        </Button>
+        <div className="intro-go">
+          <Button size="lg" onClick={() => begin(choice)} data-testid="start-listening">
+            Start in {choice} mode <ArrowRight />
+          </Button>
+        </div>
       </section>
     );
   }

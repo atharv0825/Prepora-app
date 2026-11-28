@@ -52,7 +52,8 @@ export function ManualPlanDialog({ userId, userName }: { userId: string; userNam
           <DialogHeader>
             <DialogTitle>Change plan by hand</DialogTitle>
             <DialogDescription>
-              For {userName}. A manual plan ends on its date and never charges them. A subscription they pay for isn&apos;t changed: they cancel it themselves.
+              For {userName}. A manual plan ends on its date and never charges them. Free ends their manual plan and any exam pack (paid once). A monthly
+              subscription they pay for isn&apos;t changed: cancel it at Razorpay or Paddle so the charges stop.
             </DialogDescription>
           </DialogHeader>
           <input type="hidden" name="user_id" value={userId} />
@@ -65,7 +66,7 @@ export function ManualPlanDialog({ userId, userName }: { userId: string; userNam
               <select id="manual-plan" name="plan" value={plan} onChange={(e) => setPlan(e.target.value)} className={selectClass}>
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
-                <option value="free">Free (end the manual plan)</option>
+                <option value="free">Free (end manual plan and exam pack)</option>
               </select>
             </div>
             {!free && (

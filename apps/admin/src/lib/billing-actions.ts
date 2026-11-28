@@ -26,8 +26,10 @@ export async function setManualPlan(_prev: ActionState, form: FormData): Promise
   const { data, error } = await supabase.rpc("admin_set_manual_plan", {
     p_user_id: v.user_id,
     p_plan: v.plan,
-    // The generated types mark every argument non-null; the function takes null days for free.
-    p_days: v.days as number,
+    // Always sent: an absent argument makes PostgREST look for a function without it (PGRST202,
+    // "Couldn't save" when ending a plan). Free has no days, so null; the generated types mark
+    // every argument non-null.
+    p_days: (v.days ?? null) as number,
     p_grant_credits: v.grant_credits,
     p_note: v.note,
   });
@@ -45,8 +47,8 @@ export async function setManualPlan(_prev: ActionState, form: FormData): Promise
   const message =
     v.plan === "free"
       ? result.plan_after === "free"
-        ? `Manual plan ended. ${now}.`
-        : `Manual plan ended. ${now}: a paid subscription is still running (they cancel it themselves).`
+        ? `Plan ended. ${now}.`
+        : `Manual plan and exam pack ended. ${now}: a monthly subscription is still running (cancel it at the provider).`
       : `${now} for ${v.days} days${result.credits ? `, with ${result.credits} credits` : ""}.`;
   return { ok: true, message, savedAt: Date.now() };
 }

@@ -17,7 +17,7 @@ import { scoreSpeaking } from "@/lib/speaking/api";
 import { clearPending, loadPending, type PendingRecording, savePending } from "@/lib/speaking/pending";
 import { mmss, pickRecorderType, uploadTypeFor } from "@/lib/speaking/speaking";
 import { UploadError, uploadWithRetry } from "@/lib/speaking/upload";
-import { CueCardReveal } from "./cue-card-reveal";
+import { CueCardLayout, CueCardReveal } from "./cue-card-reveal";
 import { MicCheck } from "./mic-check";
 
 export type CueCardTopic = { id: string; title: string; points: string[] };
@@ -64,6 +64,7 @@ export function SpeakingFlow({
   const [recording, setRecording] = useState<Recording | null>(null);
   const [progress, setProgress] = useState<{ stage: "upload" | "score"; fraction: number; started: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(false); // the cue card has landed face up
   const stream = useRef<MediaStream | null>(sharedStream ?? null);
   const recorder = useRef<MediaRecorder | null>(null);
   const inTest = Boolean(session);
@@ -231,22 +232,9 @@ export function SpeakingFlow({
 
   if (phase === null) return <p className="text-muted-foreground">Loading…</p>;
 
-  // The cue card as a real card, revealed with a toss when it first shows (CueCardReveal); before
-  // preparing, the note and "Start my 1 minute" are on the card itself.
-  const card = (
-    <CueCardReveal title={topic.title} points={topic.points}>
-      {phase === "card" && (
-        <>
-          <p className="text-sm text-muted-foreground">
-            You&apos;ll have 1 minute to prepare, then speak for 1 to 2 minutes. Recording starts by itself when preparation ends.
-          </p>
-          <Button onClick={() => setPhase("prep")} className="self-start">
-            Start my 1 minute
-          </Button>
-        </>
-      )}
-    </CueCardReveal>
-  );
+  // The cue card as a real card, revealed with a toss when it first shows (CueCardReveal). Once
+  // it has landed it moves to the left and the steps (start, prepare, record) appear beside it.
+  const card = <CueCardReveal title={topic.title} points={topic.points} onRevealed={() => setRevealed(true)} />;
 
   const reviewTarget = recording ?? (pending ? { url: "", seconds: pending.durationSec } : null);
 
@@ -282,7 +270,18 @@ export function SpeakingFlow({
         />
       )}
 
-      {(phase === "card" || phase === "prep" || phase === "recording") && card}
+      {(phase === "card" || phase === "prep" || phase === "recording") && (
+        <CueCardLayout split={revealed} card={card}>
+      {phase === "card" && (
+        <section className="flex flex-col gap-3" aria-label="Before you start">
+          <p className="text-sm text-muted-foreground">
+            You&apos;ll have 1 minute to prepare, then speak for 1 to 2 minutes. Recording starts by itself when preparation ends.
+          </p>
+          <Button onClick={() => setPhase("prep")} className="self-start">
+            Start my 1 minute
+          </Button>
+        </section>
+      )}
 
       {phase === "prep" && (
         <section className="flex flex-col gap-3" aria-label="Preparation">
@@ -318,6 +317,8 @@ export function SpeakingFlow({
             <Square /> Stop
           </Button>
         </section>
+      )}
+        </CueCardLayout>
       )}
 
       {phase === "review" && reviewTarget && (

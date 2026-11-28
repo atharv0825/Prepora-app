@@ -1,20 +1,26 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@prepora/ui/components/button";
 import "./cue-card.css";
 
 /**
- * The Part 2 cue card as a real playing card: the topic, "You should say:" and its points, and
- * `children` (e.g. the "Start my 1 minute" note and button) all inside the card.
+ * The Part 2 cue card as a real playing card: the topic, "You should say:" and its points.
  *
  * It's revealed once per visit (each time this mounts): it appears face down, flips three times
  * in the air, falls with a small bounce, then turns over (cue-card.css). "Skip" jumps to the end.
  * With reduced motion it just fades in. While it's turning, the front is covered by the card's
  * back design, so nothing can be read or clicked before it lands.
  */
-export function CueCardReveal({ title, points, children }: { title: string; points: string[]; children?: ReactNode }) {
+export function CueCardReveal({ title, points, onRevealed }: { title: string; points: string[]; onRevealed?: () => void }) {
   const [playing, setPlaying] = useState(true);
+  const revealed = useRef(onRevealed);
+  useEffect(() => {
+    revealed.current = onRevealed;
+  }, [onRevealed]);
+  useEffect(() => {
+    if (!playing) revealed.current?.();
+  }, [playing]);
 
   return (
     <div className={playing ? "cc-stage cc-play" : "cc-stage"} data-testid="cue-card-stage" data-revealed={!playing}>
@@ -43,12 +49,11 @@ export function CueCardReveal({ title, points, children }: { title: string; poin
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Part 2 · Cue card</p>
           <h2 className="text-h3">{title}</h2>
           <p className="text-sm">You should say:</p>
-          <ul className="flex list-disc flex-col gap-1.5 pl-5">
+          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[0.9375rem]">
             {points.map((p) => (
               <li key={p}>{p}</li>
             ))}
           </ul>
-          {children && <div className="mt-auto flex flex-col gap-3 pt-2">{children}</div>}
 
           {/* The back design over the front while it turns (hidden once it has landed). */}
           <span className="cc-cover" aria-hidden>
@@ -61,6 +66,42 @@ export function CueCardReveal({ title, points, children }: { title: string; poin
         </div>
       </div>
       <div className="cc-shadow" aria-hidden />
+    </div>
+  );
+}
+
+/**
+ * The card and what goes with it (the timer, notes, recording…). Until `split`, the card is
+ * centred on its own; then (768px and wider) it slides to the left column and `children` fade in
+ * on the right. The slide animates from where the card was (a measured FLIP, Web Animations).
+ */
+export function CueCardLayout({ split, card, children }: { split: boolean; card: ReactNode; children?: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const before = useRef<DOMRect | null>(null);
+  // Where the card sits while centred (measured after every render until it moves).
+  // (The card itself: its column is full width until the split.)
+  const cardRect = () => box.current?.querySelector(".cc-card")?.getBoundingClientRect() ?? null;
+  useLayoutEffect(() => {
+    if (!split) before.current = cardRect();
+  });
+  useLayoutEffect(() => {
+    const el = box.current;
+    const from = before.current;
+    if (!split || !el || !from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const to = cardRect();
+    if (!to) return;
+    const dx = from.left - to.left;
+    const dy = from.top - to.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 650, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  }, [split]);
+
+  return (
+    <div className={split ? "cc-layout cc-split" : "cc-layout"} data-testid="cue-card-layout">
+      <div ref={box} className="cc-left">
+        {card}
+      </div>
+      {split && <div className="cc-right">{children}</div>}
     </div>
   );
 }

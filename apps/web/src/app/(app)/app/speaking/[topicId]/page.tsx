@@ -21,7 +21,7 @@ export default async function SpeakingTopicPage({ params }: PageProps<"/app/spea
   const { data: topic } = await supabase.from("speaking_topics").select("id, title, cue_card_points").eq("id", topicId).eq("part", 2).eq("status", "published").maybeSingle();
   if (!topic) notFound();
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-16">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 pb-16">
       <Link href={routes.speaking} className="flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline">
         <ArrowLeft className="size-4" aria-hidden /> All cue cards
       </Link>

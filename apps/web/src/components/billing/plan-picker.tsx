@@ -14,6 +14,9 @@ import { BuyButton } from "./buy-button";
 type Plan = { id: "free" | "gold" | "platinum"; name: string; limits: PlanLimits };
 type Term = "month" | "pack";
 
+/** The plan most students pick: labelled "Most popular", with the filled Buy button. */
+const POPULAR = "gold";
+
 /**
  * M9-F1/F2: the three plans side by side, monthly or as a 3-month exam pack, in the student's
  * currency, each paid plan with its Buy button. With a plan already running, the buttons lead to
@@ -42,7 +45,7 @@ export function PlanPicker({
   return (
     <div className="flex flex-col gap-5">
       {(monthly.length > 0 || packs.length > 0) && (
-        <div role="radiogroup" aria-label="How to pay" className="inline-flex self-start rounded-full border border-border bg-card p-1 text-sm">
+        <div role="radiogroup" aria-label="How to pay" className="inline-flex self-center rounded-full border border-border bg-card p-1 text-sm">
           {(
             [
               ["month", "Monthly"],
@@ -66,9 +69,6 @@ export function PlanPicker({
           ))}
         </div>
       )}
-      {term === "pack" && (
-        <p className="-mt-2 text-sm text-muted-foreground">Pay once for 3 months: no renewal, all 3 months&apos; credits at the start. Good for the run-up to your exam.</p>
-      )}
 
       <ul className="grid gap-4 md:grid-cols-3" data-testid="plan-cards">
         {plans.map((p) => {
@@ -78,11 +78,21 @@ export function PlanPicker({
             <li
               key={p.id}
               data-testid={`plan-${p.id}`}
-              className={cn("flex flex-col gap-4 rounded-3xl border p-6", isCurrent ? "border-primary bg-secondary" : "border-border bg-card")}
+              className={cn(
+                "flex flex-col gap-4 rounded-3xl border p-6",
+                isCurrent ? "border-primary bg-secondary" : p.id === POPULAR ? "border-primary/60 bg-card shadow-sm" : "border-border bg-card",
+              )}
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-h3">{p.name}</h2>
-                {isCurrent && <Badge>Your plan</Badge>}
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {p.id === POPULAR && (
+                    <Badge variant="secondary" data-testid="popular">
+                      Most popular
+                    </Badge>
+                  )}
+                  {isCurrent && <Badge>Your plan</Badge>}
+                </span>
               </div>
 
               <p className="min-h-14">
@@ -124,7 +134,7 @@ export function PlanPicker({
                     priceId={offer.id}
                     label={term === "month" ? `Get ${p.name}` : `Buy ${p.name} exam pack`}
                     email={email}
-                    variant={p.id === "gold" ? "default" : "outline"}
+                    variant={p.id === POPULAR ? "default" : "outline"}
                     testId={`buy-${offer.id}`}
                   />
                 ) : null

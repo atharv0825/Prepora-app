@@ -23,16 +23,21 @@ export default async function PlansPage() {
   const canBuy = Boolean(pricing?.enabled);
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-8 pb-16">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-h1">Plans &amp; top-ups</h1>
-        <p className="text-muted-foreground">
-          {pricing?.provider === "razorpay"
-            ? "Prices in rupees. Pay with UPI (AutoPay for monthly plans), cards or netbanking through Razorpay."
-            : pricing?.provider === "paddle"
-              ? "Paddle handles the payment: you see the price in your currency, with any tax, before you pay."
-              : "Here's what each plan includes."}
-        </p>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 pb-16">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-h1">Plans &amp; top-ups</h1>
+          <p className="text-muted-foreground">
+            {pricing?.provider === "razorpay"
+              ? "Prices in rupees. Pay with UPI (AutoPay for monthly plans), cards or netbanking through Razorpay."
+              : pricing?.provider === "paddle"
+                ? "Paddle handles the payment: you see the price in your currency, with any tax, before you pay."
+                : "Here's what each plan includes."}
+          </p>
+        </div>
+        <Link href={routes.credits} className={cn(buttonVariants({ variant: "outline" }), "shrink-0 self-start")}>
+          Back to credits &amp; usage
+        </Link>
       </div>
 
       {!canBuy && (
@@ -89,9 +94,6 @@ export default async function PlansPage() {
         )}
       </section>
 
-      <Link href={routes.credits} className={cn(buttonVariants({ variant: "outline" }), "self-start")}>
-        Back to credits &amp; usage
-      </Link>
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default async function CheckoutDonePage({ searchParams }: PageProps<"/app
     : { data: null };
 
   return (
-    <div className="flex w-full max-w-lg flex-col gap-6 py-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center gap-6 py-8">
       {price ? (
         <CheckoutWaiter
           bought={{ kind: price.kind, plan_id: price.plan_id, credits: price.credits }}

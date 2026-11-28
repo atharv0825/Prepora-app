@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CircleCheck, Clock, LoaderCircle } from "lucide-react";
+import { Clock, LoaderCircle } from "lucide-react";
 import { purchaseConfirmed } from "@prepora/shared/api/billing";
 import { buttonVariants } from "@prepora/ui/components/button";
 import { useCredits } from "@/components/credits/credits-provider";
 import { routes } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/client";
+import "./checkout.css";
 
 const POLL_MS = 2_000;
 const GIVE_UP_MS = 90_000;
@@ -73,13 +74,18 @@ export function CheckoutWaiter({ bought, since }: { bought: Bought; since: numbe
 
   if (state === "done") {
     return (
-      <div className="flex flex-col items-start gap-4" data-testid="checkout-done">
-        <CircleCheck className="size-10 text-primary" aria-hidden />
-        <h1 className="text-h1">{bought.kind === "topup" ? `${bought.credits} credits added` : `You're on ${what}`}</h1>
+      <div className="flex flex-col items-center gap-5 text-center" data-testid="checkout-done">
+        <span className="ck-tick-wrap" aria-hidden>
+          <svg className="ck-tick" viewBox="0 0 56 56" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <circle className="ck-tick-circle" cx="28" cy="28" r="25" />
+            <path className="ck-tick-mark" d="M17 29 l7.5 7.5 L39 21" />
+          </svg>
+        </span>
+        <h1 className="ck-title">{bought.kind === "topup" ? `${bought.credits} credits added` : `You're on ${what}`}</h1>
         <p className="text-muted-foreground">
           {bought.kind === "topup" ? "They're in your balance now and last 12 months." : "Your new limits and credits are ready."}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
           <Link href={routes.app} className={buttonVariants()}>
             Back to practice
           </Link>
@@ -93,7 +99,7 @@ export function CheckoutWaiter({ bought, since }: { bought: Bought; since: numbe
 
   if (state === "slow") {
     return (
-      <div role="status" className="flex flex-col items-start gap-4" data-testid="checkout-slow">
+      <div role="status" className="flex max-w-lg flex-col items-center gap-4 text-center" data-testid="checkout-slow">
         <Clock className="size-10 text-muted-foreground" aria-hidden />
         <h1 className="text-h2">Still confirming your payment</h1>
         <p className="text-muted-foreground">
@@ -108,7 +114,7 @@ export function CheckoutWaiter({ bought, since }: { bought: Bought; since: numbe
   }
 
   return (
-    <div role="status" aria-live="polite" className="flex flex-col items-start gap-4" data-testid="checkout-waiting">
+    <div role="status" aria-live="polite" className="flex max-w-lg flex-col items-center gap-4 text-center" data-testid="checkout-waiting">
       <LoaderCircle className="size-10 animate-spin text-primary" aria-hidden />
       <h1 className="text-h2">Confirming your payment…</h1>
       <p className="text-muted-foreground">Payment received. We&apos;re adding {what} to your account; this takes a few seconds. Please keep this page open.</p>

@@ -262,12 +262,15 @@ export function SpeakingFlow({
       )}
 
       {phase === "mic" && (
-        <MicCheck
-          onReady={(s) => {
-            stream.current = s;
-            setPhase("card");
-          }}
-        />
+        // The microphone steps, centred (the page is wide for the card and its steps).
+        <div className="mx-auto w-full max-w-2xl">
+          <MicCheck
+            onReady={(s) => {
+              stream.current = s;
+              setPhase("card");
+            }}
+          />
+        </div>
       )}
 
       {(phase === "card" || phase === "prep" || phase === "recording") && (

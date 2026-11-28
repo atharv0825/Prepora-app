@@ -4,7 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@prepora/shared/db";
 import { MyStudyPlan, NextPick, type StudyItemKind } from "@prepora/shared/api/study-plan";
-import { listeningTestPath, readingTestPath, speakingExaminerPath, speakingTestPath, speakingTopicPath, writingTaskPath } from "./routes";
+import { listeningTestPath, readingTestPath, speakingExaminerPath, speakingTopicPath, writingTaskPath } from "./routes";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -23,7 +23,8 @@ export function studyItemHref(kind: StudyItemKind, itemId: string, extra: Record
     case "speaking_p2":
       return speakingTopicPath(itemId);
     case "speaking_full":
-      return speakingTestPath({ p1: str(extra?.p1), card: str(extra?.card) ?? itemId, p3: str(extra?.p3) });
+      // No Speaking full test any more: an older plan's item opens its cue card.
+      return speakingTopicPath(str(extra?.card) ?? itemId);
   }
 }
 

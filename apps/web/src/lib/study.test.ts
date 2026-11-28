@@ -14,7 +14,7 @@ describe("studyItemHref: a picked item → the page that starts it", () => {
     expect(studyItemHref("speaking_p1", id, { part: 1 })).toBe(`/app/speaking/examiner/${id}`);
     expect(studyItemHref("speaking_p2", id, { part: 2 })).toBe(`/app/speaking/${id}`);
   });
-  it("the Speaking full test carries its Part 1 set, card and Part 3", () => {
-    expect(studyItemHref("speaking_full", id, { card: id, p1, p3 })).toBe(`/app/speaking/test?p1=${p1}&card=${id}&p3=${p3}`);
+  it("an older plan's Speaking full test opens its cue card (there's no full test any more)", () => {
+    expect(studyItemHref("speaking_full", id, { card: id, p1, p3 })).toBe(`/app/speaking/${id}`);
   });
 });

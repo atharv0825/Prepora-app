@@ -29,7 +29,7 @@ export const routes = {
   reading: "/app/reading", // M4-F1: test list (+ ?type=academic|general|all)
   listening: "/app/listening", // Listening home: test list, allowance, attempts
   writing: "/app/writing", // M6-F1/F4: task list (+ ?type=academic|general|all), history and band trend
-  speaking: "/app/speaking", // M7-F2/M8-F3: the full test, Parts 1–3 practice, the student's tests and answers
+  speaking: "/app/speaking", // M7-F2/M8-F3: Parts 1–3 practice and the student's answers
   plan: "/app/plan", // M8.7-F2: the student's study plan
   privacy: "/privacy", // M11
   terms: "/terms", // M11
@@ -60,14 +60,6 @@ export const speakingPartPath = (part: 1 | 2) => `/app/speaking/parts/${part}`;
 export const speakingResponsePath = (responseId: string) => `/app/speaking/responses/${responseId}`;
 /** M8-F1: practise Part 1 (a question set) or Part 3 (a discussion) with the AI examiner. */
 export const speakingExaminerPath = (topicId: string) => `/app/speaking/examiner/${topicId}`;
-/**
- * M8-F2: the full test. `session` resumes one; p1/card/p3 are its topics (kept in the URL so a
- * reload asks the same questions); `not` avoids a cue card (for "Next cue card").
- */
-export const speakingTestPath = (opts: { session?: string; p1?: string; card?: string; p3?: string; not?: string } = {}) => {
-  const q = new URLSearchParams(Object.entries(opts).filter((e): e is [string, string] => Boolean(e[1])));
-  return `/app/speaking/test${q.size ? `?${q}` : ""}`;
-};
 /** M8-F3: a session's results: the overall band and each part's. */
 export const speakingSessionPath = (sessionId: string) => `/app/speaking/sessions/${sessionId}`;
 

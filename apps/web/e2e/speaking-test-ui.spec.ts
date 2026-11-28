@@ -3,13 +3,12 @@ import { ONBOARDED, adminClient, createTestUser, deleteTestUser, localSupabase, 
 
 // M8-F1..F3 in the browser (Chromium's fake microphone, playwright.config.ts; the browser's voice
 // is replaced by a recorder of what would be said, so the tests don't depend on installed voices):
-//   * Always: the Speaking home offers the full test, Part 1 sets and a card's Part 3; the full
-//     test puts its topics in the URL (a reload keeps them) and confirms its cost; a finished
-//     test's results: the overall band, each part's band and summary, "Go deeper" / "Next cue
-//     card", the test history, and a part's feedback page linking back.
+//   * Always: there's no Speaking full test (no tile, no page); an earlier full test's results:
+//     the overall band, each part's band and summary, "Go deeper", and a part's feedback page
+//     linking back.
 //   * With E2E_AI=1 (the ai-stub in CI; Storage and the functions needed): Part 1 practice with
 //     the examiner (questions read aloud in a British voice, recording after each, 4–5 answers →
-//     scored → feedback), and a whole full test Parts 1 → 2 → 3 → the results.
+//     scored → feedback).
 
 const stubAi = process.env.E2E_AI === "1";
 const stamp = Math.random().toString(36).slice(2, 8);
@@ -116,38 +115,7 @@ async function answerExaminer(page: Page, until: ReturnType<Page["getByTestId"]>
   return answers;
 }
 
-test("M8-F2 entry: the home offers the full test; its topics go in the URL; the cost is confirmed", async ({ page, context, baseURL }) => {
-  await student(context, baseURL!, "Tia Test");
-  await page.goto("/app/speaking");
-  await expect(page.getByTestId("full-test-cta")).toContainText("15 credits, charged part by part");
-  // Part 1 sets and cue cards (with their Part 3 link) are on their own pages.
-  await page.goto("/app/speaking/parts/1");
-  await expect(page.getByTestId("part1-item").filter({ hasText: `E2E hometown ${stamp}` })).toBeVisible();
-  await page.goto("/app/speaking/parts/2");
-  const card = page.getByTestId("cue-card-item").filter({ hasText: `E2E a park ${stamp}` });
-  await expect(card.getByTestId("part3-link")).toHaveAttribute("href", /\/app\/speaking\/examiner\/[0-9a-f-]{36}$/);
-  await page.getByTestId("back-to-speaking").click();
-
-  await page.getByRole("link", { name: "Start the full test" }).click();
-  await expect(page).toHaveURL(/\/app\/speaking\/test\?p1=[0-9a-f-]{36}&card=[0-9a-f-]{36}&p3=[0-9a-f-]{36}$/);
-  const chosen = page.url();
-  await page.reload();
-  expect(page.url()).toBe(chosen); // the same questions after a reload
-  await expect(page.getByTestId("test-progress").getByRole("listitem")).toHaveText([/Part 1/, /Part 2/, /Part 3/]);
-  await page.getByRole("button", { name: "Start the full test" }).click();
-  await expect(page.getByRole("dialog").getByRole("heading")).toHaveText("This costs 15 credits");
-  await page.getByRole("dialog").getByRole("button", { name: "Start the test" }).click();
-  await expect(page.getByTestId("mic-explainer")).toBeVisible();
-
-  // A chosen card is kept; "Next cue card" (not=) avoids it when another exists.
-  await page.goto(`/app/speaking/test?p1=${ids.set}&card=${ids.card}&p3=${ids.discussion}`);
-  await expect(page).toHaveURL(new RegExp(`card=${ids.card}&p3=${ids.discussion}$`));
-  await page.goto(`/app/speaking/test?not=${ids.card}`);
-  await expect(page).toHaveURL(/card=/);
-  // (Other tests' cards may exist locally; with this one only, it would be reused.)
-});
-
-test("M8-F3: a finished full test — overall band, each part, go deeper / next card, history", async ({ page, context, baseURL }) => {
+test("M8-F3: an earlier full test's results — overall band, each part, go deeper; no full test any more", async ({ page, context, baseURL }) => {
   const u = await student(context, baseURL!, "Rae Results");
   const db = adminClient();
   const session = crypto.randomUUID();
@@ -191,9 +159,9 @@ test("M8-F3: a finished full test — overall band, each part, go deeper / next 
   await expect(page.getByTestId("part-3")).toContainText(`E2E public spaces ${stamp}`);
   await expect(page.getByTestId("part-3")).toContainText("Part three summary.");
   await expect(page.getByTestId("part-1")).toContainText("Fluency");
-  // Go deeper: the card's other discussion; next card: a new test avoiding this card.
+  // Go deeper: the card's other discussion. No "Next cue card" (it started a new full test).
   await expect(page.getByTestId("go-deeper")).toHaveAttribute("href", `/app/speaking/examiner/${ids.discussion2}`);
-  await expect(page.getByTestId("next-card")).toHaveAttribute("href", `/app/speaking/test?not=${ids.card}`);
+  await expect(page.getByTestId("next-card")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("speaking-session-results.png"), fullPage: true });
 
   // A part's feedback says where it came from and links back.
@@ -204,16 +172,15 @@ test("M8-F3: a finished full test — overall band, each part, go deeper / next 
   await page.getByRole("link", { name: "Back to the test results" }).click();
   await expect(page).toHaveURL(new RegExp(`/app/speaking/sessions/${session}$`));
 
-  // History: the test with its band, and every part.
+  // The home: every part in the history; no full test tile or test list.
   await page.goto("/app/speaking");
-  await expect(page.getByTestId("test-history").getByRole("listitem")).toHaveCount(1);
-  await expect(page.getByTestId("test-history")).toContainText("6.5");
+  await expect(page.getByTestId("full-test-cta")).toHaveCount(0);
+  await expect(page.getByTestId("test-history")).toHaveCount(0);
   await expect(page.getByTestId("speaking-history").getByRole("listitem")).toHaveCount(3);
   await expect(page.getByTestId("speaking-history")).toContainText("Part 3");
 
-  // A finished test can't be "resumed": it goes to its results.
-  await page.goto(`/app/speaking/test?session=${session}`);
-  await expect(page).toHaveURL(new RegExp(`/app/speaking/sessions/${session}$`));
+  // The full test page is gone.
+  expect((await page.goto("/app/speaking/test"))?.status()).toBe(404);
 });
 
 test("M8-F1 (functions routed in the browser): the turn loop, what's sent, and a scoring retry", async ({ page, context, baseURL }) => {
@@ -293,37 +260,4 @@ test.describe("with the examiner (stubbed AI)", () => {
     expect(said[0]).toEqual({ text: "Where is your hometown?", lang: "en-GB", voice: "UK English" });
   });
 
-  test("M8-F2: a full test — Part 1 → Part 2 → Part 3 → the results", async ({ page, context, baseURL }) => {
-    test.setTimeout(360_000);
-    await student(context, baseURL!, "Flo Fulltest");
-    await fakeVoice(page);
-    await page.goto(`/app/speaking/test?p1=${ids.set}&card=${ids.card}&p3=${ids.discussion}`);
-    await page.getByRole("button", { name: "Start the full test" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Start the test" }).click();
-    await micCheck(page);
-    await expect(page).toHaveURL(/session=[0-9a-f-]{36}/); // a reload resumes this test
-
-    // Part 1 with the examiner.
-    expect(await answerExaminer(page, page.getByTestId("test-break"))).toBeGreaterThanOrEqual(4);
-    await expect(page.getByTestId("test-break")).toContainText("Part 1 done");
-    await page.getByRole("button", { name: "Start Part 2" }).click();
-
-    // Part 2: the M7 cue card flow, inside the test (no second cost dialog).
-    await expect(page.getByTestId("cue-card")).toContainText(`E2E a park ${stamp}`);
-    await page.getByRole("button", { name: "Start my 1 minute" }).click();
-    await page.getByRole("button", { name: "Start speaking now" }).click();
-    await page.waitForTimeout(2_000);
-    await page.getByRole("button", { name: "Stop" }).click();
-    await page.getByRole("button", { name: "Send and continue to Part 3" }).click();
-    await expect(page.getByTestId("test-break")).toContainText("Part 2 done", { timeout: 120_000 });
-    await page.getByRole("button", { name: "Start Part 3" }).click();
-
-    // Part 3: a discussion following the card, then the results.
-    await expect(page.getByTestId("examiner")).toContainText(`E2E public spaces ${stamp}`, { timeout: 60_000 });
-    expect(await answerExaminer(page, page.getByTestId("overall-band"))).toBeGreaterThanOrEqual(4);
-    await expect(page).toHaveURL(/\/app\/speaking\/sessions\/[0-9a-f-]{36}$/);
-    await expect(page.getByTestId("overall-band")).toHaveText("6.0");
-    for (const p of [1, 2, 3]) await expect(page.getByTestId(`part-${p}-band`)).toHaveText("6.0");
-    await expect(page.getByTestId("go-deeper")).toBeVisible();
-  });
 });

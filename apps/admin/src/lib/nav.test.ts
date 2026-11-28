@@ -4,9 +4,9 @@ import { findModule, isActive, navGroups, placeholderModules, sectionModules } f
 describe("admin navigation", () => {
   const all = navGroups.flatMap((g) => g.items);
 
-  it("has the 14 modules (plan §6 + Countries, M2-A2, + Study plans, M8.7-A1) with unique slugs", () => {
-    expect(all).toHaveLength(14);
-    expect(new Set(all.map((m) => m.slug)).size).toBe(14);
+  it("has the 15 modules (plan §6 + Countries, M2-A2, + Study plans, M8.7-A1, + Subscriptions, M9-A1) with unique slugs", () => {
+    expect(all).toHaveLength(15);
+    expect(new Set(all.map((m) => m.slug)).size).toBe(15);
   });
 
   it("every module names a milestone and at least one planned feature", () => {
@@ -18,7 +18,7 @@ describe("admin navigation", () => {
 
   it("section pages exclude the dashboard (it has its own page)", () => {
     expect(sectionModules.some((m) => m.slug === "dashboard")).toBe(false);
-    expect(sectionModules).toHaveLength(13);
+    expect(sectionModules).toHaveLength(14);
   });
 
   it("placeholder pages skip built modules (they have their own route)", () => {
@@ -32,6 +32,7 @@ describe("admin navigation", () => {
     expect(findModule("writing")?.built).toBe(true);
     expect(findModule("speaking")?.built).toBe(true);
     expect(findModule("study-plans")?.built).toBe(true);
+    expect(findModule("subscriptions")?.built).toBe(true);
     expect(placeholderModules.some((m) => m.slug === "users")).toBe(false);
     expect(placeholderModules.every((m) => !m.built)).toBe(true);
   });

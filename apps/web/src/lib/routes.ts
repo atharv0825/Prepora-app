@@ -23,9 +23,11 @@ export const routes = {
   profile: "/app/profile", // M1-F3
   onboarding: "/app/onboarding", // M2-F2: 3 steps after the first sign-in
   credits: "/app/credits", // M3-F1: "Credits & usage"
-  // M3-F3: where the upgrade / top-up buttons go. A placeholder page until billing (M9-F3).
+  // M3-F3 buttons and paywalls → the plans page, where plans and top-ups are bought (M9-F1…F3).
   upgrade: "/app/plans",
   topUp: "/app/plans#top-up",
+  checkoutDone: "/app/plans/success", // M9-F2: waits for the payment webhook (?price=&since=)
+  subscription: "/app/profile#subscription", // M9-F3: "Manage subscription" in settings
   reading: "/app/reading", // M4-F1: test list (+ ?type=academic|general|all)
   listening: "/app/listening", // Listening home: test list, allowance, attempts
   writing: "/app/writing", // M6-F1/F4: task list (+ ?type=academic|general|all), history and band trend

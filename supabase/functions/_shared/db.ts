@@ -1431,6 +1431,7 @@ export type Database = {
           id: number
         }[]
       }
+      admin_billing_summary: { Args: never; Returns: Json }
       admin_get_listening_test: { Args: { p_test_id: string }; Returns: Json }
       admin_get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       admin_get_user: {
@@ -1479,6 +1480,31 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_subscriptions: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_status?: Database["public"]["Enums"]["subscription_status"]
+        }
+        Returns: {
+          amount_minor: number
+          cancel_at_period_end: boolean
+          created_at: string
+          currency: string
+          current_period_end: string
+          email: string
+          full_name: string
+          id: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          provider: Database["public"]["Enums"]["payment_provider"]
+          scheduled_plan_id: Database["public"]["Enums"]["plan_tier"]
+          status: Database["public"]["Enums"]["subscription_status"]
+          total_count: number
+          user_id: string
+        }[]
+      }
       admin_list_users: {
         Args: {
           p_country?: string
@@ -1522,6 +1548,16 @@ export type Database = {
         }
         Returns: string
       }
+      admin_set_manual_plan: {
+        Args: {
+          p_days: number
+          p_grant_credits: boolean
+          p_note: string
+          p_plan: Database["public"]["Enums"]["plan_tier"]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       admin_set_study_template_active: {
         Args: { p_active: boolean; p_id: string }
         Returns: undefined
@@ -1547,6 +1583,36 @@ export type Database = {
           refunded: boolean
           reservation_id: string
         }[]
+      }
+      admin_user_subscriptions: {
+        Args: { p_user_id: string }
+        Returns: {
+          amount_minor: number | null
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          currency: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          past_due_since: string | null
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          price_id: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          scheduled_price_id: string | null
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "subscriptions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       admin_waitlist_by_country: {
         Args: never

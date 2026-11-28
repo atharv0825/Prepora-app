@@ -231,3 +231,33 @@ export const ManageSubscriptionResponse = z.union([
   z.object({ subscription: SubscriptionSummary }).strict(),
 ]);
 export type ManageSubscriptionResponse = z.infer<typeof ManageSubscriptionResponse>;
+
+// ── Money ───────────────────────────────────────────────────────────────────────────────────
+/**
+ * An amount in a currency's minor unit, for people: 29900 INR → "₹299", 1099 USD → "$10.99",
+ * 1500 JPY → "JP¥1,500" (the exponent comes from Intl, so zero-decimal currencies work).
+ */
+export function formatMoney(amountMinor: number, currency: string, locale = "en-IN"): string {
+  const base = new Intl.NumberFormat(locale, { style: "currency", currency });
+  const digits = base.resolvedOptions().maximumFractionDigits ?? 2;
+  const value = amountMinor / 10 ** digits;
+  const whole = Number.isInteger(value);
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: whole ? 0 : digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
+// ── Checkout success (M9-F2) ────────────────────────────────────────────────────────────────
+/**
+ * Has the webhook landed? The success page polls until it has: a plan purchase is done when the
+ * profile shows that plan; a top-up when a top-up bucket appeared after checkout started.
+ */
+export function purchaseConfirmed(
+  bought: { kind: "subscription" | "exam_pack" | "topup"; plan_id: string | null },
+  now: { plan: string; topupSince: boolean },
+): boolean {
+  return bought.kind === "topup" ? now.topupSince : now.plan === bought.plan_id;
+}

@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   Mic,
   PenLine,
+  Receipt,
   ScrollText,
   Settings,
   Sparkles,
@@ -204,6 +205,19 @@ export const navGroups: NavGroup[] = [
           "Balance and full ledger per user",
           "Grant or refund credits (support)",
           "Real AI cost per credit from ai_usage (M11)",
+        ],
+      },
+      {
+        slug: "subscriptions",
+        label: "Subscriptions",
+        icon: Receipt,
+        milestone: "M9",
+        built: true, // M9-A1: list, revenue by currency, manual plan change on the user page
+        summary: "Paid plans, revenue by currency and support plan changes.",
+        features: [
+          "Subscriptions and exam packs with status and period",
+          "Revenue by currency (net, refunded, last 30 days)",
+          "Manual plan change for support cases",
         ],
       },
     ],

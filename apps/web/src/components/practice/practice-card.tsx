@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { patternStyle } from "./patterns";
+import { CARD_LAYER, patternStyle } from "./patterns";
 import { CARD_3D_CLASS, doneStyle, freshStyle, LIFT_CLASS, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
 
 export type { PracticeModule } from "./themes";
@@ -53,6 +53,14 @@ const base = cn(
 
 // A faint dot pattern in the top-right corner of the coloured card, fading out towards the middle.
 const DOTS: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  width: 128,
+  height: 128,
+  zIndex: -1,
+  opacity: 0.25,
+  pointerEvents: "none",
   backgroundImage: "radial-gradient(rgb(255 255 255 / 0.9) 1px, transparent 1.5px)",
   backgroundSize: "10px 10px",
   maskImage: "radial-gradient(circle at top right, black, transparent 70%)",
@@ -100,24 +108,21 @@ export function PracticeCard({
       : look === "fresh"
         ? cn(LIFT_CLASS, light ? "text-white" : "text-brand-ink")
         : cn(SURFACE_CLASS, LIFT_CLASS, "text-brand-ink dark:text-foreground");
-  const style = look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module, variant) : undefined;
+  const style = { ...CARD_LAYER, ...(look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module, variant) : null) };
 
   return (
     <div className={cn(base, className)} style={style} data-state={look} data-module={module}>
       {/* Small faint icons (books, planes, cities…) over the whole card, under the content. */}
-      <span
-        aria-hidden
-        className={cn("pointer-events-none absolute inset-0 -z-10", onGreen ? "opacity-[0.13]" : cn(look === "done" ? "opacity-[0.09]" : "opacity-[0.05]", "dark:opacity-[0.07] dark:invert"))}
-        style={patternStyle(variant)}
-      />
-      {onGreen && <span aria-hidden className="pointer-events-none absolute top-0 right-0 -z-10 size-32 opacity-25" style={DOTS} />}
+      <span aria-hidden className={onGreen ? undefined : "dark:invert"} style={patternStyle(variant, onGreen ? "strong" : look === "done" ? "medium" : "soft")} />
+      {onGreen && <span aria-hidden style={DOTS} />}
       <span className="flex items-center gap-3.5">
         <span
           aria-hidden
           className={cn(
             "grid size-14 shrink-0 place-items-center rounded-full",
-            onGreen ? "bg-white/[0.18] ring-1 ring-white/35" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
+            !onGreen && "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
           )}
+          style={onGreen ? { backgroundColor: "rgb(255 255 255 / 0.18)", boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.35)" } : undefined}
         >
           {lockedPlan ? <Lock className="size-6" strokeWidth={1.5} /> : <Icon className="size-6" strokeWidth={1.5} />}
         </span>
@@ -165,8 +170,10 @@ export function PracticeCard({
           aria-hidden
           className={cn(
             "grid size-11 shrink-0 place-items-center rounded-full text-white transition-transform duration-400 group-hover:translate-x-0.5",
-            onGreen ? "bg-[#0b1220] shadow-[0_6px_14px_-6px_rgb(11_18_32/0.6)]" : "bg-[#0b1220] dark:bg-white/15",
+            !onGreen && "dark:bg-white/15!",
           )}
+          // Inline, like the card colours: the dark circle can't go missing.
+          style={{ backgroundColor: "#0b1220", boxShadow: onGreen ? "0 6px 14px -6px rgb(11 18 32 / 0.6)" : undefined }}
         >
           <ArrowRight className="size-5" />
         </span>

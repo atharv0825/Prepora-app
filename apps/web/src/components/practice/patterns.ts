@@ -33,20 +33,43 @@ const TILES: Placed[][] = [
   [["sparkle", 6, 6, 0, 11], ["book", 40, 10, 6, 15], ["city", 88, 14, 0, 15], ["pencil", 10, 52, 0, 14], ["star", 60, 56, -14, 12], ["plane", 82, 92, 70, 15], ["bag", 30, 90, 10, 14]],
 ];
 
-function tile(icons: Placed[]): string {
+function tile(icons: Placed[], strength: number): string {
   const body = icons
     .map(([name, x, y, rot, size]) => {
       const k = size / 24;
       return `<g transform="translate(${x} ${y}) rotate(${rot} ${size / 2} ${size / 2}) scale(${k})">${ICON[name]}</g>`;
     })
     .join("");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><g fill="#08122a" stroke="#08122a" stroke-linecap="round" stroke-linejoin="round" stroke-width="0">${body}</g></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><g fill="#08122a" stroke="#08122a" fill-opacity="${strength}" stroke-opacity="${strength}" stroke-linecap="round" stroke-linejoin="round" stroke-width="0">${body}</g></svg>`;
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 
-const URLS = TILES.map(tile);
+/** How dark the icons are: on a coloured card, on a taken card, on a pale card (Pick, locked). */
+export type PatternStrength = "strong" | "medium" | "soft";
+const ALPHA: Record<PatternStrength, number> = { strong: 0.14, medium: 0.1, soft: 0.06 };
+const URLS = Object.fromEntries(
+  (Object.keys(ALPHA) as PatternStrength[]).map((s) => [s, TILES.map((t) => tile(t, ALPHA[s]))]),
+) as Record<PatternStrength, string[]>;
 
-/** The pattern layer's style for card number `variant` (any whole number; it wraps). */
-export function patternStyle(variant: number): CSSProperties {
-  return { backgroundImage: URLS[((variant % VARIANTS) + VARIANTS) % VARIANTS], backgroundSize: "120px 120px" };
+/**
+ * The card must be a positioning and stacking context with clipped corners (CARD_LAYER), so the
+ * pattern layer sits under the card's content and inside its rounded edge.
+ */
+export const CARD_LAYER: CSSProperties = { position: "relative", isolation: "isolate", overflow: "hidden" };
+
+/**
+ * The pattern layer for card number `variant` (any whole number; it wraps): the whole card, under
+ * its content. The faintness is in the SVG itself (a low fill opacity of a dark ink), so the icons
+ * read as a slightly darker shade of the card colour. All inline, so it never depends on generated
+ * classes (a stale stylesheet once drew the icons solid black over the text).
+ */
+export function patternStyle(variant: number, strength: PatternStrength): CSSProperties {
+  return {
+    position: "absolute",
+    inset: 0,
+    zIndex: -1,
+    pointerEvents: "none",
+    backgroundImage: URLS[strength][((variant % VARIANTS) + VARIANTS) % VARIANTS],
+    backgroundSize: "120px 120px",
+  };
 }

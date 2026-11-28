@@ -98,6 +98,79 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_grants: {
+        Row: {
+          amount_minor: number | null
+          bucket_id: string | null
+          created_at: string
+          credits: number
+          currency: string | null
+          grant_key: string
+          id: string
+          kind: string
+          price_id: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_payment_id: string | null
+          refunded_at: string | null
+          subscription_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount_minor?: number | null
+          bucket_id?: string | null
+          created_at?: string
+          credits: number
+          currency?: string | null
+          grant_key: string
+          id?: string
+          kind: string
+          price_id?: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_payment_id?: string | null
+          refunded_at?: string | null
+          subscription_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount_minor?: number | null
+          bucket_id?: string | null
+          created_at?: string
+          credits?: number
+          currency?: string | null
+          grant_key?: string
+          id?: string
+          kind?: string
+          price_id?: string | null
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          provider_payment_id?: string | null
+          refunded_at?: string | null
+          subscription_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_grants_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "credit_buckets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_grants_price_id_fkey"
+            columns: ["price_id"]
+            isOneToOne: false
+            referencedRelation: "prices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_grants_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       country_regions: {
         Row: {
           country_code: string
@@ -991,11 +1064,13 @@ export type Database = {
           current_period_start: string
           id: string
           kind: Database["public"]["Enums"]["price_kind"]
+          past_due_since: string | null
           plan_id: Database["public"]["Enums"]["plan_tier"]
           price_id: string | null
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          scheduled_price_id: string | null
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
           user_id: string
@@ -1010,11 +1085,13 @@ export type Database = {
           current_period_start?: string
           id?: string
           kind: Database["public"]["Enums"]["price_kind"]
+          past_due_since?: string | null
           plan_id: Database["public"]["Enums"]["plan_tier"]
           price_id?: string | null
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          scheduled_price_id?: string | null
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
           user_id: string
@@ -1029,11 +1106,13 @@ export type Database = {
           current_period_start?: string
           id?: string
           kind?: Database["public"]["Enums"]["price_kind"]
+          past_due_since?: string | null
           plan_id?: Database["public"]["Enums"]["plan_tier"]
           price_id?: string | null
           provider?: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          scheduled_price_id?: string | null
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
           user_id?: string
@@ -1042,6 +1121,13 @@ export type Database = {
           {
             foreignKeyName: "subscriptions_price_id_fkey"
             columns: ["price_id"]
+            isOneToOne: false
+            referencedRelation: "prices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_scheduled_price_id_fkey"
+            columns: ["scheduled_price_id"]
             isOneToOne: false
             referencedRelation: "prices"
             referencedColumns: ["id"]
@@ -1472,6 +1558,105 @@ export type Database = {
       }
       allowance_period_start: { Args: never; Returns: string }
       assign_my_study_plan: { Args: { p_restart?: boolean }; Returns: Json }
+      billing_apply_event: {
+        Args: { p_event: Json; p_id: number }
+        Returns: Json
+      }
+      billing_event_failed: {
+        Args: { p_error: string; p_id: number }
+        Returns: undefined
+      }
+      billing_grant: {
+        Args: {
+          p_amount_minor: number
+          p_credits: number
+          p_currency: string
+          p_expires_at: string
+          p_key: string
+          p_kind: string
+          p_payment_id: string
+          p_price_id: string
+          p_provider: Database["public"]["Enums"]["payment_provider"]
+          p_source: Database["public"]["Enums"]["credit_source"]
+          p_subscription_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      billing_maintenance: { Args: never; Returns: Json }
+      billing_mark_cancel: {
+        Args: { p_subscription_id: string }
+        Returns: {
+          amount_minor: number | null
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          currency: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          past_due_since: string | null
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          price_id: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          scheduled_price_id: string | null
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscriptions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      billing_mark_scheduled_change: {
+        Args: { p_price_id: string; p_subscription_id: string }
+        Returns: {
+          amount_minor: number | null
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          currency: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          past_due_since: string | null
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          price_id: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          scheduled_price_id: string | null
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscriptions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      billing_record_event: {
+        Args: {
+          p_event_id: string
+          p_event_type: string
+          p_payload: Json
+          p_provider: Database["public"]["Enums"]["payment_provider"]
+        }
+        Returns: Json
+      }
+      billing_sync_profile: {
+        Args: { p_user_id: string }
+        Returns: Database["public"]["Enums"]["plan_tier"]
+      }
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }
       credits_spent_today: { Args: { p_user_id: string }; Returns: number }
@@ -1487,6 +1672,7 @@ export type Database = {
       get_my_dashboard: { Args: never; Returns: Json }
       get_my_streak: { Args: { p_days?: number }; Returns: Json }
       get_my_study_plan: { Args: never; Returns: Json }
+      get_prices: { Args: { p_country: string }; Returns: Json }
       get_reading_test: { Args: { p_test_id: string }; Returns: Json }
       grant_credits: {
         Args: {
@@ -1526,6 +1712,31 @@ export type Database = {
       plan_rank: {
         Args: { p_plan: Database["public"]["Enums"]["plan_tier"] }
         Returns: number
+      }
+      prices_for_country: {
+        Args: { p_country: string }
+        Returns: {
+          amount_minor: number
+          country_code: string | null
+          created_at: string
+          credits: number | null
+          currency: string
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["price_kind"]
+          period: Database["public"]["Enums"]["billing_period"] | null
+          plan_id: Database["public"]["Enums"]["plan_tier"] | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_price_id: string | null
+          region: Database["public"]["Enums"]["market_region"]
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "prices"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       reading_test_title: {
         Args: {
@@ -1587,6 +1798,15 @@ export type Database = {
       study_template_kinds: {
         Args: never
         Returns: Database["public"]["Enums"]["study_item_kind"][]
+      }
+      subscription_access_until: {
+        Args: {
+          p_cancel_at_period_end: boolean
+          p_kind: Database["public"]["Enums"]["price_kind"]
+          p_period_end: string
+          p_status: Database["public"]["Enums"]["subscription_status"]
+        }
+        Returns: string
       }
       use_allowance: {
         Args: { p_type: string; p_user_id: string }

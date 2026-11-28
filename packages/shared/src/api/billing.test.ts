@@ -9,6 +9,9 @@ import {
   billingErrorStatus,
   billingEventActions,
   checkoutProviders,
+  GetPricesResult,
+  ManageSubscriptionRequest,
+  ManageSubscriptionResponse,
 } from "./billing";
 
 const razorpayBase = {
@@ -116,5 +119,32 @@ describe("webhook event mapping", () => {
     expect(billingAction("razorpay", "invoice.paid")).toBe("ignored");
     expect(billingAction("paddle", "toString")).toBe("ignored");
     expect(billingAction("paddle", "__proto__")).toBe("ignored");
+  });
+});
+
+describe("GetPricesResult", () => {
+  const offer = { id: "in_gold_month", plan_id: "gold", period: "month", credits: null, currency: "INR", amount_minor: 29900 };
+  it("accepts get_prices output and null", () => {
+    expect(GetPricesResult.parse({ country: "IN", region: "IN", enabled: true, provider: "razorpay", subscriptions: [offer], exam_packs: [], topups: [] })?.subscriptions[0]?.id).toBe("in_gold_month");
+    expect(GetPricesResult.parse(null)).toBeNull();
+  });
+  it("rejects a Free offer", () => {
+    expect(GetPricesResult.safeParse({ country: "IN", region: "IN", enabled: true, provider: "razorpay", subscriptions: [{ ...offer, plan_id: "free" }], exam_packs: [], topups: [] }).success).toBe(false);
+  });
+});
+
+describe("manage-subscription", () => {
+  it("takes portal, cancel or change_plan with a price", () => {
+    expect(ManageSubscriptionRequest.parse({ action: "cancel" })).toEqual({ action: "cancel" });
+    expect(ManageSubscriptionRequest.safeParse({ action: "change_plan" }).success).toBe(false);
+    expect(ManageSubscriptionRequest.safeParse({ action: "refund" }).success).toBe(false);
+  });
+  it("answers with a portal url or the subscription", () => {
+    expect(ManageSubscriptionResponse.safeParse({ url: "https://sandbox-customer-portal.paddle.com/x" }).success).toBe(true);
+    const subscription = {
+      id: "0b6a4c1e-2f5d-4a8b-9c3e-1d2f3a4b5c6d", plan_id: "platinum", provider: "razorpay", status: "active",
+      current_period_end: "2027-02-01T00:00:00Z", cancel_at_period_end: false, scheduled_plan_id: "gold",
+    };
+    expect(ManageSubscriptionResponse.safeParse({ subscription }).success).toBe(true);
   });
 });

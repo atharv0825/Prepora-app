@@ -29,12 +29,12 @@ const RANK = { free: 0, gold: 1, platinum: 2 } as const;
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
 type Quote = { amount_minor: number; credits: number; days_left: number };
-type Confirm = { kind: "cancel" } | { kind: "change"; offer: Offer } | { kind: "pack"; offer: Offer; quote: Quote } | null;
+type Confirm = { kind: "change"; offer: Offer } | { kind: "pack"; offer: Offer; quote: Quote } | null;
 
 /**
  * M9-F3: "Manage subscription" in Settings. Shows the running plan (renews / ends / payment
- * failed / downgrade booked) and, for a monthly plan, Change plan, Cancel and (Paddle) the billing
- * portal: manage-subscription (M9-B5). An exam pack can be upgraded to a higher plan's pack for the
+ * failed / downgrade booked) and, for a monthly plan, Change plan and (Paddle) the billing
+ * portal: manage-subscription (M9-B5). Students can't cancel; support ends plans. An exam pack can be upgraded to a higher plan's pack for the
  * days left (pay the prorated difference in the provider's checkout); plans given by support just
  * show their end.
  */
@@ -196,32 +196,11 @@ export function SubscriptionSettings({
                 {RANK[o.plan_id!] > RANK[s.plan_id] ? "Upgrade" : "Switch"} to {NAME[o.plan_id!]}
               </Button>
             ))}
-          {!s.cancel_at_period_end && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm({ kind: "cancel" })} data-testid="cancel-subscription">
-              Cancel subscription
-            </Button>
-          )}
         </div>
       )}
 
       <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <DialogContent>
-          {confirm?.kind === "cancel" && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Cancel {NAME[s.plan_id]}?</DialogTitle>
-                <DialogDescription>
-                  You keep {NAME[s.plan_id]} and your credits until {day(s.current_period_end)}. After that you&apos;re on Free and won&apos;t be charged again.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <DialogClose render={<Button type="button" variant="outline" />}>Keep my plan</DialogClose>
-                <Button type="button" variant="destructive" disabled={busy} onClick={() => manage({ action: "cancel" }, `Cancelled. ${NAME[s.plan_id]} lasts until ${day(s.current_period_end)}.`)}>
-                  {busy ? "Cancelling…" : "Cancel subscription"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
           {confirm?.kind === "change" && (
             <>
               <DialogHeader>
@@ -232,7 +211,7 @@ export function SubscriptionSettings({
                   {RANK[confirm.offer.plan_id!] > RANK[s.plan_id]
                     ? `It starts now. You pay the difference for the rest of this month, and get the extra credits straight away. From ${day(s.current_period_end)} it's ${formatMoney(confirm.offer.amount_minor, confirm.offer.currency)} a month.`
                     : `You keep ${NAME[s.plan_id]} until ${day(s.current_period_end)}. Then it's ${NAME[confirm.offer.plan_id!]} at ${formatMoney(confirm.offer.amount_minor, confirm.offer.currency)} a month.`}
-                  {s.provider === "razorpay" && " You'll approve the new plan in Razorpay (UPI or card); your current one then stops renewing."}
+                  {s.provider === "razorpay" && " You'll approve the new plan in Razorpay (UPI or card); your current one is replaced."}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

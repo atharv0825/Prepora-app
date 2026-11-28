@@ -216,11 +216,10 @@ export const GetPricesResult = z
 export type GetPricesResult = z.infer<typeof GetPricesResult>;
 
 // ── manage-subscription (M9-B4/B5) ──────────────────────────────────────────────────────────
+/** Students change plan; they can't cancel (support ends plans from the admin panel). */
 export const ManageSubscriptionRequest = z.discriminatedUnion("action", [
   /** Paddle's customer portal (payment method, invoices). Razorpay has none: 409 conflict. */
   z.object({ action: z.literal("portal") }).strict(),
-  /** Cancel at the period end: the plan lasts until then. */
-  z.object({ action: z.literal("cancel") }).strict(),
   /**
    * Monthly: upgrade at once (credit difference granted) or downgrade from the period end.
    * Exam pack: upgrade to a higher plan's exam pack for the days left (answer: { checkout }).

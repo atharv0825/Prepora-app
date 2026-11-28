@@ -204,8 +204,14 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
           <p className="text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
         </div>
         {/* Like Listening's start screen: how it works, then one button, in the section colour. */}
-        <section className="fit-screen-intro flex flex-col gap-3 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="reading-intro">
-          <h2 className="text-h3">How it works</h2>
+        <section className="fit-screen-intro flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="reading-intro">
+          {/* How it works, with the start button on the right. */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-h3">How it works</h2>
+            <Button size="lg" onClick={start}>
+              Start the test <ArrowRight />
+            </Button>
+          </div>
           <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
             <IntroLine icon={Clock}>
               60 minutes for {passages.length} passages and {allNos.length} questions.
@@ -228,9 +234,6 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               </IntroLine>
             )}
           </ul>
-          <Button size="lg" onClick={start} className="self-start">
-            Start the test <ArrowRight />
-          </Button>
         </section>
       </div>
     );

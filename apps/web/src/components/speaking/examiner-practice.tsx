@@ -41,16 +41,30 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
 
   if (step === "intro") {
     return (
-      <section className="fit-screen-intro intro-split rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="examiner-intro">
-        <div className="flex flex-col gap-3">
+      <section className="fit-screen-intro flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="examiner-intro">
+        {/* How it works, with the start button on the right. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-h3">How it works</h2>
+          <CostConfirm
+            actionKey={SPEAKING_PARTS[part].actionKey}
+            description={`Part ${part} with the AI examiner, scored at the end. Nothing is charged if it can't be scored.`}
+            confirmLabel="Start"
+            onConfirm={() => setStep("mic")}
+            trigger={
+              <Button size="lg">
+                <Mic /> Start Part {part} · {mode === "exam" ? "Exam" : "Practice"}
+              </Button>
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-3">
           <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
             <li>The examiner asks 4–5 questions, out loud and on screen{part === 3 ? ", following up on what you say" : ""}.</li>
             <li>Tap Done when you&apos;ve answered each one.</li>
             <li>At the end you get a band for each criterion, your transcript and feedback.</li>
           </ul>
         </div>
-        <div className="intro-choices grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="speaking-mode">
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="speaking-mode">
           <ModeOption
             selected={mode === "exam"}
             onSelect={() => setMode("exam")}
@@ -66,19 +80,6 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
             title="Practice mode"
             body="Start answering when you're ready. Hear the question again or stop it at any time, even while answering, and record an answer again."
             testId="mode-practice"
-          />
-        </div>
-        <div className="intro-go">
-          <CostConfirm
-            actionKey={SPEAKING_PARTS[part].actionKey}
-            description={`Part ${part} with the AI examiner, scored at the end. Nothing is charged if it can't be scored.`}
-            confirmLabel="Start"
-            onConfirm={() => setStep("mic")}
-            trigger={
-              <Button className="self-start">
-                <Mic /> Start Part {part} · {mode === "exam" ? "Exam" : "Practice"}
-              </Button>
-            }
           />
         </div>
       </section>

@@ -67,11 +67,10 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
             <li>
               <PickCard kind={part === 1 ? "speaking_p1" : "speaking_p2"} module="speaking" note={part === 1 ? "A Part 1 topic you haven't answered yet." : "A cue card you haven't answered yet."} />
             </li>
-            {items.map((t, i) =>
+            {items.map((t) =>
               part === 1 ? (
                 <li key={t.id} data-testid="part1-item">
                   <PracticeCard
-                    variant={i + 1}
                     module="speaking"
                     href={speakingExaminerPath(t.id)}
                     title={t.title}
@@ -85,7 +84,6 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
               ) : (
                 <li key={t.id} data-testid="cue-card-item">
                   <PracticeCard
-                    variant={i + 1}
                     module="speaking"
                     href={speakingTopicPath(t.id)}
                     title={t.title}

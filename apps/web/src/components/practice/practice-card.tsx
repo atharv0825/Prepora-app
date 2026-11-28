@@ -1,9 +1,7 @@
-import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { CARD_LAYER, patternStyle } from "./patterns";
-import { CARD_3D_CLASS, doneStyle, freshStyle, LIFT_CLASS, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
+import { doneStyle, freshStyle, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
 
 export type { PracticeModule } from "./themes";
 
@@ -40,32 +38,11 @@ export type PracticeCardProps = {
   planTag?: string | null;
   /** A second link on the card (e.g. Speaking Part 3). */
   extraLink?: { href: string; label: string; icon?: LucideIcon; testId?: string };
-  /** The card's place in its list: picks its colour shade and icon pattern, so neighbours differ. */
-  variant?: number;
 };
 
-// The 3D tilt and lift on hover come from CARD_3D_CLASS; the shadow grows with it (LIFT_CLASS).
-const base = cn(
-  "group relative isolate overflow-hidden",
-  CARD_3D_CLASS,
-  "has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring",
-);
-
-// A faint dot pattern in the top-right corner of the coloured card, fading out towards the middle.
-const DOTS: CSSProperties = {
-  position: "absolute",
-  top: 0,
-  right: 0,
-  width: 128,
-  height: 128,
-  zIndex: -1,
-  opacity: 0.25,
-  pointerEvents: "none",
-  backgroundImage: "radial-gradient(rgb(255 255 255 / 0.9) 1px, transparent 1.5px)",
-  backgroundSize: "10px 10px",
-  maskImage: "radial-gradient(circle at top right, black, transparent 70%)",
-  WebkitMaskImage: "radial-gradient(circle at top right, black, transparent 70%)",
-};
+const base =
+  "group relative flex h-full min-h-28 flex-col justify-between gap-3 rounded-2xl p-4 transition-[transform,box-shadow] duration-200 " +
+  "hover:-translate-y-0.5 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0";
 
 const DOT: Record<PracticeModule, string> = {
   reading: "bg-chart-reading",
@@ -92,7 +69,6 @@ export function PracticeCard({
   lockedPlan,
   planTag,
   extraLink,
-  variant = 0,
 }: PracticeCardProps) {
   const look = lockedPlan ? "locked" : done ? "done" : "fresh";
   const label = lockedPlan ? `Unlock with ${lockedPlan}` : `${done ? verbs.again : verbs.start}: ${title}`;
@@ -103,36 +79,27 @@ export function PracticeCard({
   // Colours come from inline styles (themes.ts): text classes only, so the text always has its
   // background. Done cards: a light tint (ink text), or in dark mode the dark card tinted (light text).
   const className =
-    look === "locked"
-      ? locked
-      : look === "fresh"
-        ? cn(LIFT_CLASS, light ? "text-white" : "text-brand-ink")
-        : cn(SURFACE_CLASS, LIFT_CLASS, "text-brand-ink dark:text-foreground");
-  const style = { ...CARD_LAYER, ...(look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module, variant) : null) };
+    look === "locked" ? locked : look === "fresh" ? (light ? "text-white" : "text-brand-ink") : cn(SURFACE_CLASS, "text-brand-ink dark:text-foreground");
+  const style = look === "fresh" ? freshStyle(module) : look === "done" ? doneStyle(module) : undefined;
 
   return (
     <div className={cn(base, className)} style={style} data-state={look} data-module={module}>
-      {/* Small faint icons (books, planes, cities…) over the whole card, under the content. */}
-      <span aria-hidden className={onGreen ? undefined : "dark:invert"} style={patternStyle(variant, onGreen ? "strong" : look === "done" ? "medium" : "soft")} />
-      {onGreen && <span aria-hidden style={DOTS} />}
-      <span className="flex items-center gap-3">
+      <span className="flex items-start gap-3">
         <span
           aria-hidden
           className={cn(
             "grid size-10 shrink-0 place-items-center rounded-full",
-            !onGreen && "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
+            onGreen ? "bg-white/25 ring-1 ring-white/60" : "bg-white ring-1 ring-black/5 dark:bg-white/10 dark:ring-white/15",
           )}
-          style={onGreen ? { backgroundColor: "rgb(255 255 255 / 0.18)", boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.35)" } : undefined}
         >
-          {lockedPlan ? <Lock className="size-4" strokeWidth={1.75} /> : <Icon className="size-4" strokeWidth={1.75} />}
+          {lockedPlan ? <Lock className="size-4" /> : <Icon className="size-4" />}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           {/* The main link: its ::after covers the whole card. */}
-          <Link href={href} aria-label={label} className="text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
+          <Link href={href} aria-label={label} className="line-clamp-2 text-[0.9375rem] leading-snug font-semibold outline-none after:absolute after:inset-0 after:rounded-2xl">
             {title}
           </Link>
-          {/* Only once there's something to say: taken (times · best band) or locked (the plan). */}
-          {(done || lockedPlan) && <span className={cn("text-xs", light ? "text-white/75" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>}
+          <span className={cn("text-xs", light ? "text-white/85" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
           {detail && <span className={cn("line-clamp-2 text-xs", light ? "text-white/80" : onGreen ? "text-brand-ink/70" : look === "done" ? "text-brand-ink/70 dark:text-muted-foreground" : "text-muted-foreground")}>{detail}</span>}
         </span>
       </span>
@@ -142,10 +109,8 @@ export function PracticeCard({
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
-              onGreen ? "shadow-sm ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
+              onGreen ? "bg-white/85 text-brand-ink ring-1 ring-black/5" : "bg-white text-brand-ink ring-1 ring-black/5 dark:bg-white/10 dark:text-foreground dark:ring-white/10",
             )}
-            // Inline on the coloured card: dark text on a white pill, whatever the stylesheet has.
-            style={onGreen ? { backgroundColor: "#ffffff", color: "#0b1220" } : undefined}
           >
             <span aria-hidden className={cn("size-1.5 rounded-full", onGreen ? DOT[module] : done ? DOT[module] : "bg-muted-foreground")} />
             {kindLabel}
@@ -171,11 +136,9 @@ export function PracticeCard({
         <span
           aria-hidden
           className={cn(
-            "grid size-8 shrink-0 place-items-center rounded-full text-white transition-transform duration-400 group-hover:translate-x-0.5",
-            !onGreen && "dark:bg-white/15!",
+            "grid size-8 shrink-0 place-items-center rounded-full transition-transform group-hover:translate-x-0.5",
+            onGreen ? "bg-brand-ink text-white" : "bg-brand-ink text-white dark:bg-white/15",
           )}
-          // Inline, like the card colours: the dark circle can't go missing.
-          style={{ backgroundColor: "#0b1220", boxShadow: onGreen ? "0 6px 14px -6px rgb(11 18 32 / 0.6)" : undefined }}
         >
           <ArrowRight className="size-4" />
         </span>

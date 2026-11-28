@@ -76,13 +76,12 @@ export default async function ListeningListPage() {
             <li>
               <PickCard kind="listening_test" module="listening" note="A Listening test you haven't taken yet." />
             </li>
-            {tests.map((t, i) => {
+            {tests.map((t) => {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);
               return (
                 <li key={t.id} data-testid="listening-test">
                   <PracticeCard
-                    variant={i + 1}
                     module="listening"
                     href={open ? listeningTestPath(t.id) : routes.upgrade}
                     title={t.title}

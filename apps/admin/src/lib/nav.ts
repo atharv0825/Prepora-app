@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CalendarRange,
   ClipboardList,
   Coins,
   FileClock,
@@ -103,6 +104,19 @@ export const navGroups: NavGroup[] = [
           "40 questions incl. map/diagram labelling images",
           "Transcripts and accents",
           "Minimum plan per test",
+        ],
+      },
+      {
+        slug: "study-plans",
+        label: "Study plans",
+        icon: CalendarRange,
+        milestone: "M8.7",
+        built: true, // M8.7-A1: templates, days and items, coverage, activate / deactivate
+        summary: "The templates students' study plans are made from.",
+        features: [
+          "Create or edit a template: its days and each day's practice",
+          "Coverage: every module and kind at least once",
+          "Activate or deactivate; students keep the plan they started",
         ],
       },
       {

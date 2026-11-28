@@ -245,3 +245,31 @@ Deno.test("paddle one-time transaction for a pack upgrade carries upgrade_of", (
   });
   assertEquals([e.price_id, e.upgrade_of, e.upgrade_credits, e.payment_id], ["sa_platinum_exam_pack", of, "200", "txn_U"]);
 });
+
+// ── Razorpay plan change by replacement ─────────────────────────────────────────────────────
+Deno.test("razorpay subscription.authenticated with notes.replaces → subscription_replaced", () => {
+  const e = normaliseRazorpay("subscription.authenticated", {
+    payload: {
+      subscription: { entity: { id: "sub_NEW", plan_id: "plan_PLAT", customer_id: "cust_1", status: "authenticated", notes: { user_id: USER, price_id: "in_platinum_month", replaces: "sub_OLD" } } },
+      payment: { entity: { id: "pay_auth", amount: 30000, currency: "INR" } },
+    },
+  });
+  assertEquals(e, {
+    action: "subscription_replaced",
+    user_id: USER,
+    provider_price_id: "plan_PLAT",
+    subscription_id: "sub_NEW",
+    customer_id: "cust_1",
+    replaces: "sub_OLD",
+    payment_id: "pay_auth",
+    amount_minor: 30000,
+    currency: "INR",
+  });
+});
+
+Deno.test("razorpay subscription.authenticated without replaces is still ignored; bad replaces dropped", () => {
+  const plain = normaliseRazorpay("subscription.authenticated", { payload: { subscription: { entity: { id: "sub_A", notes: { user_id: USER } } } } });
+  assertEquals(plain.action, "ignored");
+  const bad = normaliseRazorpay("subscription.authenticated", { payload: { subscription: { entity: { id: "sub_A", notes: { user_id: USER, replaces: "x; drop" } } } } });
+  assertEquals(bad.action, "ignored");
+});

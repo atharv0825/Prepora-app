@@ -75,6 +75,8 @@ export interface NormalisedEvent {
   /** An exam pack upgrade: the pack (subscriptions.id) it upgrades and the prorated credits. */
   upgrade_of?: string;
   upgrade_credits?: string;
+  /** A Razorpay plan change: the old subscription (sub_…) the new one replaces. */
+  replaces?: string;
 }
 
 type Obj = Record<string, unknown>;
@@ -88,12 +90,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PRICE_ID = /^[a-z][a-z0-9_]{2,59}$/;
 
 /** Checkout metadata (Razorpay notes / Paddle custom_data): { user_id, price_id }, if valid. */
-function metadata(...sources: unknown[]): { user_id?: string; price_id?: string; upgrade_of?: string; upgrade_credits?: string } {
+function metadata(...sources: unknown[]): { user_id?: string; price_id?: string; upgrade_of?: string; upgrade_credits?: string; replaces?: string } {
   for (const s of sources) {
     const m = obj(s);
     const user = str(m.user_id);
     const price = str(m.price_id);
     const of = str(m.upgrade_of);
+    const replaces = str(m.replaces);
     const credits = str(m.upgrade_credits) ?? (int(m.upgrade_credits) !== undefined ? String(int(m.upgrade_credits)) : undefined);
     if (user && UUID.test(user)) {
       return {
@@ -101,6 +104,7 @@ function metadata(...sources: unknown[]): { user_id?: string; price_id?: string;
         price_id: price && PRICE_ID.test(price) ? price : undefined,
         upgrade_of: of && UUID.test(of) ? of : undefined,
         upgrade_credits: credits && /^\d{1,5}$/.test(credits) ? credits : undefined,
+        replaces: replaces && /^sub_[A-Za-z0-9]+$/.test(replaces) ? replaces : undefined,
       };
     }
   }
@@ -132,6 +136,22 @@ export function normaliseRazorpay(eventType: string, payload: unknown): Normalis
   if (eventType.startsWith("subscription.")) {
     const meta = metadata(sub.notes);
     const status = str(sub.status);
+    // A plan change by replacement (manage-subscription): authorising the new subscription is
+    // the change. Any other authentication is just a mandate being set up.
+    if (eventType === "subscription.authenticated" && meta.replaces) {
+      return clean({
+        action: "subscription_replaced",
+        user_id: meta.user_id,
+        provider_price_id: str(sub.plan_id),
+        price_id: str(sub.plan_id) ? undefined : meta.price_id,
+        subscription_id: str(sub.id),
+        customer_id: str(sub.customer_id),
+        replaces: meta.replaces,
+        payment_id: str(pay.id),
+        amount_minor: int(pay.amount),
+        currency: str(pay.currency)?.toUpperCase(),
+      });
+    }
     return clean({
       action,
       user_id: meta.user_id,
@@ -255,7 +275,12 @@ export interface Razorpay {
   keyId: string;
   /** A monthly plan (plan_…) for a price that has none yet. */
   createPlan(name: string, amountMinor: number, currency: string): Promise<{ id: string }>;
-  createSubscription(planId: string, notes: Record<string, string>): Promise<{ id: string }>;
+  /** startAt (unix s): begin later (a replacement starts at the old period end); upfront: charged with the authorisation. */
+  createSubscription(
+    planId: string,
+    notes: Record<string, string>,
+    opts?: { startAt?: number; upfront?: { name: string; amountMinor: number; currency: string } },
+  ): Promise<{ id: string }>;
   createOrder(amountMinor: number, currency: string, receipt: string, notes: Record<string, string>): Promise<{ id: string }>;
   changePlan(subscriptionId: string, planId: string, when: "now" | "cycle_end"): Promise<void>;
   cancelAtCycleEnd(subscriptionId: string): Promise<void>;
@@ -275,9 +300,16 @@ export function razorpay(f: Fetch = fetch): Razorpay {
       const r = await send("POST", "/plans", { period: "monthly", interval: 1, item: { name, amount: amountMinor, currency } });
       return { id: String(r.id) };
     },
-    async createSubscription(planId, notes) {
+    async createSubscription(planId, notes, opts = {}) {
       // 120 monthly cycles = up to 10 years; the student cancels whenever they like.
-      const r = await send("POST", "/subscriptions", { plan_id: planId, total_count: 120, customer_notify: 1, notes });
+      const r = await send("POST", "/subscriptions", {
+        plan_id: planId,
+        total_count: 120,
+        customer_notify: 1,
+        notes,
+        ...(opts.startAt ? { start_at: opts.startAt } : {}),
+        ...(opts.upfront ? { addons: [{ item: { name: opts.upfront.name, amount: opts.upfront.amountMinor, currency: opts.upfront.currency } }] } : {}),
+      });
       return { id: String(r.id) };
     },
     async createOrder(amountMinor, currency, receipt, notes) {

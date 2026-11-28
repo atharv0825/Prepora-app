@@ -1070,6 +1070,7 @@ export type Database = {
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          replaced_by_provider_id: string | null
           scheduled_price_id: string | null
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
@@ -1091,6 +1092,7 @@ export type Database = {
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          replaced_by_provider_id?: string | null
           scheduled_price_id?: string | null
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
@@ -1112,6 +1114,7 @@ export type Database = {
           provider?: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id?: string | null
           provider_subscription_id?: string | null
+          replaced_by_provider_id?: string | null
           scheduled_price_id?: string | null
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
@@ -1602,6 +1605,7 @@ export type Database = {
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          replaced_by_provider_id: string | null
           scheduled_price_id: string | null
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
@@ -1668,6 +1672,7 @@ export type Database = {
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          replaced_by_provider_id: string | null
           scheduled_price_id: string | null
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
@@ -1698,6 +1703,7 @@ export type Database = {
           provider: Database["public"]["Enums"]["payment_provider"]
           provider_customer_id: string | null
           provider_subscription_id: string | null
+          replaced_by_provider_id: string | null
           scheduled_price_id: string | null
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string

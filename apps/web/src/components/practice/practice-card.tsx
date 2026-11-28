@@ -100,14 +100,14 @@ export function PracticeCard({
       : look === "fresh"
         ? cn(LIFT_CLASS, light ? "text-white" : "text-brand-ink")
         : cn(SURFACE_CLASS, LIFT_CLASS, "text-brand-ink dark:text-foreground");
-  const style = look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module) : undefined;
+  const style = look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module, variant) : undefined;
 
   return (
     <div className={cn(base, className)} style={style} data-state={look} data-module={module}>
       {/* Small faint icons (books, planes, cities…) over the whole card, under the content. */}
       <span
         aria-hidden
-        className={cn("pointer-events-none absolute inset-0 -z-10", onGreen ? "opacity-[0.13]" : "opacity-[0.05] dark:opacity-[0.07] dark:invert")}
+        className={cn("pointer-events-none absolute inset-0 -z-10", onGreen ? "opacity-[0.13]" : cn(look === "done" ? "opacity-[0.09]" : "opacity-[0.05]", "dark:opacity-[0.07] dark:invert"))}
         style={patternStyle(variant)}
       />
       {onGreen && <span aria-hidden className="pointer-events-none absolute top-0 right-0 -z-10 size-32 opacity-25" style={DOTS} />}
@@ -123,10 +123,11 @@ export function PracticeCard({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           {/* The main link: its ::after covers the whole card. */}
-          <Link href={href} aria-label={label} className="line-clamp-2 text-[1.0625rem] leading-snug font-bold tracking-tight outline-none after:absolute after:inset-0 after:rounded-3xl">
+          <Link href={href} aria-label={label} className="text-[1.0625rem] leading-snug font-bold tracking-tight outline-none after:absolute after:inset-0 after:rounded-3xl">
             {title}
           </Link>
-          <span className={cn("text-[0.8125rem]", light ? "text-white/75" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>
+          {/* Only once there's something to say: taken (times · best band) or locked (the plan). */}
+          {(done || lockedPlan) && <span className={cn("text-[0.8125rem]", light ? "text-white/75" : onGreen ? "text-brand-ink/75" : look === "done" ? "text-brand-ink/75 dark:text-muted-foreground" : "text-muted-foreground")}>{lockedPlan ? `${lockedPlan} plan` : status}</span>}
           {detail && <span className={cn("line-clamp-2 text-xs", light ? "text-white/80" : onGreen ? "text-brand-ink/70" : look === "done" ? "text-brand-ink/70 dark:text-muted-foreground" : "text-muted-foreground")}>{detail}</span>}
         </span>
       </span>

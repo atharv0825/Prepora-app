@@ -53,10 +53,15 @@ const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2)
  * LIFT_CLASS can swap them on hover (an inline box-shadow would beat any class).
  * `variant` picks the shade (it wraps).
  */
+/** Card number `variant`'s shade (it wraps). */
+function shadeOf(m: PracticeModule, variant: number): [string, string] {
+  const shades = SHADES[m];
+  return shades[((variant % shades.length) + shades.length) % shades.length];
+}
+
 export function freshStyle(m: PracticeModule, variant = 0): CSSProperties {
   const t = THEMES[m];
-  const shades = SHADES[m];
-  const [from, to] = shades[((variant % shades.length) + shades.length) % shades.length];
+  const [from, to] = shadeOf(m, variant);
   const rgb = rgbOf(to);
   const inner = `inset 0 1px 0 rgb(255 255 255 / ${t.text === "light" ? 0.45 : 0.6}), inset 0 -10px 16px -10px rgb(8 18 40 / 0.35)`;
   return {
@@ -94,8 +99,13 @@ function surface(light: { bg: string; shadow: string }, dark: { bg: string; shad
 const darkTint = (accent: string, top: number, bottom: number) =>
   `linear-gradient(to bottom, color-mix(in srgb, ${accent} ${top}%, #0f3b47), color-mix(in srgb, ${accent} ${bottom}%, #0f3b47))`;
 
-export function doneStyle(m: PracticeModule): CSSProperties {
+/**
+ * A done card: its shade, lightened (about half white), so it still reads as the section colour
+ * but steps back from the cards still to do. Deep ink text.
+ */
+export function doneStyle(m: PracticeModule, variant = 0): CSSProperties {
   const t = THEMES[m];
+  const [from, to] = shadeOf(m, variant);
   return {
     // The outline as a real border (inline, both modes), so it shows even without the classes.
     border: `1px solid color-mix(in srgb, ${t.accent} 45%, transparent)`,
@@ -104,8 +114,8 @@ export function doneStyle(m: PracticeModule): CSSProperties {
     "--pc-shadow-hover-dark": `inset 0 1px 0 rgb(255 255 255 / 0.06), 0 22px 38px -14px rgb(0 0 0 / 0.7)`,
     ...surface(
     {
-      bg: `linear-gradient(to bottom, #ffffff, ${t.tint})`,
-      shadow: `inset 0 1px 0 #ffffff, 0 8px 18px -12px rgb(8 34 43 / 0.35)`,
+      bg: `linear-gradient(to bottom, color-mix(in srgb, ${from} 42%, #ffffff), color-mix(in srgb, ${to} 52%, #ffffff))`,
+      shadow: `inset 0 1px 0 rgb(255 255 255 / 0.7), 0 8px 18px -12px rgb(${t.rgb} / 0.45)`,
     },
     {
       bg: darkTint(t.accent, 6, 14),

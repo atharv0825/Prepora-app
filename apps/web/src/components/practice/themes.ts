@@ -34,17 +34,35 @@ export const THEMES: Record<PracticeModule, Theme> = {
 };
 
 /**
+ * Six shades of each section colour, one per card in turn (with its own pattern, patterns.ts), so
+ * neighbouring cards differ. Shade 0 is the section's own colour. Every shade keeps the section's
+ * text readable: white on the blues 4.6 : 1 or more, deep ink on the rest 5.4 : 1 or more.
+ */
+const SHADES: Record<PracticeModule, [string, string][]> = {
+  reading: [["#3b6fe0", "#2250b8"], ["#4a5fd6", "#2f3fa8"], ["#2a6fcc", "#1a4f9c"], ["#3a62c8", "#22409a"], ["#2378b8", "#16598c"], ["#2c6fc4", "#1d55a0"]],
+  listening: [["#f2a93f", "#e08a00"], ["#f6bb4c", "#e99c12"], ["#f59a4e", "#e07a20"], ["#f7c766", "#eba42a"], ["#f2a65e", "#dd8638"], ["#f4b136", "#dc900a"]],
+  writing: [["#f78fbb", "#f472a8"], ["#f4a0cc", "#e97fb8"], ["#f99aa6", "#f27a8c"], ["#ee9fd6", "#df7cc4"], ["#f9a3b8", "#f2849e"], ["#f590c4", "#e86aa8"]],
+  speaking: [["#62d7a5", "#3fc48c"], ["#6dd8bd", "#43c3a2"], ["#7cd99c", "#52c57a"], ["#5dcfb2", "#37b993"], ["#8edca2", "#60ca82"], ["#68d4c6", "#3fbdaa"]],
+};
+
+const rgbOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(" ");
+
+/**
  * The glossy card: a vertical gradient, a 1px light line along the top, a soft inner shadow at the
  * bottom and a tinted shadow underneath (bigger on hover). The shadows are variables, so
  * LIFT_CLASS can swap them on hover (an inline box-shadow would beat any class).
+ * `variant` picks the shade (it wraps).
  */
-export function freshStyle(m: PracticeModule): CSSProperties {
+export function freshStyle(m: PracticeModule, variant = 0): CSSProperties {
   const t = THEMES[m];
+  const shades = SHADES[m];
+  const [from, to] = shades[((variant % shades.length) + shades.length) % shades.length];
+  const rgb = rgbOf(to);
   const inner = `inset 0 1px 0 rgb(255 255 255 / ${t.text === "light" ? 0.45 : 0.6}), inset 0 -10px 16px -10px rgb(8 18 40 / 0.35)`;
   return {
-    backgroundImage: `linear-gradient(to bottom, ${t.from}, ${t.to})`,
-    "--pc-shadow": `${inner}, 0 12px 24px -12px rgb(${t.rgb} / 0.75)`,
-    "--pc-shadow-hover": `${inner}, 0 24px 40px -14px rgb(${t.rgb} / 0.8)`,
+    backgroundImage: `linear-gradient(to bottom, ${from}, ${to})`,
+    "--pc-shadow": `${inner}, 0 12px 24px -12px rgb(${rgb} / 0.75)`,
+    "--pc-shadow-hover": `${inner}, 0 24px 40px -14px rgb(${rgb} / 0.8)`,
   } as CSSProperties;
 }
 

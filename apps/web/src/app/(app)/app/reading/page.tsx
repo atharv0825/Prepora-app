@@ -85,12 +85,13 @@ export default async function ReadingListPage({ searchParams }: PageProps<"/app/
             <li>
               <PickCard kind="reading_test" module="reading" note="A Reading test you haven't taken yet." />
             </li>
-            {tests.map((t) => {
+            {tests.map((t, i) => {
               const open = planAllows(plan, t.min_plan);
               const s = summary.get(t.id);
               return (
                 <li key={t.id} data-testid="reading-test">
                   <PracticeCard
+                    variant={i + 1}
                     module="reading"
                     href={open ? readingTestPath(t.id) : routes.upgrade}
                     title={t.title}

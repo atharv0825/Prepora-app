@@ -78,11 +78,12 @@ export default async function WritingTaskListPage({ params, searchParams }: Page
             <li>
               <PickCard kind={taskNo === 1 ? "writing_t1" : "writing_t2"} module="writing" note={`A Task ${taskNo} topic you haven't written yet.`} />
             </li>
-            {items.map((t) => {
+            {items.map((t, i) => {
               const s = summary.get(t.id);
               return (
                 <li key={t.id} data-testid="writing-task">
                   <PracticeCard
+                    variant={i + 1}
                     module="writing"
                     href={writingTaskPath(t.id)}
                     title={t.title}

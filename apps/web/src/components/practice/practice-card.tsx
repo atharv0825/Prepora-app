@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Lock, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
+import { patternStyle } from "./patterns";
 import { CARD_3D_CLASS, doneStyle, freshStyle, LIFT_CLASS, type PracticeModule, SURFACE_CLASS, THEMES } from "./themes";
 
 export type { PracticeModule } from "./themes";
@@ -39,6 +40,8 @@ export type PracticeCardProps = {
   planTag?: string | null;
   /** A second link on the card (e.g. Speaking Part 3). */
   extraLink?: { href: string; label: string; icon?: LucideIcon; testId?: string };
+  /** The card's place in its list: picks its colour shade and icon pattern, so neighbours differ. */
+  variant?: number;
 };
 
 // The 3D tilt and lift on hover come from CARD_3D_CLASS; the shadow grows with it (LIFT_CLASS).
@@ -81,6 +84,7 @@ export function PracticeCard({
   lockedPlan,
   planTag,
   extraLink,
+  variant = 0,
 }: PracticeCardProps) {
   const look = lockedPlan ? "locked" : done ? "done" : "fresh";
   const label = lockedPlan ? `Unlock with ${lockedPlan}` : `${done ? verbs.again : verbs.start}: ${title}`;
@@ -96,10 +100,16 @@ export function PracticeCard({
       : look === "fresh"
         ? cn(LIFT_CLASS, light ? "text-white" : "text-brand-ink")
         : cn(SURFACE_CLASS, LIFT_CLASS, "text-brand-ink dark:text-foreground");
-  const style = look === "fresh" ? freshStyle(module) : look === "done" ? doneStyle(module) : undefined;
+  const style = look === "fresh" ? freshStyle(module, variant) : look === "done" ? doneStyle(module) : undefined;
 
   return (
     <div className={cn(base, className)} style={style} data-state={look} data-module={module}>
+      {/* Small faint icons (books, planes, cities…) over the whole card, under the content. */}
+      <span
+        aria-hidden
+        className={cn("pointer-events-none absolute inset-0 -z-10", onGreen ? "opacity-[0.13]" : "opacity-[0.05] dark:opacity-[0.07] dark:invert")}
+        style={patternStyle(variant)}
+      />
       {onGreen && <span aria-hidden className="pointer-events-none absolute top-0 right-0 -z-10 size-32 opacity-25" style={DOTS} />}
       <span className="flex items-center gap-3.5">
         <span

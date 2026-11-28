@@ -1,0 +1,198 @@
+/* Each practice section in its own colour, everywhere inside it (lists, test pages, players,
+   feedback): Reading blue, Listening amber, Writing pink, Speaking green. A section's layout wraps
+   its pages in .theme-<section> (SectionTheme), which re-points the design tokens that buttons,
+   tabs, badges, rings and icon circles use; nothing else changes. Dialogs open outside the page
+   (portals) and keep the app's colours.
+
+   Text on the section colour: white on Reading blue (4.8 : 1), deep ink on amber, pink and green
+   (6 : 1 or more). Accent text/icons on white: 6 : 1 or more. Plain global CSS (this project's
+   CSS setup builds .module.css files without unique class names). */
+
+.theme-reading {
+  --primary: #2f6fdb;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf1fd;
+  --secondary-foreground: #08222b;
+  --accent: #eaf1fd;
+  --accent-foreground: #08222b;
+  --ring: #2459bd;
+  --accent-green: #2459bd;
+  --section-from: #3b78e0;
+  --section-to: #2459bd;
+  --section-rgb: 47 111 219;
+}
+
+.theme-listening {
+  --primary: #f2a93f;
+  --primary-foreground: #08222b;
+  --secondary: #fdf2e1;
+  --secondary-foreground: #08222b;
+  --accent: #fdf2e1;
+  --accent-foreground: #08222b;
+  --ring: #9a5b00;
+  --accent-green: #8a5200;
+  --section-from: #f6bd63;
+  --section-to: #e08a00;
+  --section-rgb: 224 138 0;
+}
+
+.theme-writing {
+  --primary: #f472a8;
+  --primary-foreground: #08222b;
+  --secondary: #fde9f2;
+  --secondary-foreground: #08222b;
+  --accent: #fde9f2;
+  --accent-foreground: #08222b;
+  --ring: #b3256a;
+  --accent-green: #a3245f;
+  --section-from: #f78fbb;
+  --section-to: #f472a8;
+  --section-rgb: 244 114 168;
+}
+
+.theme-speaking {
+  --primary: #3fc48c;
+  --primary-foreground: #08222b;
+  --secondary: #eafaf0;
+  --secondary-foreground: #08222b;
+  --accent: #eafaf0;
+  --accent-foreground: #08222b;
+  --ring: #37918a;
+  --accent-green: #1c5f66;
+  --section-from: #62d7a5;
+  --section-to: #3fc48c;
+  --section-rgb: 15 164 103;
+}
+
+/* Light tinted panels (.mint) inside a section: that section's tint instead of green. */
+.theme-reading .mint {
+  --background: #eaf1fd;
+  --popover: #eaf1fd;
+  --primary: #2f6fdb;
+  --primary-foreground: #ffffff;
+  --muted: #dbe7fb;
+  --muted-foreground: #1f4a8a;
+  --accent: #dbe7fb;
+  --border: #bcd2f6;
+  --input: #8fb2ee;
+  --ring: #2459bd;
+  --accent-green: #2459bd;
+}
+.theme-listening .mint {
+  --background: #fdf2e1;
+  --popover: #fdf2e1;
+  --primary: #f2a93f;
+  --primary-foreground: #08222b;
+  --muted: #fbe4bf;
+  --muted-foreground: #6e4200;
+  --accent: #fbe4bf;
+  --border: #f3d29b;
+  --input: #e3ad55;
+  --ring: #9a5b00;
+  --accent-green: #8a5200;
+}
+.theme-writing .mint {
+  --background: #fde9f2;
+  --popover: #fde9f2;
+  --primary: #f472a8;
+  --primary-foreground: #08222b;
+  --muted: #fbd6e6;
+  --muted-foreground: #8a1f52;
+  --accent: #fbd6e6;
+  --border: #f8c1d9;
+  --input: #ee8fb8;
+  --ring: #b3256a;
+  --accent-green: #a3245f;
+}
+
+/* Dark mode: the section colour one step lighter, tints mixed into the dark surfaces. */
+.dark .theme-reading {
+  --primary: #4f8ef2;
+  --primary-foreground: #08222b;
+  --secondary: color-mix(in srgb, #4f8ef2 22%, #0f3b47);
+  --secondary-foreground: #eafaf0;
+  --accent: color-mix(in srgb, #4f8ef2 26%, #0f3b47);
+  --accent-foreground: #eafaf0;
+  --ring: #4f8ef2;
+  --accent-green: #9cc0f8;
+  --section-from: #6aa0f5;
+  --section-to: #3b78e0;
+}
+.dark .theme-listening {
+  --primary: #e7a23a;
+  --primary-foreground: #08222b;
+  --secondary: color-mix(in srgb, #e7a23a 20%, #0f3b47);
+  --secondary-foreground: #eafaf0;
+  --accent: color-mix(in srgb, #e7a23a 24%, #0f3b47);
+  --accent-foreground: #eafaf0;
+  --ring: #e7a23a;
+  --accent-green: #f3c77f;
+}
+.dark .theme-writing {
+  --primary: #f17aae;
+  --primary-foreground: #08222b;
+  --secondary: color-mix(in srgb, #f17aae 20%, #0f3b47);
+  --secondary-foreground: #eafaf0;
+  --accent: color-mix(in srgb, #f17aae 24%, #0f3b47);
+  --accent-foreground: #eafaf0;
+  --ring: #f17aae;
+  --accent-green: #f6a9cb;
+}
+.dark .theme-speaking {
+  --secondary: #164c58;
+  --secondary-foreground: #eafaf0;
+  --accent: #1c5f66;
+  --accent-foreground: #eafaf0;
+  --ring: #3fc48c;
+  --accent-green: #3fc48c;
+}
+.dark .theme-reading .mint {
+  --background: color-mix(in srgb, #4f8ef2 14%, #0f3b47);
+  --primary: #4f8ef2;
+  --primary-foreground: #08222b;
+  --muted: color-mix(in srgb, #4f8ef2 24%, #0f3b47);
+  --muted-foreground: #c4d9fb;
+  --accent: color-mix(in srgb, #4f8ef2 24%, #0f3b47);
+  --border: color-mix(in srgb, #4f8ef2 40%, #0f3b47);
+  --ring: #4f8ef2;
+  --accent-green: #9cc0f8;
+}
+.dark .theme-listening .mint {
+  --background: color-mix(in srgb, #e7a23a 12%, #0f3b47);
+  --primary: #e7a23a;
+  --primary-foreground: #08222b;
+  --muted: color-mix(in srgb, #e7a23a 22%, #0f3b47);
+  --muted-foreground: #f6d7a3;
+  --accent: color-mix(in srgb, #e7a23a 22%, #0f3b47);
+  --border: color-mix(in srgb, #e7a23a 40%, #0f3b47);
+  --ring: #e7a23a;
+  --accent-green: #f3c77f;
+}
+.dark .theme-writing .mint {
+  --background: color-mix(in srgb, #f17aae 12%, #0f3b47);
+  --primary: #f17aae;
+  --primary-foreground: #08222b;
+  --muted: color-mix(in srgb, #f17aae 22%, #0f3b47);
+  --muted-foreground: #f9c6dc;
+  --accent: color-mix(in srgb, #f17aae 22%, #0f3b47);
+  --border: color-mix(in srgb, #f17aae 40%, #0f3b47);
+  --ring: #f17aae;
+  --accent-green: #f6a9cb;
+}
+
+/* The glossy "3D" start buttons (Reading "Start the test", Listening's mode start), in the
+   section colour. */
+.section-btn-3d {
+  background-image: linear-gradient(to bottom, var(--section-from), var(--section-to));
+  color: var(--primary-foreground);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -2px 0 rgb(8 34 43 / 0.1),
+    0 10px 20px -10px rgb(var(--section-rgb) / 0.8);
+}
+.section-btn-3d:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -2px 0 rgb(8 34 43 / 0.1),
+    0 14px 26px -10px rgb(var(--section-rgb) / 0.85);
+}

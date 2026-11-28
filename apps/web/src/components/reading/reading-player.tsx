@@ -227,11 +227,11 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               </IntroLine>
             )}
           </ul>
-          {/* 3D green button, like the test cards on the list. */}
+          {/* 3D button in the section colour (section-themes.css), like the test cards on the list. */}
           <button
             type="button"
             onClick={start}
-            className="inline-flex h-12 items-center gap-2 self-start rounded-full bg-gradient-to-b from-[#62d7a5] to-brand-primary px-6 font-medium text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_10px_20px_-10px_rgb(15_164_103/0.8)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_14px_26px_-10px_rgb(15_164_103/0.85)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-0 motion-reduce:hover:translate-y-0"
+            className="section-btn-3d inline-flex h-12 items-center gap-2 self-start rounded-full px-6 font-medium ring-1 ring-black/5 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-0 motion-reduce:hover:translate-y-0"
           >
             Start the test
             <span aria-hidden className="grid size-7 place-items-center rounded-full bg-brand-ink text-white">

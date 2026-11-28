@@ -35,6 +35,7 @@ async function network(context: BrowserContext, info: { effectiveType: string; d
 
 test("M5-F1 practice mode: play, pause, seek, choose a part, replay", async ({ page, context, baseURL }) => {
   await open(page, context, baseURL!, 6);
+  await page.getByTestId("mode-practice").click();
   await page.getByRole("button", { name: "Start in practice mode" }).click();
   await expect(player(page)).toHaveAttribute("data-mode", "practice");
 
@@ -145,6 +146,7 @@ test("M5-F2 + M5-F3: answer sheet, map and diagram labelling, results with trans
   const html = await page.content();
   for (const secret of ["cheapest coffee", "Hillside Walking Club", '"accept"', '"explanation"']) expect(html).not.toContain(secret);
 
+  await page.getByTestId("mode-practice").click();
   await page.getByRole("button", { name: "Start in practice mode" }).click();
   const sheet = page.getByTestId("answer-sheet");
   await expect(sheet.getByRole("navigation", { name: "Questions" }).getByRole("button")).toHaveCount(40);
@@ -182,6 +184,7 @@ test("M5-F2 + M5-F3: answer sheet, map and diagram labelling, results with trans
 
   // Answers survive a reload (same mode).
   await page.reload();
+  await page.getByTestId("mode-practice").click();
   await page.getByRole("button", { name: "Start in practice mode" }).click();
   await expect(page.locator("#q1")).toHaveValue("Hillside");
 

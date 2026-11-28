@@ -19,6 +19,7 @@ import {
 import type { ListeningMode, ListeningTestPayload } from "@prepora/shared/api/listening-test";
 import { type Answers, draftKey, type ListeningResultsData, parseDraft, setAnswer, toGradeAnswers } from "@/lib/listening/answers";
 import { formatTime } from "@/lib/listening/player";
+import { ModeOption } from "@/components/practice/mode-option";
 import { AnswerSheet } from "./answer-sheet";
 import { AudioPlayer, type PlayerProgress } from "./audio-player";
 import { ListeningResults } from "./listening-results";
@@ -39,6 +40,7 @@ export const EXAM_CHECK_SEC = 120;
  */
 export function ListeningTest({ payload, grade }: { payload: ListeningTestPayload; grade: GradeListening }) {
   const [mode, setMode] = useState<ListeningMode | null>(null);
+  const [choice, setChoice] = useState<ListeningMode>("exam"); // the mode picked on the start screen
   const [answers, setAnswers] = useState<Answers>({});
   const [part, setPart] = useState(1);
   const [results, setResults] = useState<ListeningResultsData | null>(null);
@@ -119,27 +121,46 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
   if (results) return <ListeningResults data={results} onRetry={restart} />;
 
   if (!mode) {
+    // Like Speaking: how it works, the two modes to pick from, and one start button.
     return (
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6" data-testid="listening-intro">
+        <h2 className="text-h3">How it works</h2>
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
+          <li>Four recordings and {payload.questions.length} questions. Answer while you listen.</li>
+          <li>Your answers are saved on this device as you go.</li>
+          <li>At the end you get your band, the right answers and the transcripts.</li>
+        </ul>
         <MonthlyAllowance />
-      <div className="grid gap-4 sm:grid-cols-2" data-testid="mode-choice">
-        <ModeCard
-          icon={<Headphones />}
-          title="Exam mode"
-          body="Like test day: each part plays once, with no pausing or rewinding. Then two minutes to check your answers. Gives the most realistic band."
-          action="Start in exam mode"
-          onClick={() => begin("exam")}
-        />
-        <ModeCard
-          icon={<Repeat />}
-          title="Practice mode"
-          body="Pause, rewind, replay and jump between parts as often as you like. Good for learning; the band will read high."
-          action="Start in practice mode"
-          onClick={() => begin("practice")}
-          outline
-        />
-      </div>
-      </div>
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="mode-choice">
+          <ModeOption
+            selected={choice === "exam"}
+            onSelect={() => setChoice("exam")}
+            icon={<Headphones className="size-4" aria-hidden />}
+            title="Exam mode"
+            body="Like test day: each part plays once, with no pausing or rewinding. Then two minutes to check your answers. Gives the most realistic band."
+            testId="mode-exam"
+          />
+          <ModeOption
+            selected={choice === "practice"}
+            onSelect={() => setChoice("practice")}
+            icon={<Repeat className="size-4" aria-hidden />}
+            title="Practice mode"
+            body="Pause, rewind, replay and jump between parts as often as you like. Good for learning; the band will read high."
+            testId="mode-practice"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => begin(choice)}
+          className="section-btn-3d inline-flex h-11 items-center gap-2 self-start rounded-full px-5 text-sm font-medium ring-1 ring-black/5 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0"
+          data-testid="start-listening"
+        >
+          Start in {choice} mode
+          <span aria-hidden className="grid size-6 place-items-center rounded-full bg-brand-ink text-white">
+            <ArrowRight className="size-3.5" />
+          </span>
+        </button>
+      </section>
     );
   }
 
@@ -185,48 +206,6 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
   );
 }
 
-function ModeCard({
-  icon,
-  title,
-  body,
-  action,
-  onClick,
-  outline,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-  action: string;
-  onClick: () => void;
-  outline?: boolean;
-}) {
-  // White card with an outline (green for the recommended exam mode, like the dashboard tiles) and
-  // a 3D button: green for exam mode, white for practice.
-  return (
-    <div className={cn("flex flex-col gap-4 rounded-3xl bg-card p-6 shadow-sm", outline ? "ring-1 ring-border" : "ring-2 ring-primary/70")}>
-      <span className="grid size-11 place-items-center rounded-full bg-accent text-accent-green ring-4 ring-primary/15 [&_svg]:size-5">{icon}</span>
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-h3">{title}</h2>
-        <p className="text-sm text-muted-foreground">{body}</p>
-      </div>
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          "mt-auto inline-flex h-11 items-center gap-2 self-start rounded-full px-5 text-sm font-medium transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0",
-          outline
-            ? "bg-gradient-to-b from-white to-brand-foam text-brand-ink ring-1 ring-brand-mist shadow-[inset_0_1px_0_white,0_8px_16px_-10px_rgb(8_34_43/0.4)] dark:from-[#164c58] dark:to-[#0f3b47] dark:text-foreground dark:ring-white/10"
-            : "bg-gradient-to-b from-[#62d7a5] to-brand-primary text-brand-ink ring-1 ring-black/5 shadow-[inset_0_1px_0_rgb(255_255_255/0.55),inset_0_-2px_0_rgb(8_34_43/0.1),0_10px_20px_-10px_rgb(15_164_103/0.8)]",
-        )}
-      >
-        {action}
-        <span aria-hidden className="grid size-6 place-items-center rounded-full bg-brand-ink text-white">
-          <ArrowRight className="size-3.5" />
-        </span>
-      </button>
-    </div>
-  );
-}
 
 /** "Listening tests this month: 1 of 2 used" (moved here from the list), with the used-up notice. */
 function MonthlyAllowance() {

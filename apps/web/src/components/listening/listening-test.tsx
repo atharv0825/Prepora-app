@@ -149,17 +149,9 @@ export function ListeningTest({ payload, grade }: { payload: ListeningTestPayloa
             testId="mode-practice"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => begin(choice)}
-          className="section-btn-3d inline-flex h-11 items-center gap-2 self-start rounded-full px-5 text-sm font-medium ring-1 ring-black/5 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring motion-reduce:hover:translate-y-0"
-          data-testid="start-listening"
-        >
-          Start in {choice} mode
-          <span aria-hidden className="grid size-6 place-items-center rounded-full bg-brand-ink text-white">
-            <ArrowRight className="size-3.5" />
-          </span>
-        </button>
+        <Button size="lg" onClick={() => begin(choice)} className="self-start" data-testid="start-listening">
+          Start in {choice} mode <ArrowRight />
+        </Button>
       </section>
     );
   }

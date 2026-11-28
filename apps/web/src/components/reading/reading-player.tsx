@@ -197,14 +197,15 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
 
   if (!draft) {
     return (
-      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-        <div className="self-start">{backLink}</div>
-        {/* White card with a green outline, like the dashboard's module tiles. */}
-        <div className="flex flex-col gap-5 rounded-3xl bg-card p-6 shadow-sm ring-2 ring-primary/70" data-testid="reading-intro">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-h2">{payload.test.title}</h1>
-            <p className="text-sm text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
-          </div>
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <div className="self-start">{backLink}</div>
+          <h1 className="text-h1">{payload.test.title}</h1>
+          <p className="text-muted-foreground">{testTypeLabel(payload.test.test_type)} Reading</p>
+        </div>
+        {/* Like Listening's start screen: how it works, then one button, in the section colour. */}
+        <section className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6" data-testid="reading-intro">
+          <h2 className="text-h3">How it works</h2>
           <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
             <IntroLine icon={Clock}>
               60 minutes for {passages.length} passages and {allNos.length} questions.
@@ -227,18 +228,10 @@ export function ReadingPlayer({ payload }: { payload: ReadingTestPayload }) {
               </IntroLine>
             )}
           </ul>
-          {/* 3D button in the section colour (section-themes.css), like the test cards on the list. */}
-          <button
-            type="button"
-            onClick={start}
-            className="section-btn-3d inline-flex h-12 items-center gap-2 self-start rounded-full px-6 font-medium ring-1 ring-black/5 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:translate-y-0 motion-reduce:hover:translate-y-0"
-          >
-            Start the test
-            <span aria-hidden className="grid size-7 place-items-center rounded-full bg-brand-ink text-white">
-              <ArrowRight className="size-4" />
-            </span>
-          </button>
-        </div>
+          <Button size="lg" onClick={start} className="self-start">
+            Start the test <ArrowRight />
+          </Button>
+        </section>
       </div>
     );
   }

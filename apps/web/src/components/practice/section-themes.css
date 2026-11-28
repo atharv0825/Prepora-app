@@ -17,9 +17,6 @@
   --accent-foreground: #08222b;
   --ring: #2459bd;
   --accent-green: #2459bd;
-  --section-from: #3b78e0;
-  --section-to: #2459bd;
-  --section-rgb: 47 111 219;
 }
 
 .theme-listening {
@@ -31,9 +28,6 @@
   --accent-foreground: #08222b;
   --ring: #9a5b00;
   --accent-green: #8a5200;
-  --section-from: #f6bd63;
-  --section-to: #e08a00;
-  --section-rgb: 224 138 0;
 }
 
 .theme-writing {
@@ -45,9 +39,6 @@
   --accent-foreground: #08222b;
   --ring: #b3256a;
   --accent-green: #a3245f;
-  --section-from: #f78fbb;
-  --section-to: #f472a8;
-  --section-rgb: 244 114 168;
 }
 
 .theme-speaking {
@@ -59,9 +50,6 @@
   --accent-foreground: #08222b;
   --ring: #37918a;
   --accent-green: #1c5f66;
-  --section-from: #62d7a5;
-  --section-to: #3fc48c;
-  --section-rgb: 15 164 103;
 }
 
 /* Light tinted panels (.mint) inside a section: that section's tint instead of green. */
@@ -115,8 +103,6 @@
   --accent-foreground: #eafaf0;
   --ring: #4f8ef2;
   --accent-green: #9cc0f8;
-  --section-from: #6aa0f5;
-  --section-to: #3b78e0;
 }
 .dark .theme-listening {
   --primary: #e7a23a;
@@ -178,21 +164,4 @@
   --border: color-mix(in srgb, #f17aae 40%, #0f3b47);
   --ring: #f17aae;
   --accent-green: #f6a9cb;
-}
-
-/* The glossy "3D" start buttons (Reading "Start the test", Listening's mode start), in the
-   section colour. */
-.section-btn-3d {
-  background-image: linear-gradient(to bottom, var(--section-from), var(--section-to));
-  color: var(--primary-foreground);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    inset 0 -2px 0 rgb(8 34 43 / 0.1),
-    0 10px 20px -10px rgb(var(--section-rgb) / 0.8);
-}
-.section-btn-3d:hover {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    inset 0 -2px 0 rgb(8 34 43 / 0.1),
-    0 14px 26px -10px rgb(var(--section-rgb) / 0.85);
 }

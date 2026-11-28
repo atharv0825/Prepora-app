@@ -29,7 +29,7 @@ import {
 } from "@/lib/writing/writing";
 import { PhoneQr } from "./phone-qr";
 import { PhotoFlow } from "./photo-flow";
-import styles from "./writing-editor.module.css";
+import "./writing-editor.css";
 
 export type EditorTask = {
   id: string;
@@ -195,10 +195,10 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
 
       {/* Wide screens: the task and the answer side by side, each with its own scroll, both sized to fit
           between the header and the bottom bar; the task stays in view while writing. */}
-      <div className={cn("grid gap-6", styles.columns)}>
-      <div className={cn("relative min-w-0", styles.pane)}>
+      <div className="grid gap-6 we-columns">
+      <div className="relative min-w-0 we-pane">
       <section
-        className={cn("flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6", styles.taskScroll)}
+        className="we-taskScroll flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6"
         aria-label="The task"
       >
         <p className="whitespace-pre-line leading-relaxed" data-testid="task-prompt">
@@ -219,19 +219,19 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         </p>
       </section>
       {zoom && task.image_url && (
-        <div className={styles.zoom} role="dialog" aria-label="The chart, larger" data-testid="chart-zoom">
-          <div className={styles.zoomBar}>
+        <div className="we-zoom" role="dialog" aria-label="The chart, larger" data-testid="chart-zoom">
+          <div className="we-zoomBar">
             <Button variant="outline" size="sm" onClick={() => setZoom(false)} autoFocus>
               <X className="size-4" aria-hidden /> Close
             </Button>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className={styles.zoomImg} />
+          <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="we-zoomImg" />
         </div>
       )}
       </div>
 
-      <div className={cn("flex min-w-0 flex-col gap-4", styles.pane, styles.answerScroll)}>
+      <div className="we-pane we-answerScroll flex min-w-0 flex-col gap-4">
       {scoring !== null ? (
         <ScoringProgress started={scoring} />
       ) : (
@@ -247,7 +247,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
               <PhoneQr path={writingTaskPath(task.id, { photo: true })} />
             </div>
           ) : (
-            <div className={cn("flex flex-col gap-3", styles.answerPanel)} role="tabpanel" aria-label="Type your answer">
+            <div className="we-answerPanel flex flex-col gap-3" role="tabpanel" aria-label="Type your answer">
               {restored && <p className="text-sm text-muted-foreground">Your draft from this device is back.</p>}
               {ocrNote && (
                 <div className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-sm sm:flex-row sm:items-center sm:justify-between" role="status">
@@ -268,7 +268,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="sentences"
-                className={cn("min-h-[50vh] text-base", styles.answerBox)}
+                className="we-answerBox min-h-[50vh] text-base"
                 data-testid="answer"
               />
             </div>

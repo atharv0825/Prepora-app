@@ -1,23 +1,24 @@
-/* The Writing editor's side-by-side layout. Plain CSS (not new utility classes), so it is always
-   built: from 768px wide (as Reading) the task and the answer in two columns of the same height, between the
-   header and the bottom bar, each with its own scrollbar. */
+/* The Writing editor's side-by-side layout, as plain global CSS with fixed "we-" class names: this
+   project's Turbopack CSS rule builds .module.css files without unique names, so module classes never
+   matched. From 768px wide (as Reading) the task and the answer sit in two columns of the same
+   height, between the header and the bottom bar, each with its own scrollbar. */
 
 @media (min-width: 48rem) {
-  .columns {
+  .we-columns {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
 
   /* Both columns: stay in view, sized to fit between the header and the bottom bar. */
-  .pane {
+  .we-pane {
     position: sticky;
     top: 5rem;
     height: calc(100vh - 11rem);
   }
 
   /* The task: always shows its scrollbar. */
-  .taskScroll {
+  .we-taskScroll {
     height: 100%;
     overflow-y: scroll;
     overscroll-behavior: contain;
@@ -25,18 +26,18 @@
     scrollbar-color: rgb(8 34 43 / 0.35) transparent;
   }
 
-  .answerScroll {
+  .we-answerScroll {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
-  .answerPanel {
+  .we-answerPanel {
     flex: 1;
     min-height: 0;
   }
 
   /* The answer box fills its column and scrolls inside, instead of growing with the text. */
-  .answerBox {
+  .we-answerBox {
     flex: 1;
     min-height: 10rem;
     resize: none;
@@ -47,7 +48,7 @@
 }
 
 /* The chart, opened larger: covers the task column only. */
-.zoom {
+.we-zoom {
   position: absolute;
   inset: 0;
   z-index: 10;
@@ -59,7 +60,7 @@
   box-shadow: 0 12px 32px -16px rgb(8 34 43 / 0.45);
 }
 
-.zoomBar {
+.we-zoomBar {
   position: sticky;
   top: 0;
   left: 0;
@@ -70,7 +71,7 @@
   background: rgb(255 255 255 / 0.9);
 }
 
-.zoomImg {
+.we-zoomImg {
   display: block;
   width: 170%;
   max-width: none;

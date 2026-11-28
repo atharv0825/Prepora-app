@@ -101,7 +101,8 @@ describe("webhook event mapping", () => {
   it("every action but ignored is reachable from both providers", () => {
     for (const provider of checkoutProviders) {
       const used = new Set(Object.values(billingEventActions[provider]));
-      for (const action of billingActions) if (action !== "ignored") expect(used, `${provider}: ${action}`).toContain(action);
+      // subscription_replaced comes from Razorpay's subscription.authenticated with notes.replaces.
+      for (const action of billingActions) if (action !== "ignored" && action !== "subscription_replaced") expect(used, `${provider}: ${action}`).toContain(action);
     }
   });
 

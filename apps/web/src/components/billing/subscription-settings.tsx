@@ -66,6 +66,25 @@ export function SubscriptionSettings({
       window.open(res.data.url, "_blank", "noopener");
       return;
     }
+    // A Razorpay plan change: approve the new subscription (and pay an upgrade's difference).
+    const checkout = (res.data as { checkout?: unknown } | null)?.checkout;
+    if (checkout) {
+      const since = Date.now() - 2 * 60_000;
+      try {
+        const c = CreateCheckoutResponse.parse(checkout);
+        const outcome = c.provider === "razorpay" ? await openRazorpay(c) : await openPaddle(c);
+        if (outcome !== "paid") return;
+        const offer = typeof body.price_id === "string" ? monthly.find((o) => o.id === body.price_id) : undefined;
+        if (offer && subscription && RANK[offer.plan_id!] > RANK[subscription.plan_id]) {
+          router.push(`${routes.checkoutDone}?price=${encodeURIComponent(offer.id)}&since=${since}`);
+          return;
+        }
+      } catch (err) {
+        console.error("plan change checkout failed", err);
+        toast.error("Couldn't open the payment window. Check your connection and try again.");
+        return;
+      }
+    }
     toast.success(done);
     router.refresh();
   }
@@ -139,7 +158,7 @@ export function SubscriptionSettings({
               ? `Ends on ${day(s.current_period_end)}, then you're back on Free. It won't renew.${packUpgrades.length > 0 ? " You can upgrade it for the days left." : ""}`
               : `Renews on ${day(s.current_period_end)}.`}
         </p>
-        {s.scheduled_plan_id && !s.cancel_at_period_end && (
+        {s.scheduled_plan_id && s.scheduled_plan_id !== s.plan_id && !s.cancel_at_period_end && (
           <p className="text-sm text-muted-foreground" data-testid="scheduled-change">
             Changes to {NAME[s.scheduled_plan_id]} on {day(s.current_period_end)}.
           </p>
@@ -171,6 +190,7 @@ export function SubscriptionSettings({
             </Button>
           )}
           {!s.cancel_at_period_end &&
+            !s.scheduled_plan_id &&
             others.map((o) => (
               <Button key={o.id} size="sm" variant="outline" disabled={busy} onClick={() => setConfirm({ kind: "change", offer: o })} data-testid={`change-to-${o.plan_id}`}>
                 {RANK[o.plan_id!] > RANK[s.plan_id] ? "Upgrade" : "Switch"} to {NAME[o.plan_id!]}
@@ -212,6 +232,7 @@ export function SubscriptionSettings({
                   {RANK[confirm.offer.plan_id!] > RANK[s.plan_id]
                     ? `It starts now. You pay the difference for the rest of this month, and get the extra credits straight away. From ${day(s.current_period_end)} it's ${formatMoney(confirm.offer.amount_minor, confirm.offer.currency)} a month.`
                     : `You keep ${NAME[s.plan_id]} until ${day(s.current_period_end)}. Then it's ${NAME[confirm.offer.plan_id!]} at ${formatMoney(confirm.offer.amount_minor, confirm.offer.currency)} a month.`}
+                  {s.provider === "razorpay" && " You'll approve the new plan in Razorpay (UPI or card); your current one then stops renewing."}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>

@@ -7,12 +7,15 @@
 //      already applied returns 200 at once.
 //   4. Normalise it (_shared/billing.ts) and apply it in one transaction
 //      (billing_apply_event: subscriptions, profiles.plan, credits; M9-B3/B4).
+//      A Razorpay plan change (subscription_replaced): the old subscription is cancelled at its
+//      cycle end first, so the student is never billed by both; if that fails, nothing is applied
+//      and the provider retries.
 //   5. If applying fails, the reason is kept on the event and we answer 500, so the provider
 //      retries; the retry applies it (it was never marked processed).
 
 import { errors } from "../_shared/errors.ts";
 import { createHandler } from "../_shared/handler.ts";
-import { normalisePaddle, normaliseRazorpay, verifyPaddleSignature, verifyRazorpaySignature } from "../_shared/billing.ts";
+import { normalisePaddle, normaliseRazorpay, ProviderError, razorpay, verifyPaddleSignature, verifyRazorpaySignature } from "../_shared/billing.ts";
 import type { Json } from "../_shared/db.ts";
 
 Deno.serve(createHandler({ name: "billing-webhook", auth: "none" }, async ({ req, admin }) => {
@@ -58,6 +61,18 @@ Deno.serve(createHandler({ name: "billing-webhook", auth: "none" }, async ({ req
   if (recordError) throw recordError;
   const row = stored as { id: number; duplicate: boolean; processed: boolean };
   if (row.processed) return { received: true, duplicate: true };
+
+  if (event.action === "subscription_replaced" && event.replaces) {
+    try {
+      await razorpay().cancelAtCycleEnd(event.replaces);
+    } catch (err) {
+      // 400: already cancelled (e.g. a retry of this event). Anything else: retry later.
+      if (!(err instanceof ProviderError && err.status === 400)) {
+        await db.rpc("billing_event_failed", { p_id: row.id, p_error: `cancel old ${event.replaces}: ${err instanceof ProviderError ? err.status : "error"}` });
+        throw errors.internal("Couldn't cancel the replaced subscription. It will be retried.");
+      }
+    }
+  }
 
   const { data: applied, error: applyError } = await db.rpc("billing_apply_event", { p_id: row.id, p_event: event as unknown as Json });
   if (applyError) {

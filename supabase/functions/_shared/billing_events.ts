@@ -9,6 +9,7 @@ export type BillingAction =
   | "subscription_past_due"
   | "subscription_ended"
   | "refunded"
+  | "subscription_replaced" // derived: Razorpay subscription.authenticated with notes.replaces
   | "ignored";
 
 export type CheckoutProvider = "razorpay" | "paddle";

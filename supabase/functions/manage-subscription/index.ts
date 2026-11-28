@@ -7,9 +7,14 @@
 //   cancel       At the period end: the plan lasts until then. Razorpay: cancel at cycle end.
 //                Paddle: cancel effective next billing period.
 //   change_plan  To another monthly plan on sale in the student's country.
-//                Upgrade (Gold → Platinum): at once; the provider charges the prorated
-//                difference, and the webhook gives the plan and the credit difference straight away.
-//                Downgrade: from the period end; the plan stays until then.
+//                Paddle: the subscription's price changes. Upgrade: at once, the prorated
+//                difference billed now. Downgrade: from the period end.
+//                Razorpay can't change the plan of UPI / e-mandate subscriptions, so for every
+//                payment method a NEW subscription on the new plan is created, starting at the
+//                current period end; an upgrade adds the prorated difference as an upfront charge.
+//                The answer is { checkout }: the student authorises it like a purchase. The
+//                webhook (subscription.authenticated, notes.replaces) applies an upgrade at once
+//                and books a downgrade, and cancels the old subscription at its cycle end.
 //
 // Exam pack (paid once): no cancel. change_plan to the Platinum exam pack upgrades it for the days
 // left: a one-time charge of the price difference × the share of the pack left, with the extra
@@ -35,7 +40,7 @@ type Offer = { id: string; plan_id: string | null };
 type Prices = { enabled: boolean; subscriptions: Offer[]; exam_packs: Offer[] };
 
 const COLUMNS =
-  "id, plan_id, kind, provider, provider_subscription_id, provider_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, scheduled_price_id, price_id, currency, amount_minor";
+  "id, plan_id, kind, provider, provider_subscription_id, provider_customer_id, status, current_period_start, current_period_end, cancel_at_period_end, scheduled_price_id, replaced_by_provider_id, price_id, currency, amount_minor";
 
 Deno.serve(createHandler({ name: "manage-subscription", auth: "required", input: Input }, async ({ input, user, admin }) => {
   const db = admin();
@@ -136,6 +141,14 @@ Deno.serve(createHandler({ name: "manage-subscription", auth: "required", input:
     if (input.action === "cancel") {
       if (pack) throw errors.conflict("An exam pack is paid up front, so there's nothing to cancel. It ends on its own.");
       if (!sub.cancel_at_period_end) {
+        // A plan change booked by replacement: the new subscription must not start either.
+        if (sub.replaced_by_provider_id) {
+          try {
+            await razorpay().cancelNow(sub.replaced_by_provider_id);
+          } catch (err) {
+            if (!(err instanceof ProviderError && err.status === 400)) throw err; // 400: already cancelled
+          }
+        }
         if (sub.provider === "razorpay") await razorpay().cancelAtCycleEnd(sub.provider_subscription_id);
         else await paddle().cancelAtPeriodEnd(sub.provider_subscription_id);
         const { error: e } = await db.rpc("billing_mark_cancel", { p_subscription_id: sub.id });
@@ -162,7 +175,41 @@ Deno.serve(createHandler({ name: "manage-subscription", auth: "required", input:
     if (up === 0) throw errors.conflict("You're already on this plan.");
 
     if (sub.provider === "razorpay") {
-      await razorpay().changePlan(sub.provider_subscription_id, targetProviderId, up > 0 ? "now" : "cycle_end");
+      if (sub.replaced_by_provider_id) throw errors.conflict("A plan change is already booked. It starts when this period ends.");
+      // Replace: a new subscription from the period end (Razorpay starts it then); an upgrade
+      // pays the difference for the days left now, with the authorisation.
+      const quote = packUpgradeQuote({
+        fromAmountMinor: sub.amount_minor ?? 0,
+        toAmountMinor: target.amount_minor,
+        fromCredits: 0,
+        toCredits: 0,
+        start: sub.current_period_start,
+        end: sub.current_period_end,
+      });
+      const upfront = up > 0 && quote.amount_minor >= MIN_UPGRADE_MINOR ? quote.amount_minor : 0;
+      const startAt = Math.floor(Date.parse(sub.current_period_end) / 1000);
+      if (startAt <= Math.floor(Date.now() / 1000) + 60) throw errors.conflict("This period is about to end. Change plan after it renews.");
+      const name = target.plan_id === "platinum" ? "Platinum" : "Gold";
+      const rp = razorpay();
+      const created = await rp.createSubscription(
+        targetProviderId,
+        { user_id: me.id, price_id: target.id, replaces: sub.provider_subscription_id },
+        { startAt, ...(upfront ? { upfront: { name: `Upgrade to ${name} for the rest of this month`, amountMinor: upfront, currency: target.currency } } : {}) },
+      );
+      const { data: profile2 } = await db.from("profiles").select("full_name").eq("id", me.id).maybeSingle();
+      return {
+        checkout: {
+          provider: "razorpay" as const,
+          mode: "subscription" as const,
+          subscription_id: created.id,
+          price_id: target.id,
+          key_id: rp.keyId,
+          amount_minor: upfront || target.amount_minor,
+          currency: "INR" as const,
+          description: up > 0 ? `${name} from now, then ${name} monthly` : `${name} monthly from your next renewal`,
+          prefill: { ...(profile2?.full_name ? { name: profile2.full_name } : {}), ...(me.email ? { email: me.email } : {}) },
+        },
+      };
     } else {
       // Paddle changes the items at once: upgrades bill the prorated difference now; downgrades
       // aren't billed until the renewal, and billing_apply_event keeps the plan until then.
@@ -176,10 +223,6 @@ Deno.serve(createHandler({ name: "manage-subscription", auth: "required", input:
   } catch (err) {
     if (err instanceof ProviderError) {
       console.error(`[manage-subscription] ${err.provider} ${err.status} ${input.action}`);
-      // Razorpay can't change the plan of some mandates (e.g. UPI AutoPay): say what to do instead.
-      if (err.provider === "razorpay" && input.action === "change_plan" && err.status === 400) {
-        throw errors.conflict("This payment method can't change plan. Cancel this plan, then subscribe to the new one.");
-      }
       throw errors.internal("The payment provider didn't respond. Try again in a minute.");
     }
     throw err;

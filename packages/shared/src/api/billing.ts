@@ -89,6 +89,8 @@ export const CheckoutMetadata = z
     price_id: PriceId,
     /** Exam pack upgrades only: the pack (subscriptions.id) being upgraded and the extra credits. */
     upgrade_of: z.uuid().optional(),
+    /** Razorpay plan changes only: the subscription (sub_…) the new one replaces. */
+    replaces: z.string().regex(/^sub_[A-Za-z0-9]+$/).optional(),
     upgrade_credits: z.string().regex(/^\d{1,5}$/).optional(),
   })
   .strict();
@@ -123,6 +125,9 @@ export const billingErrorMessages: Record<BillingErrorCode, string> = {
  *   subscription_past_due a renewal failed: past_due, plan kept during the grace period
  *   subscription_ended    cancelled or ran out: status cancelled/expired, back to Free
  *   refunded              refund the purchase: remove the credits it granted that are still unspent
+ *   subscription_replaced Razorpay plan change: the student authorised the new subscription that
+ *                         replaces the old one (not in the table: billing-webhook derives it from
+ *                         subscription.authenticated with notes.replaces)
  *   ignored               stored, nothing else to do
  */
 export const billingActions = [
@@ -132,6 +137,7 @@ export const billingActions = [
   "subscription_past_due",
   "subscription_ended",
   "refunded",
+  "subscription_replaced",
   "ignored",
 ] as const;
 export type BillingAction = (typeof billingActions)[number];

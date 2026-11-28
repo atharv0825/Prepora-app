@@ -28,7 +28,7 @@ type Retry = { kind: "send"; clip: Clip } | { kind: "turn" } | { kind: "score" }
 export type SpeakingMode = "exam" | "practice";
 
 /**
- * M8-F1: the AI examiner for one Part 1 or Part 3 (practice or inside the full test). The examiner
+ * M8-F1: the AI examiner for one Part 1 or Part 3 practice. The examiner
  * asks a question: it's shown as text and read aloud by the browser's own voice (a British voice,
  * else an Australian one, when the device has it) → the student answers (exam: recording starts
  * when it stops talking) → "Done" (or the part's limit) uploads the answer to examiner-turn, which

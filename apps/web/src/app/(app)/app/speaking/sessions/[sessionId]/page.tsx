@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Layers, Shuffle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Layers } from "lucide-react";
 import { cn } from "cn";
 import { buttonVariants } from "@prepora/ui/components/button";
 import { SpeakingFeedback } from "@prepora/shared/api/score-speaking";
@@ -9,7 +9,7 @@ import { speakingCriteria, speakingCriterionLabel, type SpeakingScores } from "@
 import { partsOf, type SessionMode, sessionOverallBand } from "@prepora/shared/ielts/speaking-session";
 import { formatDate } from "@/lib/credits";
 import { validTimeZone } from "@/lib/onboarding";
-import { routes, speakingExaminerPath, speakingResponsePath, speakingTestPath } from "@/lib/routes";
+import { routes, speakingExaminerPath, speakingResponsePath } from "@/lib/routes";
 import { createClient } from "@/lib/supabase/server";
 import { getAccount } from "@/lib/supabase/session";
 
@@ -19,9 +19,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PART_NAMES = { 1: "Introduction and interview", 2: "Cue card", 3: "Discussion" } as const;
 
 // M8-F3: a Speaking session's results: the overall band, each part's band, criteria and summary,
-// with a link to its full feedback. After a full test: "Go deeper" (another Part 3 discussion on
-// the same card's theme) or "Next cue card" (a new full test with another card). An unfinished
-// test can be continued. Read through RLS (own sessions and responses only).
+// with a link to its full feedback. There's no Speaking full test any more; earlier full tests still
+// show their results here, with "Go deeper" (another Part 3 discussion on the same card's theme).
+// Read through RLS (own sessions and responses only).
 export default async function SpeakingSessionPage({ params }: PageProps<"/app/speaking/sessions/[sessionId]">) {
   const account = await getAccount();
   if (!account) return null;
@@ -78,11 +78,6 @@ export default async function SpeakingSessionPage({ params }: PageProps<"/app/sp
             <p className="text-sm text-muted-foreground">
               {byPart.size} of {parts.length} parts done. Your overall band comes when every part is scored.
             </p>
-            {fullTest && session.status === "in_progress" && (
-              <Link href={speakingTestPath({ session: session.id })} className={cn(buttonVariants(), "mt-2 self-start")}>
-                Continue the test <ArrowRight />
-              </Link>
-            )}
           </>
         )}
       </section>
@@ -128,17 +123,12 @@ export default async function SpeakingSessionPage({ params }: PageProps<"/app/sp
         })}
       </ul>
 
-      {fullTest && finished && (
+      {fullTest && finished && deeper && (
         <section className="flex flex-col gap-3" aria-label="What next">
           <h2 className="text-h3">What next?</h2>
           <div className="flex flex-wrap gap-3">
-            {deeper && (
-              <Link href={speakingExaminerPath(deeper)} className={buttonVariants()} data-testid="go-deeper">
-                <Layers /> Go deeper: more Part 3 on this theme
-              </Link>
-            )}
-            <Link href={speakingTestPath({ not: card })} className={buttonVariants({ variant: deeper ? "outline" : "default" })} data-testid="next-card">
-              <Shuffle /> Next cue card: a new full test
+            <Link href={speakingExaminerPath(deeper)} className={buttonVariants()} data-testid="go-deeper">
+              <Layers /> Go deeper: more Part 3 on this theme
             </Link>
           </div>
         </section>

@@ -1249,6 +1249,20 @@ export type Database = {
         Args: { p_note: string; p_reservation_id: string; p_user_id: string }
         Returns: Json
       }
+      admin_save_study_template: {
+        Args: {
+          p_days: number
+          p_id: string
+          p_items: Json
+          p_name: string
+          p_test_type: Database["public"]["Enums"]["ielts_test_type"]
+        }
+        Returns: string
+      }
+      admin_set_study_template_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
       admin_update_credit_cost: {
         Args: { p_action_key: string; p_credits: number }
         Returns: Json
@@ -1280,20 +1294,6 @@ export type Database = {
         }[]
       }
       allowance_period_start: { Args: never; Returns: string }
-      admin_save_study_template: {
-        Args: {
-          p_days: number
-          p_id: string | null
-          p_items: Json
-          p_name: string
-          p_test_type: Database["public"]["Enums"]["ielts_test_type"] | null
-        }
-        Returns: string
-      }
-      admin_set_study_template_active: {
-        Args: { p_active: boolean; p_id: string }
-        Returns: undefined
-      }
       assign_my_study_plan: { Args: { p_restart?: boolean }; Returns: Json }
       credit_balance: { Args: { p_user_id: string }; Returns: number }
       credit_day_start: { Args: never; Returns: string }

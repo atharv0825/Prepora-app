@@ -22,10 +22,12 @@ export async function saveStudyTemplate(id: string | null, input: unknown): Prom
   const session = await signedIn();
   if (!session) return SESSION_ENDED;
   const { data, error } = await session.supabase.rpc("admin_save_study_template", {
-    p_id: id,
+    // The generated types mark every argument as non-null, but the function takes null for both:
+    // no id = a new template, no test type = for Academic and General students.
+    p_id: id as string,
     p_name: form.data.name,
     p_days: form.data.days,
-    p_test_type: form.data.test_type,
+    p_test_type: form.data.test_type as "academic" | "general",
     p_items: form.data.items,
   });
   if (error) return notFound(error) ?? failure("save study plan", error);

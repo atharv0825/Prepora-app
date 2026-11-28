@@ -20,7 +20,7 @@
 }
 
 .theme-listening {
-  --primary: #f2a93f;
+  --primary: #f7b955;
   --primary-foreground: #08222b;
   --secondary: #fdf2e1;
   --secondary-foreground: #08222b;
@@ -69,7 +69,7 @@
 .theme-listening .mint {
   --background: #fdf2e1;
   --popover: #fdf2e1;
-  --primary: #f2a93f;
+  --primary: #f7b955;
   --primary-foreground: #08222b;
   --muted: #fbe4bf;
   --muted-foreground: #6e4200;

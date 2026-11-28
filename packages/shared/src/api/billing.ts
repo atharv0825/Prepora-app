@@ -166,3 +166,68 @@ export const billingEventActions: Record<CheckoutProvider, Readonly<Record<strin
 export function billingAction(provider: CheckoutProvider, eventType: string): BillingAction {
   return Object.hasOwn(billingEventActions[provider], eventType) ? billingEventActions[provider][eventType]! : "ignored";
 }
+
+// ── get_prices (M9-B1) ──────────────────────────────────────────────────────────────────────
+const PlanId = z.enum(["gold", "platinum"]);
+
+/** One thing on sale in the student's country (a row of prices, resolved for that country). */
+export const Offer = z
+  .object({
+    id: PriceId,
+    plan_id: PlanId.nullable(),
+    period: z.enum(billingPeriods).nullable(),
+    credits: z.number().int().positive().nullable(),
+    currency,
+    amount_minor: amountMinor,
+  })
+  .strict();
+export type Offer = z.infer<typeof Offer>;
+
+/**
+ * get_prices(country): null when the country isn't listed. enabled = launched there (checkout
+ * needs it). Monthly plans and exam packs come Gold first; top-ups smallest first.
+ */
+export const GetPricesResult = z
+  .object({
+    country: z.string().regex(/^[A-Z]{2}$/),
+    region: z.enum(Enums.market_region),
+    enabled: z.boolean(),
+    provider: CheckoutProvider.nullable(),
+    subscriptions: z.array(Offer),
+    exam_packs: z.array(Offer),
+    topups: z.array(Offer),
+  })
+  .strict()
+  .nullable();
+export type GetPricesResult = z.infer<typeof GetPricesResult>;
+
+// ── manage-subscription (M9-B4/B5) ──────────────────────────────────────────────────────────
+export const ManageSubscriptionRequest = z.discriminatedUnion("action", [
+  /** Paddle's customer portal (payment method, invoices). Razorpay has none: 409 conflict. */
+  z.object({ action: z.literal("portal") }).strict(),
+  /** Cancel at the period end: the plan lasts until then. */
+  z.object({ action: z.literal("cancel") }).strict(),
+  /** Upgrade at once (credit difference granted), or downgrade from the period end. */
+  z.object({ action: z.literal("change_plan"), price_id: PriceId }).strict(),
+]);
+export type ManageSubscriptionRequest = z.infer<typeof ManageSubscriptionRequest>;
+
+export const SubscriptionSummary = z
+  .object({
+    id: z.uuid(),
+    plan_id: PlanId,
+    provider: CheckoutProvider,
+    status: z.enum(subscriptionStatuses),
+    current_period_end: z.string(),
+    cancel_at_period_end: z.boolean(),
+    /** A downgrade booked for the period end. */
+    scheduled_plan_id: PlanId.nullable(),
+  })
+  .strict();
+export type SubscriptionSummary = z.infer<typeof SubscriptionSummary>;
+
+export const ManageSubscriptionResponse = z.union([
+  z.object({ url: z.url() }).strict(),
+  z.object({ subscription: SubscriptionSummary }).strict(),
+]);
+export type ManageSubscriptionResponse = z.infer<typeof ManageSubscriptionResponse>;

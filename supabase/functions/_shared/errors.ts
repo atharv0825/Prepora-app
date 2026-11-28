@@ -64,6 +64,11 @@ export const errors = {
     new HttpError(402, "allowance_exceeded", msg),
   featureNotInPlan: (msg = "Not included in your plan") =>
     new HttpError(403, "feature_not_in_plan", msg),
+  // M9-C2. Statuses match billingErrorStatus in packages/shared/src/api/billing.ts.
+  priceNotAvailable: (msg = "This option isn't available in your country") =>
+    new HttpError(422, "price_not_available", msg),
+  alreadySubscribed: (msg = "You already have a plan") =>
+    new HttpError(409, "already_subscribed", msg),
   rateLimited: (msg = "Too many requests") => new HttpError(429, "rate_limited", msg),
   wrongRegion: (expected: string, actual: string) =>
     new HttpError(421, "wrong_region", `Must be invoked in ${expected}, ran in ${actual}`),

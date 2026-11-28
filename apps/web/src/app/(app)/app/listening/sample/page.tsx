@@ -19,7 +19,7 @@ export default async function SampleListeningPage({ searchParams }: PageProps<"/
   const { sec } = await searchParams;
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-6 pb-16">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-16">
       <div className="flex flex-col gap-2">
         <h1 className="text-h1">Sample Listening test</h1>
         <p className="text-muted-foreground">

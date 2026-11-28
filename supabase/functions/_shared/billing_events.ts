@@ -43,3 +43,33 @@ export const BILLING_EVENT_ACTIONS: Record<CheckoutProvider, Readonly<Record<str
 export function billingAction(provider: CheckoutProvider, eventType: string): BillingAction {
   return Object.hasOwn(BILLING_EVENT_ACTIONS[provider], eventType) ? BILLING_EVENT_ACTIONS[provider][eventType]! : "ignored";
 }
+
+/**
+ * Upgrading an exam pack (Gold → Platinum) for the days it has left: the price difference and the
+ * extra credits, both scaled by the share of the pack still to run. Copy of packUpgradeQuote in
+ * packages/shared/src/api/billing.ts (tests/contract.test.ts compares them).
+ */
+export function packUpgradeQuote(q: {
+  fromAmountMinor: number;
+  toAmountMinor: number;
+  fromCredits: number;
+  toCredits: number;
+  start: string;
+  end: string;
+  now?: number;
+}): { amount_minor: number; credits: number; days_left: number } {
+  const start = Date.parse(q.start);
+  const end = Date.parse(q.end);
+  const now = q.now ?? Date.now();
+  const total = Math.max(end - start, 1);
+  const left = Math.min(Math.max(end - now, 0), total);
+  const share = left / total;
+  return {
+    amount_minor: Math.max(0, Math.round((q.toAmountMinor - q.fromAmountMinor) * share)),
+    credits: Math.max(0, Math.round((q.toCredits - q.fromCredits) * share)),
+    days_left: Math.ceil(left / 86_400_000),
+  };
+}
+
+/** Below this (in minor units) an upgrade isn't worth charging: Razorpay's minimum is ₹1. */
+export const MIN_UPGRADE_MINOR = 100;

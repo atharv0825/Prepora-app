@@ -39,11 +39,15 @@ export type MySubscription = {
   kind: "subscription" | "exam_pack";
   provider: string;
   status: "active" | "past_due";
+  current_period_start: string;
   current_period_end: string;
   cancel_at_period_end: boolean;
   scheduled_plan_id: "gold" | "platinum" | null;
   currency: string | null;
   amount_minor: number | null;
+  /** The price bought (prices.id) and its credits: exam pack upgrades are quoted from them. */
+  price_id: string | null;
+  price_credits: number | null;
 };
 
 /** The student's running plan (active, or past_due in its grace period), newest end first. */
@@ -51,7 +55,7 @@ export async function fetchMySubscription(): Promise<MySubscription | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("id, plan_id, kind, provider, status, current_period_end, cancel_at_period_end, scheduled_price_id, currency, amount_minor")
+    .select("id, plan_id, kind, provider, status, current_period_start, current_period_end, cancel_at_period_end, scheduled_price_id, price_id, currency, amount_minor")
     .in("status", ["active", "past_due"])
     .gt("current_period_end", new Date(Date.now() - 7 * 86_400_000).toISOString())
     .order("current_period_end", { ascending: false })
@@ -67,16 +71,24 @@ export async function fetchMySubscription(): Promise<MySubscription | null> {
     const { data: p } = await supabase.from("prices").select("plan_id").eq("id", s.scheduled_price_id).maybeSingle();
     scheduled = p?.plan_id === "gold" || p?.plan_id === "platinum" ? p.plan_id : null;
   }
+  let priceCredits: number | null = null;
+  if (s.price_id) {
+    const { data: p } = await supabase.from("prices").select("credits").eq("id", s.price_id).maybeSingle();
+    priceCredits = p?.credits ?? null;
+  }
   return {
     id: s.id,
     plan_id: s.plan_id,
     kind: s.kind,
     provider: s.provider,
     status: s.status,
+    current_period_start: s.current_period_start,
     current_period_end: s.current_period_end,
     cancel_at_period_end: s.cancel_at_period_end,
     scheduled_plan_id: scheduled,
     currency: s.currency,
     amount_minor: s.amount_minor,
+    price_id: s.price_id,
+    price_credits: priceCredits,
   };
 }

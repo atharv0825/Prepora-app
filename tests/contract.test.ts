@@ -14,8 +14,8 @@ import {
   planFeatures,
   planLimitCounts,
 } from "../packages/shared/src/api/credits";
-import { billingErrorCodes, billingErrorStatus, billingEventActions } from "../packages/shared/src/api/billing";
-import { BILLING_EVENT_ACTIONS } from "../supabase/functions/_shared/billing_events";
+import { MIN_UPGRADE_MINOR, billingErrorCodes, billingErrorStatus, billingEventActions, packUpgradeQuote } from "../packages/shared/src/api/billing";
+import { BILLING_EVENT_ACTIONS, MIN_UPGRADE_MINOR as EDGE_MIN_UPGRADE, packUpgradeQuote as edgeQuote } from "../supabase/functions/_shared/billing_events";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -73,6 +73,16 @@ describe("frontend ↔ Edge Function contract", () => {
 
   it("webhook event mapping (M9-C2) matches supabase/functions/_shared/billing_events.ts", () => {
     expect(BILLING_EVENT_ACTIONS).toEqual(billingEventActions);
+  });
+
+  it("exam pack upgrade quotes match supabase/functions/_shared/billing_events.ts", () => {
+    expect(EDGE_MIN_UPGRADE).toBe(MIN_UPGRADE_MINOR);
+    const start = "2027-01-01T00:00:00Z";
+    const end = "2027-04-01T00:00:00Z";
+    for (const days of [0, 1, 17.5, 45, 89, 90, 120]) {
+      const q = { fromAmountMinor: 1099, toAmountMinor: 2199, fromCredits: 300, toCredits: 660, start, end, now: Date.parse(start) + days * 86_400_000 };
+      expect(edgeQuote(q)).toEqual(packUpgradeQuote(q));
+    }
   });
 });
 

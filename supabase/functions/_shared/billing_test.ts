@@ -1,6 +1,16 @@
 // Unit tests for the billing helpers (M9-B3): signatures and event normalisation.
 // Run (Deno 2, from supabase/functions): deno test --frozen _shared/
-import { normalisePaddle, normaliseRazorpay, verifyPaddleSignature, verifyRazorpaySignature } from "./billing.ts";
+import {
+  ensureProviderPrice,
+  normalisePaddle,
+  normaliseRazorpay,
+  type Paddle,
+  providerPriceName,
+  type Razorpay,
+  verifyPaddleSignature,
+  verifyRazorpaySignature,
+} from "./billing.ts";
+import { packUpgradeQuote } from "./billing_events.ts";
 
 function assertEquals(actual: unknown, expected: unknown, msg = "") {
   const a = JSON.stringify(actual);
@@ -135,4 +145,103 @@ Deno.test("paddle adjustments: only approved refunds and chargebacks refund", ()
   assertEquals(adj("chargeback", "approved").action, "refunded");
   assertEquals(adj("refund", "pending_approval").action, "ignored");
   assertEquals(adj("credit", "approved").action, "ignored");
+});
+
+// ── Provider prices on first use ────────────────────────────────────────────────────────────
+
+/** A fake prices table: update … where provider_price_id is null, then read back. */
+function fakeDb(stored: { provider_price_id: string | null }) {
+  const chain = {
+    _update: null as null | Record<string, string>,
+    from: () => chain,
+    update(v: Record<string, string>) {
+      chain._update = v;
+      return chain;
+    },
+    select: () => chain,
+    eq: () => chain,
+    is: () => chain,
+    async maybeSingle() {
+      if (chain._update && stored.provider_price_id === null) {
+        stored.provider_price_id = chain._update.provider_price_id!;
+        return { data: { provider_price_id: stored.provider_price_id }, error: null };
+      }
+      return { data: null, error: null };
+    },
+    async single() {
+      return { data: { provider_price_id: stored.provider_price_id }, error: null };
+    },
+  };
+  return chain;
+}
+
+const monthly = { id: "in_gold_month", kind: "subscription", plan_id: "gold", provider: "razorpay", provider_price_id: null, currency: "INR", amount_minor: 29900, credits: null };
+
+Deno.test("ensureProviderPrice: an existing id is used as is", async () => {
+  const calls: string[] = [];
+  const rp = { createPlan: () => (calls.push("plan"), Promise.resolve({ id: "plan_new" })) } as unknown as Razorpay;
+  assertEquals(await ensureProviderPrice(fakeDb({ provider_price_id: "plan_old" }), { ...monthly, provider_price_id: "plan_old" }, { razorpay: () => rp }), "plan_old");
+  assertEquals(calls, []);
+});
+
+Deno.test("ensureProviderPrice: a Razorpay monthly price gets a plan, saved once", async () => {
+  const seen: unknown[] = [];
+  const rp = { createPlan: (...a: unknown[]) => (seen.push(a), Promise.resolve({ id: "plan_X" })) } as unknown as Razorpay;
+  const stored = { provider_price_id: null as string | null };
+  assertEquals(await ensureProviderPrice(fakeDb(stored), monthly, { razorpay: () => rp }), "plan_X");
+  assertEquals(stored.provider_price_id, "plan_X");
+  assertEquals(seen, [["Prepora Gold, monthly (in_gold_month)", 29900, "INR"]]);
+});
+
+Deno.test("ensureProviderPrice: Razorpay one-time orders need no price", async () => {
+  assertEquals(await ensureProviderPrice(fakeDb({ provider_price_id: null }), { ...monthly, id: "in_topup_50", kind: "topup", plan_id: null, credits: 50 }), null);
+});
+
+Deno.test("ensureProviderPrice: a Paddle price is monthly only for subscriptions; a race keeps the first", async () => {
+  const seen: unknown[] = [];
+  const pd = { createPrice: (...a: unknown[]) => (seen.push(a), Promise.resolve({ id: "pri_mine" })) } as unknown as Paddle;
+  const stored = { provider_price_id: "pri_theirs" as string | null }; // saved meanwhile by another request
+  const pack = { ...monthly, id: "sa_gold_exam_pack", kind: "exam_pack", provider: "paddle", currency: "USD", amount_minor: 1099, credits: 300 };
+  assertEquals(await ensureProviderPrice(fakeDb(stored), pack, { paddle: () => pd }), "pri_theirs");
+  assertEquals(seen, [["Prepora Gold, 3-month exam pack (sa_gold_exam_pack)", 1099, "USD", false]]);
+});
+
+Deno.test("providerPriceName for a top-up", () => {
+  assertEquals(providerPriceName({ id: "sa_topup_150", kind: "topup", plan_id: null, credits: 150 }), "Prepora 150 credits (sa_topup_150)");
+});
+
+// ── Exam pack upgrades ──────────────────────────────────────────────────────────────────────
+
+Deno.test("packUpgradeQuote: the difference scaled by the share of the pack left", () => {
+  const start = "2027-01-01T00:00:00Z";
+  const end = "2027-04-01T00:00:00Z"; // 90 days
+  const half = Date.parse(start) + 45 * 86_400_000;
+  assertEquals(packUpgradeQuote({ fromAmountMinor: 79900, toAmountMinor: 169900, fromCredits: 300, toCredits: 660, start, end, now: half }), {
+    amount_minor: 45000,
+    credits: 180,
+    days_left: 45,
+  });
+  assertEquals(packUpgradeQuote({ fromAmountMinor: 79900, toAmountMinor: 169900, fromCredits: 300, toCredits: 660, start, end, now: Date.parse(start) }).amount_minor, 90000);
+  assertEquals(packUpgradeQuote({ fromAmountMinor: 79900, toAmountMinor: 169900, fromCredits: 300, toCredits: 660, start, end, now: Date.parse(end) + 1 }), { amount_minor: 0, credits: 0, days_left: 0 });
+});
+
+Deno.test("razorpay order.paid for a pack upgrade carries upgrade_of and the credits", () => {
+  const of = "1b6a4c1e-2f5d-4a8b-9c3e-1d2f3a4b5c6d";
+  const e = normaliseRazorpay("order.paid", {
+    payload: {
+      order: { entity: { id: "order_U", notes: { user_id: USER, price_id: "in_platinum_exam_pack", upgrade_of: of, upgrade_credits: "180" } } },
+      payment: { entity: { id: "pay_U", amount: 45000, currency: "INR" } },
+    },
+  });
+  assertEquals([e.price_id, e.upgrade_of, e.upgrade_credits, e.amount_minor], ["in_platinum_exam_pack", of, "180", 45000]);
+  const bad = normaliseRazorpay("order.paid", { payload: { order: { entity: { id: "order_V", notes: { user_id: USER, upgrade_of: "x", upgrade_credits: "1e9" } } } } });
+  assertEquals([bad.upgrade_of, bad.upgrade_credits], [undefined, undefined]);
+});
+
+Deno.test("paddle one-time transaction for a pack upgrade carries upgrade_of", () => {
+  const of = "1b6a4c1e-2f5d-4a8b-9c3e-1d2f3a4b5c6d";
+  const e = normalisePaddle("transaction.completed", {
+    data: { id: "txn_U", subscription_id: null, custom_data: { user_id: USER, price_id: "sa_platinum_exam_pack", upgrade_of: of, upgrade_credits: "200" }, details: { totals: { grand_total: "600", currency_code: "USD" } } },
+  });
+  assertEquals([e.price_id, e.upgrade_of, e.upgrade_credits, e.payment_id], ["sa_platinum_exam_pack", of, "200", "txn_U"]);
 });

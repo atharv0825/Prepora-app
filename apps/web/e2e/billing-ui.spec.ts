@@ -118,4 +118,19 @@ test("Settings: an exam pack just shows when it ends", async ({ page, context, b
   await expect(status).toContainText("3-month exam pack");
   await expect(status).toContainText("It won't renew");
   await expect(page.getByTestId("cancel-subscription")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Upgrade to/ })).toHaveCount(0); // already the top plan
+});
+
+test("Settings: a Gold exam pack can be upgraded to Platinum for the days left", async ({ page, context, baseURL }) => {
+  const u = await student("Gita Upgrade", "IN", context, baseURL!);
+  await webhook("razorpay", { action: "payment_completed", user_id: u.id, price_id: "in_gold_exam_pack", order_id: `order_g${stamp.replace(/\W/g, "")}`, payment_id: `pay_g${stamp.replace(/\W/g, "")}` });
+  await page.goto("/app/profile");
+  await expect(page.getByTestId("subscription-status")).toContainText("You can upgrade it for the days left");
+  await page.getByTestId("upgrade-pack-to-platinum").click();
+  const dialog = page.getByRole("dialog");
+  // Bought just now: almost all 90 days left, so nearly the full ₹900 difference and 360 credits.
+  await expect(dialog).toContainText("Upgrade your pack to Platinum?");
+  await expect(dialog).toContainText(/you pay ₹(899|900) once and get 360 extra credits/);
+  await expect(page.getByTestId("confirm-pack-upgrade")).toHaveText(/Pay ₹(899|900)/);
+  await dialog.getByRole("button", { name: "Not now" }).click();
 });

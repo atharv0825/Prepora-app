@@ -44,10 +44,12 @@ select ok(not has_function_privilege('anon', 'public.pick_next(public.study_item
 select ok(not has_function_privilege('authenticated', 'public.study_pick(uuid, public.study_item_kind, uuid[])', 'execute'), 'the internal pick is not callable');
 select ok(not has_function_privilege('authenticated', 'public.study_candidates(uuid, public.study_item_kind)', 'execute'), 'the candidates are not callable');
 select is((select count(*)::int from public.study_plan_templates), 6, 'six templates are seeded');
+-- Every kind but the retired Speaking full test (no_speaking_full_test turned it into Part 2).
 select is(
   (select count(*)::int from public.study_plan_templates t
-   where (select count(distinct i.kind) from public.study_plan_items i where i.template_id = t.id) = 7),
-  6, 'every template covers all 7 kinds');
+   where public.study_template_kinds() <@ (select array_agg(i.kind) from public.study_plan_items i where i.template_id = t.id)
+     and not exists (select 1 from public.study_plan_items i where i.template_id = t.id and i.kind = 'speaking_full')),
+  6, 'every template covers every kind, and none asks for the full test');
 select is(
   (select count(*)::int from public.study_plan_items i join public.study_plan_templates t on t.id = i.template_id where i.day > t.days),
   0, 'no item falls after its template''s last day');

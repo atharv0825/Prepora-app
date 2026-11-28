@@ -25,7 +25,7 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
   const supabase = await createClient();
 
   const [{ data: topics }, { data: responses }, { data: costs }] = await Promise.all([
-    supabase.from("speaking_topics").select("id, part, title, cue_card_points, parent_topic_id").eq("status", "published").order("published_at", { ascending: false }),
+    supabase.from("speaking_topics").select("id, part, title, parent_topic_id").eq("status", "published").order("published_at", { ascending: false }),
     supabase.from("speaking_responses").select("topic_id, band").order("created_at", { ascending: false }).limit(200),
     supabase.from("credit_costs").select("action_key, credits").in("action_key", ["speaking_p1", "speaking_p2", "speaking_p3"]),
   ]);
@@ -90,7 +90,6 @@ export default async function SpeakingPartPage({ params }: PageProps<"/app/speak
                     kindLabel="Part 2"
                     icon={Mic}
                     status={best.has(t.id) ? `Best band ${best.get(t.id)!.toFixed(1)}` : "Not answered yet"}
-                    detail={(t.cue_card_points ?? []).join(" · ")}
                     done={best.has(t.id)}
                     verbs={{ start: "Start", again: "Answer again" }}
                     extraLink={

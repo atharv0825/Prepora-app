@@ -10,11 +10,16 @@
     align-items: start;
   }
 
-  /* Both columns: stay in view, sized to fit between the header and the bottom bar. */
+  /* The page ends 1rem above the bottom bar (4.5rem tall): 2rem here + the layout's 3.5rem. */
+  .we-page {
+    padding-bottom: 2rem;
+  }
+
+  /* Both columns: stay in view, from 1rem under the header (4rem) to 1rem above the bottom bar. */
   .we-pane {
     position: sticky;
     top: 5rem;
-    height: calc(100vh - 11rem);
+    height: calc(100vh - 10.5rem);
   }
 
   /* The task: always shows its scrollbar. */

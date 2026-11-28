@@ -184,7 +184,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
   const under = words < minWords;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-32">
+    <div className="we-page mx-auto flex w-full max-w-7xl flex-col gap-6 pb-32">
       <BackLink />
       <div className="flex flex-col gap-3">
         <div>

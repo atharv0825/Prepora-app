@@ -14,6 +14,8 @@ import {
   planFeatures,
   planLimitCounts,
 } from "../packages/shared/src/api/credits";
+import { billingErrorCodes, billingErrorStatus, billingEventActions } from "../packages/shared/src/api/billing";
+import { BILLING_EVENT_ACTIONS } from "../supabase/functions/_shared/billing_events";
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -59,6 +61,18 @@ describe("frontend ↔ Edge Function contract", () => {
       const status = edge.match(new RegExp(`new HttpError\\((\\d{3}), "${code}"`))?.[1];
       expect(Number(status), code).toBe(creditErrorStatus[code]);
     }
+  });
+
+  it("billing error statuses (M9-C2) match the errors.* helpers", () => {
+    const edge = read("supabase/functions/_shared/errors.ts");
+    for (const code of billingErrorCodes) {
+      const status = edge.match(new RegExp(`new HttpError\\((\\d{3}), "${code}"`))?.[1];
+      expect(Number(status), code).toBe(billingErrorStatus[code]);
+    }
+  });
+
+  it("webhook event mapping (M9-C2) matches supabase/functions/_shared/billing_events.ts", () => {
+    expect(BILLING_EVENT_ACTIONS).toEqual(billingEventActions);
   });
 });
 

@@ -444,3 +444,7 @@ verify_jwt = false
 # unless AI_STUB=1.
 [functions.ai-stub]
 verify_jwt = false
+
+# M9-B3: Razorpay and Paddle call it with no JWT; their webhook signature authenticates them.
+[functions.billing-webhook]
+verify_jwt = false

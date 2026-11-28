@@ -447,6 +447,53 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_events: {
+        Row: {
+          error: string | null
+          event_id: string
+          event_type: string
+          id: number
+          payload: Json
+          processed_at: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          received_at: string
+          subscription_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          error?: string | null
+          event_id: string
+          event_type: string
+          id?: never
+          payload: Json
+          processed_at?: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          received_at?: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          id?: never
+          payload?: Json
+          processed_at?: string | null
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          received_at?: string
+          subscription_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           id: Database["public"]["Enums"]["plan_tier"]
@@ -471,6 +518,65 @@ export type Database = {
         }
         Relationships: []
       }
+      prices: {
+        Row: {
+          amount_minor: number
+          country_code: string | null
+          created_at: string
+          credits: number | null
+          currency: string
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["price_kind"]
+          period: Database["public"]["Enums"]["billing_period"] | null
+          plan_id: Database["public"]["Enums"]["plan_tier"] | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_price_id: string | null
+          region: Database["public"]["Enums"]["market_region"]
+          updated_at: string
+        }
+        Insert: {
+          amount_minor: number
+          country_code?: string | null
+          created_at?: string
+          credits?: number | null
+          currency: string
+          id: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["price_kind"]
+          period?: Database["public"]["Enums"]["billing_period"] | null
+          plan_id?: Database["public"]["Enums"]["plan_tier"] | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_price_id?: string | null
+          region: Database["public"]["Enums"]["market_region"]
+          updated_at?: string
+        }
+        Update: {
+          amount_minor?: number
+          country_code?: string | null
+          created_at?: string
+          credits?: number | null
+          currency?: string
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["price_kind"]
+          period?: Database["public"]["Enums"]["billing_period"] | null
+          plan_id?: Database["public"]["Enums"]["plan_tier"] | null
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          provider_price_id?: string | null
+          region?: Database["public"]["Enums"]["market_region"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prices_country_in_region"
+            columns: ["country_code", "region"]
+            isOneToOne: false
+            referencedRelation: "country_regions"
+            referencedColumns: ["country_code", "region"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           country_code: string | null
@@ -479,6 +585,7 @@ export type Database = {
           full_name: string | null
           id: string
           plan: Database["public"]["Enums"]["plan_tier"]
+          plan_expires_at: string | null
           role: Database["public"]["Enums"]["app_role"]
           target_band: number | null
           test_type: Database["public"]["Enums"]["ielts_test_type"] | null
@@ -492,6 +599,7 @@ export type Database = {
           full_name?: string | null
           id: string
           plan?: Database["public"]["Enums"]["plan_tier"]
+          plan_expires_at?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           target_band?: number | null
           test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
@@ -505,6 +613,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           plan?: Database["public"]["Enums"]["plan_tier"]
+          plan_expires_at?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           target_band?: number | null
           test_type?: Database["public"]["Enums"]["ielts_test_type"] | null
@@ -867,6 +976,74 @@ export type Database = {
             columns: ["replaced_by"]
             isOneToOne: false
             referencedRelation: "study_plan_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          amount_minor: number | null
+          cancel_at_period_end: boolean
+          cancelled_at: string | null
+          created_at: string
+          currency: string | null
+          current_period_end: string
+          current_period_start: string
+          id: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          price_id: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_minor?: number | null
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string | null
+          current_period_end: string
+          current_period_start?: string
+          id?: string
+          kind: Database["public"]["Enums"]["price_kind"]
+          plan_id: Database["public"]["Enums"]["plan_tier"]
+          price_id?: string | null
+          provider: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_minor?: number | null
+          cancel_at_period_end?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          currency?: string | null
+          current_period_end?: string
+          current_period_start?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["price_kind"]
+          plan_id?: Database["public"]["Enums"]["plan_tier"]
+          price_id?: string | null
+          provider?: Database["public"]["Enums"]["payment_provider"]
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_price_id_fkey"
+            columns: ["price_id"]
+            isOneToOne: false
+            referencedRelation: "prices"
             referencedColumns: ["id"]
           },
         ]
@@ -1428,6 +1605,7 @@ export type Database = {
     }
     Enums: {
       app_role: "user" | "admin" | "content_editor"
+      billing_period: "month" | "quarter"
       content_source: "admin" | "ai"
       content_status: "draft" | "review" | "published" | "archived"
       credit_ledger_reason:
@@ -1454,7 +1632,14 @@ export type Database = {
         | "map_labelling"
         | "diagram_labelling"
       market_region: "IN" | "SA" | "SEA" | "EA" | "ANZ"
+      payment_provider:
+        | "razorpay"
+        | "paddle"
+        | "google_play"
+        | "app_store"
+        | "manual"
       plan_tier: "free" | "gold" | "platinum"
+      price_kind: "subscription" | "exam_pack" | "topup"
       reading_question_type:
         | "mcq"
         | "tfng"
@@ -1477,6 +1662,7 @@ export type Database = {
         | "speaking_p1"
         | "speaking_p2"
         | "speaking_full"
+      subscription_status: "active" | "past_due" | "cancelled" | "expired"
       test_module: "reading" | "listening"
       writing_input_mode: "typed" | "photo"
     }
@@ -1607,6 +1793,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["user", "admin", "content_editor"],
+      billing_period: ["month", "quarter"],
       content_source: ["admin", "ai"],
       content_status: ["draft", "review", "published", "archived"],
       credit_ledger_reason: [
@@ -1635,7 +1822,15 @@ export const Constants = {
         "diagram_labelling",
       ],
       market_region: ["IN", "SA", "SEA", "EA", "ANZ"],
+      payment_provider: [
+        "razorpay",
+        "paddle",
+        "google_play",
+        "app_store",
+        "manual",
+      ],
       plan_tier: ["free", "gold", "platinum"],
+      price_kind: ["subscription", "exam_pack", "topup"],
       reading_question_type: [
         "mcq",
         "tfng",
@@ -1660,6 +1855,7 @@ export const Constants = {
         "speaking_p2",
         "speaking_full",
       ],
+      subscription_status: ["active", "past_due", "cancelled", "expired"],
       test_module: ["reading", "listening"],
       writing_input_mode: ["typed", "photo"],
     },

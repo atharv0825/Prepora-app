@@ -22,7 +22,8 @@ alter table public.profiles enable trigger profiles_validate;
 select has_table('public', 'profiles', 'profiles table exists');
 select columns_are('public', 'profiles',
   array['id', 'full_name', 'role', 'plan', 'country_code', 'timezone', 'created_at', 'updated_at',
-        'test_type', 'target_band', 'exam_date'], -- onboarding fields: M2-C1
+        'test_type', 'target_band', 'exam_date', -- onboarding fields: M2-C1
+        'plan_expires_at'], -- billing: M9-C1
   'profiles has the contract columns');
 select ok((select relrowsecurity from pg_class where oid = 'public.profiles'::regclass),
   'RLS is enabled on profiles');

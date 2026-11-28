@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { formatMoney } from "@prepora/shared/api/billing";
 import { buttonVariants } from "@prepora/ui/components/button";
 import { cn } from "@prepora/ui/lib/utils";
-import { BuyButton } from "@/components/billing/buy-button";
 import { PlanPicker } from "@/components/billing/plan-picker";
+import { TopupPicker } from "@/components/billing/topup-picker";
 import { fetchMySubscription, fetchPlans, fetchPricing } from "@/lib/billing";
 import { routes } from "@/lib/routes";
 import { getAccount } from "@/lib/supabase/session";
@@ -75,20 +74,10 @@ export default async function PlansPage() {
           <h2 id="top-up-heading" className="text-h3">
             Top-up credits
           </h2>
-          <p className="text-sm text-muted-foreground">Extra AI credits on any plan, Free included. Valid for 12 months; used after your monthly credits run out.</p>
+          <p className="text-sm text-muted-foreground">Extra AI credits on any plan, Free included. Choose an amount; the credits last 12 months.</p>
         </div>
         {pricing && pricing.topups.length > 0 ? (
-          <ul className="grid gap-3 sm:grid-cols-2" data-testid="topups">
-            {pricing.topups.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border p-4">
-                <span>
-                  <span className="block font-medium tabular-nums">{t.credits} credits</span>
-                  <span className="text-sm text-muted-foreground tabular-nums">{formatMoney(t.amount_minor, t.currency)}</span>
-                </span>
-                {canBuy && <BuyButton priceId={t.id} label="Buy" email={account.email} variant="outline" testId={`buy-${t.id}`} />}
-              </li>
-            ))}
-          </ul>
+          <TopupPicker topups={pricing.topups} canBuy={canBuy} email={account.email} />
         ) : (
           <p className="text-sm text-muted-foreground">Top-ups aren&apos;t on sale in your country yet.</p>
         )}

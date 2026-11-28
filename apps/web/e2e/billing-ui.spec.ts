@@ -58,11 +58,20 @@ test("India: plans in rupees, monthly or exam pack, and top-ups", async ({ page,
   await expect(page.getByTestId("plan-platinum")).toContainText("₹1,699");
   await expect(page.getByTestId("buy-in_platinum_exam_pack")).toBeVisible();
 
+  // Top-ups: a slider from ₹100 to ₹500 in ₹50 steps, starting in the middle (₹300 = 110 credits).
   const topups = page.getByTestId("topups");
-  await expect(topups).toContainText("50 credits");
-  await expect(topups).toContainText("₹149");
-  await expect(topups).toContainText("₹399");
-  await expect(topups.getByRole("button", { name: "Buy" })).toHaveCount(2);
+  await expect(topups).toContainText("₹100");
+  await expect(topups).toContainText("₹500");
+  await expect(page.getByTestId("topup-amount")).toHaveText("₹300");
+  await expect(page.getByTestId("topup-credits")).toHaveText("110");
+  const slider = page.getByTestId("topup-slider");
+  await slider.focus();
+  await page.keyboard.press("End");
+  await expect(page.getByTestId("topup-amount")).toHaveText("₹500");
+  await expect(page.getByTestId("buy-topup")).toHaveText("Buy 185 credits");
+  await page.keyboard.press("Home");
+  await expect(page.getByTestId("topup-amount")).toHaveText("₹100");
+  await expect(page.getByTestId("buy-topup")).toHaveText("Buy 35 credits");
 });
 
 test("a country not open yet sees prices but can't buy", async ({ page, context, baseURL }) => {
@@ -76,10 +85,10 @@ test("a country not open yet sees prices but can't buy", async ({ page, context,
 test("the success page waits for the webhook: a top-up, then a plan", async ({ page, context, baseURL }) => {
   const u = await student("Sana Waits", "IN", context, baseURL!);
 
-  await page.goto(`/app/plans/success?price=in_topup_50&since=${Date.now() - 60_000}`);
+  await page.goto(`/app/plans/success?price=in_topup_inr_100&since=${Date.now() - 60_000}`);
   await expect(page.getByTestId("checkout-waiting")).toBeVisible();
-  await webhook("razorpay", { action: "payment_completed", user_id: u.id, price_id: "in_topup_50", order_id: `order_${stamp.replace(/\W/g, "")}`, payment_id: `pay_t${stamp.replace(/\W/g, "")}` });
-  await expect(page.getByTestId("checkout-done")).toContainText("50 credits added");
+  await webhook("razorpay", { action: "payment_completed", user_id: u.id, price_id: "in_topup_inr_100", order_id: `order_${stamp.replace(/\W/g, "")}`, payment_id: `pay_t${stamp.replace(/\W/g, "")}` });
+  await expect(page.getByTestId("checkout-done")).toContainText("35 credits added");
 
   await page.goto(`/app/plans/success?price=in_gold_month&since=${Date.now()}`);
   await expect(page.getByTestId("checkout-waiting")).toBeVisible();

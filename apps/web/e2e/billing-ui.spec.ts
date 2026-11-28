@@ -96,7 +96,7 @@ test("the success page waits for the webhook: a top-up, then a plan", async ({ p
   await expect(page.getByTestId("checkout-done")).toContainText("You're on Gold");
 });
 
-test("Settings: a running monthly plan can be changed or cancelled; Plans points there", async ({ page, context, baseURL }) => {
+test("Settings: a running monthly plan can be changed, not cancelled; Plans points there", async ({ page, context, baseURL }) => {
   const u = await student("Mohan Manage", "IN", context, baseURL!);
   await page.goto("/app/profile");
   await expect(page.getByTestId("see-plans")).toBeVisible();
@@ -108,9 +108,7 @@ test("Settings: a running monthly plan can be changed or cancelled; Plans points
   await expect(status).toContainText("₹299 a month");
   await expect(status).toContainText("Renews on");
   await expect(page.getByTestId("change-to-platinum")).toHaveText("Upgrade to Platinum");
-  await page.getByTestId("cancel-subscription").click();
-  await expect(page.getByRole("dialog")).toContainText("You keep Gold and your credits until");
-  await page.getByRole("button", { name: "Keep my plan" }).click();
+  await expect(page.getByTestId("cancel-subscription")).toHaveCount(0); // students can't cancel
 
   await page.goto("/app/plans");
   await expect(page.getByTestId("current-subscription")).toContainText("then it renews");

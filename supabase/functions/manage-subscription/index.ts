@@ -2,10 +2,9 @@
 // (ManageSubscriptionRequest → ManageSubscriptionResponse). Acts on the student's running monthly
 // subscription or exam pack.
 //
-//   portal       Paddle: a customer portal link (payment method, invoices, cancel). Razorpay has
+//   portal       Paddle: a customer portal link (payment method, invoices). Razorpay has
 //                no portal: 409 conflict, the app shows Cancel and Change plan instead.
-//   cancel       At the period end: the plan lasts until then. Razorpay: cancel at cycle end.
-//                Paddle: cancel effective next billing period.
+//   (No cancel: students change plan but can't cancel. Support ends plans: admin-end-plan.)
 //   change_plan  To another monthly plan on sale in the student's country.
 //                Paddle: the subscription's price changes. Upgrade: at once, the prorated
 //                difference billed now. Downgrade: from the period end.
@@ -16,7 +15,7 @@
 //                webhook (subscription.authenticated, notes.replaces) applies an upgrade at once
 //                and books a downgrade, and cancels the old subscription at its cycle end.
 //
-// Exam pack (paid once): no cancel. change_plan to the Platinum exam pack upgrades it for the days
+// Exam pack (paid once): change_plan to the Platinum exam pack upgrades it for the days
 // left: a one-time charge of the price difference × the share of the pack left, with the extra
 // credits likewise (packUpgradeQuote). The answer is { checkout }: the app opens it like a purchase,
 // and the webhook (upgrade_of in the metadata) moves the same pack to Platinum and adds the credits.
@@ -32,7 +31,6 @@ import { ensureProviderPrice, MIN_UPGRADE_MINOR, packUpgradeQuote, paddle, PLAN_
 // Same as ManageSubscriptionRequest (packages/shared/src/api/billing.ts).
 const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("portal") }).strict(),
-  z.object({ action: z.literal("cancel") }).strict(),
   z.object({ action: z.literal("change_plan"), price_id: z.string().regex(/^[a-z][a-z0-9_]{2,59}$/) }).strict(),
 ]);
 
@@ -133,28 +131,9 @@ Deno.serve(createHandler({ name: "manage-subscription", auth: "required", input:
   try {
     if (input.action === "portal") {
       if (sub.provider !== "paddle" || !sub.provider_customer_id) {
-        throw errors.conflict("Manage this plan here: change plan or cancel.");
+        throw errors.conflict("Change your plan here.");
       }
       return { url: await paddle().portalUrl(sub.provider_customer_id, [sub.provider_subscription_id]) };
-    }
-
-    if (input.action === "cancel") {
-      if (pack) throw errors.conflict("An exam pack is paid up front, so there's nothing to cancel. It ends on its own.");
-      if (!sub.cancel_at_period_end) {
-        // A plan change booked by replacement: the new subscription must not start either.
-        if (sub.replaced_by_provider_id) {
-          try {
-            await razorpay().cancelNow(sub.replaced_by_provider_id);
-          } catch (err) {
-            if (!(err instanceof ProviderError && err.status === 400)) throw err; // 400: already cancelled
-          }
-        }
-        if (sub.provider === "razorpay") await razorpay().cancelAtCycleEnd(sub.provider_subscription_id);
-        else await paddle().cancelAtPeriodEnd(sub.provider_subscription_id);
-        const { error: e } = await db.rpc("billing_mark_cancel", { p_subscription_id: sub.id });
-        if (e) throw e;
-      }
-      return await summary(sub.id);
     }
 
     // change_plan

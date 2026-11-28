@@ -137,8 +137,9 @@ describe("GetPricesResult", () => {
 });
 
 describe("manage-subscription", () => {
-  it("takes portal, cancel or change_plan with a price", () => {
-    expect(ManageSubscriptionRequest.parse({ action: "cancel" })).toEqual({ action: "cancel" });
+  it("takes portal or change_plan with a price, never cancel", () => {
+    expect(ManageSubscriptionRequest.parse({ action: "portal" })).toEqual({ action: "portal" });
+    expect(ManageSubscriptionRequest.safeParse({ action: "cancel" }).success).toBe(false); // students can't cancel
     expect(ManageSubscriptionRequest.safeParse({ action: "change_plan" }).success).toBe(false);
     expect(ManageSubscriptionRequest.safeParse({ action: "refund" }).success).toBe(false);
   });

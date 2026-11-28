@@ -38,7 +38,7 @@ export default async function ListeningTestPage({ params }: PageProps<"/app/list
   if (error || !parsed.success) notFound();
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-6 pb-16">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-16">
       <div className="flex flex-col gap-1">
         <Link href={routes.listening} className="self-start text-sm text-muted-foreground underline-offset-4 hover:underline">
           ← Listening tests

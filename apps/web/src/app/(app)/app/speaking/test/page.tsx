@@ -56,7 +56,7 @@ export default async function SpeakingTestPage({ searchParams }: PageProps<"/app
   );
   if (!pick) {
     return (
-      <div className="flex w-full max-w-3xl flex-col gap-6 pb-16">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-16">
         {back}
         <h1 className="text-h1">Speaking full test</h1>
         <p className="text-muted-foreground" data-testid="test-unavailable">
@@ -73,7 +73,7 @@ export default async function SpeakingTestPage({ searchParams }: PageProps<"/app
   const titled = (tid: string, fallback: string) => ({ id: tid, title: byId.get(tid)?.title ?? fallback });
   const card = byId.get(pick.card);
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-6 pb-16">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-16">
       {back}
       <h1 className="text-h1">Speaking full test</h1>
       <FullTestFlow

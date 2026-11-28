@@ -46,7 +46,8 @@ const SCORING_STEPS = ["Reading your answer", "Checking the four criteria", "Fin
 
 /**
  * M6-F1..F3: the Writing editor. The task and its chart; type the answer (live word count, the
- * exam timer: 20 min for Task 1, 40 for Task 2, starting with the first word) or upload a photo of
+ * exam timer: 20 min for Task 1, 40 for Task 2, starting with the first word, or with "Start timer"
+ * when writing on paper; "Reset timer" sets it back) or upload a photo of
  * handwriting (M6-F2); everything autosaves on this device. "Get my band score" confirms the
  * credits, shows progress while score-writing runs, then opens the feedback. The timer never sends
  * the answer by itself: scoring costs credits, so only the student starts it.
@@ -108,6 +109,20 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
     persist({ ...draft, text, startedAt });
   }
 
+  /** Writing on paper: start the clock without typing. */
+  function startTimer() {
+    if (!draft) return;
+    const at = Date.now();
+    setNow(at);
+    persist({ ...draft, startedAt: at }, true);
+  }
+
+  /** Back to the full time; only the timer, the answer stays. Typing starts it again. */
+  function resetTimer() {
+    if (!draft) return;
+    persist({ ...draft, startedAt: null }, true);
+  }
+
   function onRead(result: OcrWritingResponse) {
     if (!draft) return;
     persist({ ...draft, text: result.text, mode: "photo", photoPaths: result.pages.map((p) => p.path), startedAt: draft.startedAt ?? Date.now() }, true);
@@ -159,7 +174,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
   const under = words < minWords;
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-6 pb-32">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-32">
       <BackLink />
       <div className="flex flex-col gap-3">
         <div>
@@ -168,7 +183,12 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         <h1 className="text-h1">{task.title}</h1>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" aria-label="The task">
+      {/* Wide screens: the task and the answer side by side; the task stays in view while writing. */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <section
+        className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto"
+        aria-label="The task"
+      >
         <p className="whitespace-pre-line leading-relaxed" data-testid="task-prompt">
           {task.prompt}
         </p>
@@ -184,6 +204,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         </p>
       </section>
 
+      <div className="flex min-w-0 flex-col gap-4">
       {scoring !== null ? (
         <ScoringProgress started={scoring} />
       ) : (
@@ -220,7 +241,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="sentences"
-                className="min-h-[50vh] text-base"
+                className="min-h-[50vh] text-base lg:min-h-[calc(100vh-17rem)]"
                 data-testid="answer"
               />
             </div>
@@ -233,10 +254,12 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
           {error}
         </p>
       )}
+      </div>
+      </div>
 
       {/* The bar stays on screen: words, timer, saved, and the score button. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-foreground/10 bg-background/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-4 text-sm">
             <span data-testid="word-count" className={cn("tabular-nums", under ? "text-muted-foreground" : "font-medium")}>
               {words} {words === 1 ? "word" : "words"}
@@ -254,6 +277,16 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
               <Clock className="size-4" aria-hidden />
               {writingClock(left)}
             </span>
+            {scoring === null &&
+              (started === null ? (
+                <Button variant="outline" size="sm" onClick={startTimer} disabled={!draft} data-testid="start-timer">
+                  Start timer
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={resetTimer} data-testid="reset-timer">
+                  Reset timer
+                </Button>
+              ))}
             {savedAt && (
               <span className="hidden items-center gap-1 text-muted-foreground sm:flex" data-testid="saved">
                 <Check className="size-4" aria-hidden /> Saved
@@ -274,7 +307,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
           />
         </div>
         {left < 0 && scoring === null && (
-          <p className="mx-auto w-full max-w-4xl px-4 pb-3 text-sm text-destructive" role="status">
+          <p className="mx-auto w-full max-w-7xl px-4 pb-3 text-sm text-destructive" role="status">
             Time&apos;s up: in the exam you&apos;d stop here. You can still finish and get your score.
           </p>
         )}

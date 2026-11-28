@@ -45,7 +45,7 @@ export function PlanPicker({
   return (
     <div className="flex flex-col gap-5">
       {(monthly.length > 0 || packs.length > 0) && (
-        <div role="radiogroup" aria-label="How to pay" className="inline-flex self-center rounded-full border border-border bg-card p-1 text-sm">
+        <div role="radiogroup" aria-label="How to pay" className="mx-auto inline-flex w-fit rounded-full border border-border bg-card p-1 text-sm">
           {(
             [
               ["month", "Monthly"],

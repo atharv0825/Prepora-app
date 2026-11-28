@@ -106,6 +106,7 @@ test("M5-I1: a published test in practice mode, from the first part to the resul
   const html = await page.content();
   for (const secret of [TRANSCRIPT, "Opposite the entrance", '"accept"', '"answer"', '"transcript"']) expect(html).not.toContain(secret);
 
+  await page.getByTestId("mode-practice").click();
   await page.getByRole("button", { name: "Start in practice mode" }).click();
   await expect(player(page)).toHaveAttribute("data-mode", "practice");
   await player(page).getByRole("button", { name: "Play", exact: true }).click();

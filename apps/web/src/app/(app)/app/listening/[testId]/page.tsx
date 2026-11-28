@@ -38,12 +38,12 @@ export default async function ListeningTestPage({ params }: PageProps<"/app/list
   if (error || !parsed.success) notFound();
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-16">
+    <div className="fit-screen mx-auto flex w-full max-w-4xl flex-col gap-4 pb-16">
       <div className="flex flex-col gap-1">
         <Link href={routes.listening} className="self-start text-sm text-muted-foreground underline-offset-4 hover:underline">
           ← Listening tests
         </Link>
-        <h1 className="text-h1">{parsed.data.test.title}</h1>
+        <h1 className="text-h2">{parsed.data.test.title}</h1>
         <p className="text-muted-foreground">Listening · 4 parts · {parsed.data.questions.length} questions</p>
       </div>
       <LiveListeningTest payload={parsed.data} />

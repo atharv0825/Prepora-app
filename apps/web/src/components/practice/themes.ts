@@ -28,7 +28,7 @@ type Theme = {
 
 export const THEMES: Record<PracticeModule, Theme> = {
   reading: { from: "#2f6fdb", to: "#2459bd", text: "light", rgb: "47 111 219", tint: "#eaf1fd", tintRing: "#bcd2f6", pickTint: "#dbe7fb", accent: "#2459bd" },
-  listening: { from: "#f2a93f", to: "#e08a00", text: "dark", rgb: "224 138 0", tint: "#fdf2e1", tintRing: "#f3d29b", pickTint: "#fbe4bf", accent: "#e08a00" },
+  listening: { from: "#fdd690", to: "#f7b955", text: "dark", rgb: "247 185 85", tint: "#fef6e8", tintRing: "#f9dcab", pickTint: "#fdebcc", accent: "#f7b955" },
   writing: { from: "#f78fbb", to: "#f472a8", text: "dark", rgb: "244 114 168", tint: "#fde9f2", tintRing: "#f8c1d9", pickTint: "#fbd6e6", accent: "#f472a8" },
   speaking: { from: "#62d7a5", to: "#3fc48c", text: "dark", rgb: "15 164 103", tint: "#eafaf0", tintRing: "#a7e6c9", pickTint: "#d3f3e2", accent: "#3fc48c" },
 };

@@ -176,7 +176,7 @@ test("M4-F2 layout: desktop fills the screen; mobile scrolls with a pinned switc
   await signIn(context, baseURL!);
   await page.goto(`/app/reading/${ACADEMIC}`);
   // The start screen names the test.
-  await expect(page.getByTestId("reading-intro").getByRole("heading", { level: 1 })).toHaveText("Sample Academic Test");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sample Academic Test");
   await page.getByRole("button", { name: "Start the test" }).click();
   // `next dev` floats its "N" badge over the bottom-left corner (not in production builds).
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });

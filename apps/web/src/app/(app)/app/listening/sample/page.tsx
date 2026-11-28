@@ -19,9 +19,9 @@ export default async function SampleListeningPage({ searchParams }: PageProps<"/
   const { sec } = await searchParams;
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-16">
+    <div className="fit-screen mx-auto flex w-full max-w-4xl flex-col gap-4 pb-16">
       <div className="flex flex-col gap-2">
-        <h1 className="text-h1">Sample Listening test</h1>
+        <h1 className="text-h2">Sample Listening test</h1>
         <p className="text-muted-foreground">
           Four parts, 40 questions. Tones play in place of recordings until real tests are published. Not available in
           production.

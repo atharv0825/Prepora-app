@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GraduationCap, Mic, Repeat } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@prepora/ui/components/button";
 import { SPEAKING_PARTS } from "@prepora/shared/ielts/speaking";
 import { CostConfirm } from "@/components/credits/cost-confirm";
@@ -11,6 +10,7 @@ import { speakingResponsePath } from "@/lib/routes";
 import { practiceMode } from "@/lib/speaking/examiner";
 import { createClient } from "@/lib/supabase/client";
 import { ExaminerPart, type SpeakingMode } from "./examiner-part";
+import { ModeOption } from "@/components/practice/mode-option";
 import { MicCheck } from "./mic-check";
 
 /**
@@ -41,13 +41,29 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
 
   if (step === "intro") {
     return (
-      <section className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-6" data-testid="examiner-intro">
-        <h2 className="text-h3">How it works</h2>
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
-          <li>The examiner asks 4–5 questions, out loud and on screen{part === 3 ? ", following up on what you say" : ""}.</li>
-          <li>Tap Done when you&apos;ve answered each one.</li>
-          <li>At the end you get a band for each criterion, your transcript and feedback.</li>
-        </ul>
+      <section className="fit-screen-intro flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6" data-testid="examiner-intro">
+        {/* How it works, with the start button on the right. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-h3">How it works</h2>
+          <CostConfirm
+            actionKey={SPEAKING_PARTS[part].actionKey}
+            description={`Part ${part} with the AI examiner, scored at the end. Nothing is charged if it can't be scored.`}
+            confirmLabel="Start"
+            onConfirm={() => setStep("mic")}
+            trigger={
+              <Button size="lg">
+                <Mic /> Start Part {part} · {mode === "exam" ? "Exam" : "Practice"}
+              </Button>
+            }
+          />
+        </div>
+        <div className="flex flex-col gap-3">
+          <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted-foreground">
+            <li>The examiner asks 4–5 questions, out loud and on screen{part === 3 ? ", following up on what you say" : ""}.</li>
+            <li>Tap Done when you&apos;ve answered each one.</li>
+            <li>At the end you get a band for each criterion, your transcript and feedback.</li>
+          </ul>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Mode" data-testid="speaking-mode">
           <ModeOption
             selected={mode === "exam"}
@@ -66,17 +82,6 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
             testId="mode-practice"
           />
         </div>
-        <CostConfirm
-          actionKey={SPEAKING_PARTS[part].actionKey}
-          description={`Part ${part} with the AI examiner, scored at the end. Nothing is charged if it can't be scored.`}
-          confirmLabel="Start"
-          onConfirm={() => setStep("mic")}
-          trigger={
-            <Button className="self-start">
-              <Mic /> Start Part {part} · {mode === "exam" ? "Exam" : "Practice"}
-            </Button>
-          }
-        />
       </section>
     );
   }
@@ -99,26 +104,4 @@ export function ExaminerPractice({ part, topic, userId }: { part: 1 | 3; topic: 
     );
   }
   return <ExaminerPart sessionId={sessionId} part={part} topic={topic} userId={userId} stream={stream} mode={mode} onScored={(r) => router.push(speakingResponsePath(r.response_id))} />;
-}
-
-function ModeOption({ selected, onSelect, icon, title, body, testId }: { selected: boolean; onSelect: () => void; icon: React.ReactNode; title: string; body: string; testId: string }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      data-testid={testId}
-      className={cn(
-        "flex flex-col gap-1.5 rounded-2xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        selected ? "border-primary bg-primary/10" : "border-foreground/15 hover:border-primary",
-      )}
-    >
-      <span className="flex items-center gap-2 font-semibold">
-        {icon}
-        {title}
-      </span>
-      <span className="text-sm text-muted-foreground">{body}</span>
-    </button>
-  );
 }

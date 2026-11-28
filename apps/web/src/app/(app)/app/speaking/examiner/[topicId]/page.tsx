@@ -26,12 +26,12 @@ export default async function SpeakingExaminerPage({ params }: PageProps<"/app/s
     ? await supabase.from("speaking_topics").select("title").eq("id", topic.parent_topic_id).maybeSingle()
     : { data: null };
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 pb-16">
+    <div className="fit-screen mx-auto flex w-full max-w-4xl flex-col gap-4 pb-16">
       <Link href={routes.speaking} className="flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline">
         <ArrowLeft className="size-4" aria-hidden /> All Speaking
       </Link>
       <div className="flex flex-col gap-1">
-        <h1 className="text-h1">Speaking Part {part}</h1>
+        <h1 className="text-h2">Speaking Part {part}</h1>
         <p className="text-muted-foreground">
           {topic.title}
           {card ? <> · a discussion following the cue card &ldquo;{card.title}&rdquo;</> : null}

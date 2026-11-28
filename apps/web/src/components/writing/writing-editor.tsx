@@ -183,17 +183,18 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         <h1 className="text-h1">{task.title}</h1>
       </div>
 
-      {/* Wide screens: the task and the answer side by side; the task stays in view while writing. */}
+      {/* Wide screens: the task and the answer side by side, each with its own scroll, both sized to fit
+          between the header and the bottom bar; the task stays in view while writing. */}
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <section
-        className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6 lg:sticky lg:top-20 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto"
+        className="flex flex-col gap-4 rounded-3xl border border-foreground/5 bg-card p-5 sm:p-6 lg:sticky lg:top-20 lg:h-[calc(100vh-11rem)] lg:overflow-y-auto lg:overscroll-contain"
         aria-label="The task"
       >
         <p className="whitespace-pre-line leading-relaxed" data-testid="task-prompt">
           {task.prompt}
         </p>
         {task.image_url && (
-          <figure className="overflow-hidden rounded-2xl border border-foreground/10 bg-white">
+          <figure className="shrink-0 overflow-hidden rounded-2xl border border-foreground/10 bg-white">
             {/* Plain <img>: CDN images, sized by the container; optimisation is off app-wide. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={task.image_url} alt={task.image_alt || "The chart, graph, table or diagram for this task"} className="block h-auto w-full" />
@@ -204,7 +205,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
         </p>
       </section>
 
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-20 lg:h-[calc(100vh-11rem)] lg:overflow-y-auto lg:overscroll-contain">
       {scoring !== null ? (
         <ScoringProgress started={scoring} />
       ) : (
@@ -220,7 +221,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
               <PhoneQr path={writingTaskPath(task.id, { photo: true })} />
             </div>
           ) : (
-            <div className="flex flex-col gap-3" role="tabpanel" aria-label="Type your answer">
+            <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1" role="tabpanel" aria-label="Type your answer">
               {restored && <p className="text-sm text-muted-foreground">Your draft from this device is back.</p>}
               {ocrNote && (
                 <div className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-sm sm:flex-row sm:items-center sm:justify-between" role="status">
@@ -241,7 +242,7 @@ export function WritingEditor({ task, userId, openPhoto }: { task: EditorTask; u
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="sentences"
-                className="min-h-[50vh] text-base lg:min-h-[calc(100vh-17rem)]"
+                className="min-h-[50vh] text-base lg:min-h-40 lg:flex-1 lg:resize-none lg:overscroll-contain lg:field-sizing-fixed"
                 data-testid="answer"
               />
             </div>

@@ -72,11 +72,11 @@ export function freshStyle(m: PracticeModule, variant = 0): CSSProperties {
 }
 
 /**
- * Every practice card's shape and hover: a 24px radius, and on hover a slight 3D tilt (4° on X,
+ * Every practice card's shape and hover: a 16px radius, and on hover a slight 3D tilt (4° on X,
  * −6° on Y, light perspective) and a 4px lift over 400ms. No tilt with reduced motion.
  */
 export const CARD_3D_CLASS =
-  "flex h-full min-h-32 flex-col justify-between gap-4 rounded-3xl p-5 transition-[transform,box-shadow] duration-400 ease-in-out " +
+  "flex h-full min-h-28 flex-col justify-between gap-3 rounded-2xl p-4 transition-[transform,box-shadow] duration-400 ease-in-out " +
   "hover:[transform:perspective(800px)_rotateX(4deg)_rotateY(-6deg)_translateY(-4px)] motion-reduce:transition-none motion-reduce:hover:[transform:none]";
 
 /** The card's shadow from the variables, swapped for the bigger one on hover (both modes). */

@@ -23,21 +23,21 @@ export function PickCard({ kind, module, note }: { kind: StudyItemKind; module: 
     >
       {/* The same faint icon pattern as the test cards (pattern 0; the first test card uses 1). */}
       <span aria-hidden className="dark:invert" style={patternStyle(0, "soft")} />
-      <span className="flex items-center gap-3.5">
-        <span aria-hidden style={accentStyle(module)} className="grid size-14 shrink-0 place-items-center rounded-full">
-          <Shuffle className="size-6" strokeWidth={1.5} />
+      <span className="flex items-center gap-3">
+        <span aria-hidden style={accentStyle(module)} className="grid size-10 shrink-0 place-items-center rounded-full">
+          <Shuffle className="size-4" strokeWidth={1.75} />
         </span>
-        <span className="flex min-w-0 flex-col gap-1">
-          <span className="text-[1.0625rem] leading-snug font-bold tracking-tight">Pick for me</span>
-          <span className="text-[0.8125rem] text-brand-ink/75 dark:text-muted-foreground">{note}</span>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-[0.9375rem] leading-snug font-semibold">Pick for me</span>
+          <span className="text-xs text-brand-ink/75 dark:text-muted-foreground">{note}</span>
         </span>
       </span>
       <span className="flex items-center justify-between gap-2">
-        <span style={accentStyle(module)} className="rounded-full px-2.5 py-1 text-xs font-semibold">
+        <span style={accentStyle(module)} className="rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold">
           Random · not done yet
         </span>
-        <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full text-white transition-transform duration-400 group-hover:translate-x-0.5 dark:bg-white/15!" style={{ backgroundColor: "#0b1220" }}>
-          <ArrowRight className="size-5" />
+        <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full text-white transition-transform duration-400 group-hover:translate-x-0.5 dark:bg-white/15!" style={{ backgroundColor: "#0b1220" }}>
+          <ArrowRight className="size-4" />
         </span>
       </span>
     </Link>

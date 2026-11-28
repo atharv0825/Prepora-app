@@ -48,7 +48,7 @@ export async function setManualPlan(_prev: ActionState, form: FormData): Promise
     v.plan === "free"
       ? result.plan_after === "free"
         ? `Plan ended. ${now}.`
-        : `Manual plan and exam pack ended. ${now}: a monthly subscription is still running (cancel it at the provider).`
+        : `${now}: a plan they paid for is still running. See Subscriptions below; cancel a monthly one at Razorpay or Paddle.`
       : `${now} for ${v.days} days${result.credits ? `, with ${result.credits} credits` : ""}.`;
   return { ok: true, message, savedAt: Date.now() };
 }

@@ -30,7 +30,7 @@ $$;
 select is(public.get_prices('IN') ->> 'provider', 'razorpay', 'India: Razorpay');
 select is(jsonb_array_length(public.get_prices('IN') -> 'subscriptions'), 2, 'India: Gold and Platinum monthly');
 select is(public.get_prices('in') -> 'subscriptions' -> 0 ->> 'id', 'in_gold_month', 'country code is case-insensitive; Gold first');
-select is(jsonb_array_length(public.get_prices('IN') -> 'topups'), 2, 'India: two top-ups');
+select is(jsonb_array_length(public.get_prices('IN') -> 'topups'), 9, 'India: top-ups from ₹100 to ₹500 in ₹50 steps');
 select is(public.get_prices('NP') -> 'exam_packs' -> 1 ->> 'id', 'sa_platinum_exam_pack', 'Nepal: South Asia packs');
 select is(public.get_prices('NP') ->> 'provider', 'paddle', 'Nepal: Paddle');
 select is((public.get_prices('SG') -> 'subscriptions' -> 0 ->> 'id'), 'sg_gold_month', 'Singapore: its own override');

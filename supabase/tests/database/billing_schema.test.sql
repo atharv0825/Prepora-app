@@ -39,7 +39,8 @@ select is((select array_agg(distinct provider) from public.prices where region =
 select is((select array_agg(distinct provider) from public.prices where region <> 'IN'), array['paddle']::public.payment_provider[], 'everyone else pays through Paddle');
 select is((select amount_minor from public.prices where id = 'in_gold_month'), 29900, 'Gold in India: ₹299');
 select is((select amount_minor from public.prices where id = 'in_platinum_exam_pack'), 169900, 'Platinum exam pack in India: ₹1,699');
-select is((select array_agg(credits order by credits) from public.prices where region = 'IN' and kind = 'topup'), array[50, 150], 'India top-ups: 50 and 150 credits');
+select is((select array_agg(credits order by credits) from public.prices where region = 'IN' and kind = 'topup' and is_active),
+  array[35, 55, 75, 90, 110, 130, 150, 165, 185], 'India top-ups: ₹100–₹500 steps (20261211)');
 select is((select amount_minor || ' ' || currency from public.prices where id = 'sa_gold_month'), '400 USD', 'Gold in South Asia: US$4');
 select is((select amount_minor || ' ' || currency from public.prices where id = 'sg_gold_month'), '800 USD', 'Singapore pays East Asia prices');
 select is((select amount_minor || ' ' || currency from public.prices where id = 'nz_platinum_month'), '2600 NZD', 'Platinum in New Zealand: NZ$26');
